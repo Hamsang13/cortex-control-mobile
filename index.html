@@ -1,0 +1,93 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Quad Desk</title>
+<style>
+:root{color-scheme:light;--ink:#1d2c3a;--paper:#f7f5ee;--line:#b8c0be;--blue:#194ca0}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px system-ui,sans-serif}
+main{max-width:1280px;margin:auto;padding:clamp(14px,3vw,42px)}header,.heading,.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+header{border-bottom:2px solid var(--ink);padding-bottom:15px}header strong{font:700 24px Georgia,serif}button,input{font:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:6px;min-height:44px;padding:8px 14px;color:var(--ink)}
+button:disabled{opacity:.55;cursor:wait}button:focus-visible,input:focus-visible{outline:3px solid #dc7900;outline-offset:2px}
+#status,#hint{color:#445466;font-size:14px}#status{min-height:22px}h1{font:500 clamp(28px,5vw,48px) Georgia,serif;margin:7px 0 20px;overflow-wrap:anywhere}h2{font-size:20px;margin:0}section{margin:18px 0}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:#ecefe9}
+#blocks{display:grid;grid-template-columns:30px repeat(8,minmax(70px,1fr));min-width:650px;gap:4px;padding:10px}
+.axis{color:#53616c;text-align:center;align-self:center;font:12px monospace}
+.slot{height:62px;background:#e0e5de;border-radius:5px;display:grid;place-content:center;color:#99a59a}
+.block{font-size:13px;font-weight:600;padding:3px;border:1px solid #93a7b8;background:#f8fbff;overflow-wrap:anywhere}
+.block[aria-pressed=true]{background:var(--blue);color:#fff;border-color:var(--blue)}
+.panel{padding:20px;border:1px solid var(--line);border-top:4px solid var(--blue);border-radius:6px;background:white}
+#knobs{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px}
+.knob{padding:14px;background:#f3f5f7;border-radius:6px;display:grid;gap:10px}
+.knob strong{font-size:13px;letter-spacing:.06em}.knob input{width:100%;accent-color:var(--blue);height:32px}
+.knob output{font:600 19px monospace}.position{font:14px monospace;color:#516271}
+</style>
+<main><header><strong>Quad Desk</strong><button id="refresh">본체 다시 읽기</button></header>
+<p id="status" role="status"></p><section><h1 id="title">현재 프리셋</h1>
+<div class="scroll" aria-label="블록 위치"><div id="blocks"></div></div></section>
+<section class="panel"><div class="panel-head"><h2 id="selected">블록 편집</h2><span class="position" id="position"></span></div>
+<p id="hint"></p><div id="knobs"></div></section></main>
+<script>
+const el=id=>document.getElementById(id);
+let state=null, selected=null, busy=false;
+function element(tag,text){const node=document.createElement(tag);node.textContent=text;return node}
+async function request(action,data={}){
+    if(busy)return;
+    busy=true;el('status').textContent='USB 통신 중…';render();
+    try{
+        const response=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json','X-QC-Key':location.hash.slice(1)},body:JSON.stringify(data)});
+        if(response.status===403)throw Error('설치 시 표시된 #키 포함 주소로 접속하세요.');
+        const result=await response.json();
+        if(!response.ok)throw Error(result.error);
+        state=result;
+        let status='본체에서 읽었습니다.';
+        if(action==='edit'){
+            const block=result.blocks.find(b=>b.row===data.row&&b.col===data.col&&b.model===data.model);
+            const actual=block?.knobs[data.param];
+            status=(typeof actual==='number' && Math.abs(actual-data.value)<0.005)
+                ? '변경값을 본체에서 확인했습니다. 영구 저장은 본체에서 하세요.'
+                : '명령 전송 후 값이 일치하지 않습니다. 본체 다시 읽기로 확인하세요.';
+        }
+        el('status').textContent=status;
+    }catch(error){state=null;el('status').textContent=error.message}
+    finally{busy=false;render()}
+}
+function render(){
+    el('refresh').disabled=busy;
+    el('title').textContent=state?.name||'현재 프리셋';
+    el('blocks').replaceChildren();el('knobs').replaceChildren();
+    const blocks=state?.blocks||[];
+    const id=b=>[b.row,b.col,b.model].join('-');
+    const active=blocks.find(b=>id(b)===selected)||blocks.find(b=>Object.keys(b.knobs).length)||blocks[0];
+    selected=active?id(active):null;
+    const board=el('blocks');
+    const axis=text=>{const cell=element('span',text);cell.className='axis';board.append(cell)};
+    axis('');
+    for(let col=1;col<=8;col++)axis(String(col));
+    for(let row=0;row<4;row++){
+        axis('R'+(row+1));
+        for(let col=0;col<8;col++){
+            const b=blocks.find(item=>item.row===row&&item.col===col);
+            if(!b){const slot=element('span','·');slot.className='slot';slot.ariaHidden='true';board.append(slot);continue}
+            const button=element('button',b.name);
+            button.className='block';button.disabled=busy;
+            button.setAttribute('aria-pressed',String(id(b)===selected));
+            button.setAttribute('aria-label',b.name+' '+(row+1)+'행 '+(col+1)+'열');
+            button.onclick=()=>{selected=id(b);render();board.querySelector('[aria-pressed=true]')?.focus({preventScroll:true})};
+            board.append(button);
+        }
+    }
+    el('position').textContent=active?'R'+(active.row+1)+' / '+(active.col+1):'';
+    el('selected').textContent=active?.name||'블록 편집';
+    el('hint').textContent=active?'씬 공통 노브 · 조절 범위 0–100%':'블록을 선택하세요.';
+    if(!active)return;
+    if(!Object.keys(active.knobs).length)el('hint').textContent='이 블록에는 이 버전에서 편집할 수 있는 공통 노브가 없습니다.';
+    for(const [param,previous] of Object.entries(active.knobs)){
+        const label=element('label',''), slider=document.createElement('input'),output=element('output','');
+        slider.type='range';slider.min=0;slider.max=100;slider.step=0.1;slider.value=previous*100;slider.disabled=busy;
+        label.className='knob';slider.setAttribute('aria-label',param);
+        const display=()=>{output.textContent=Number(slider.value).toFixed(1)+'%'};
+        display();slider.oninput=display;
+        slider.onchange=()=>request('edit',{preset:state.name,row:active.row,col:active.col,model:active.model,param,previous,value:Number(slider.value)/100});
+        label.append(element('strong',param),output,slider);el('knobs').append(label);
+    }
+}
+el('refresh').onclick=()=>request('live');request('live');
+</script></html>
