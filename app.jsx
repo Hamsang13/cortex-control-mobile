@@ -1,3 +1,4 @@
+import CabinetPanel from "./CabinetPanel";
 import {meterReading, MeterTrack} from "./SignalTrack";
 import DeviceToolbar from "./DeviceToolbar";
 import {GridRouting, Port, portLabel} from "./GridRouting";
@@ -112,7 +113,7 @@ async function api(action, body = {}) {
   }
   return data;
 }
-function GridCpuTotals({cpu,blocks}) {
+function GridCpuTotals({cpu,blocks,pair}) {
   const costs=[0,0];
   let known=Number.isFinite(cpu?.total) && Array.isArray(cpu?.columns);
   for(const block of blocks){
@@ -122,10 +123,11 @@ function GridCpuTotals({cpu,blocks}) {
   }
   const sum=costs[0]+costs[1];
   return costs.map((cost,index)=>{
+    if (pair != null && index !== pair/2) return null;
     // Each row pair has half the total capacity. Allocate the overall load by block cost.
     const percent=known && sum>0 ? Math.min(100,2*cpu.total*cost/sum) :
       known && cpu.total===0 ? 0 : null;
-    return <span key={index} className="cpu-pair" style={{bottom:index===0?"50%":"0%"}}
+    return <span key={index} className="cpu-pair" style={{bottom:pair==null && index===0?"50%":"0%"}}
       title="블록별 DSP 비용에 따른 행 그룹 추정 사용률">
       {index===0?"1–2":"3–4"} CPU {percent==null?"—":Math.round(percent)+"%"}
     </span>;
@@ -242,7 +244,7 @@ function Knob({ p, scene, commit, assign, busy, disabled, readOnly }) {
   const real = p.normalized
     ? value * 100
     : p.min + (p.max - p.min) * Math.pow(value, p.exponent ?? 1);
-  const formatted = p.pan ? (Math.abs(value-.5)<.005?"C":(value<.5?"L ":"R ")+Math.round(Math.abs(value-.5)*200)) : p.level && value < .01 ? "Off" :
+  const formatted = p.offAt===value ? "OFF" : p.pan ? (Math.abs(value-.5)<.005?"C":(value<.5?"L ":"R ")+Math.round(Math.abs(value-.5)*200)) : p.level && value < .01 ? "Off" :
     p.options[Math.round(value * (p.options.length - 1))] ??
     (p.steps > 1
       ? String(Math.round(value * (p.steps - 1)) + 1)
@@ -998,6 +1000,8 @@ function App() {
     if (plugin) setProduct(plugin);
   }
   const route = picked?.part && s ? picked : null;
+  const editorRow = (active || route)?.row;
+  const pair = !drag && editorRow != null && (!gig || paramsOpen) ? editorRow & ~1 : null;
   const editingBranch = route?.part === "start" || route?.part === "end";
   useEffect(()=>{
     if (!editingBranch) return;
@@ -1405,11 +1409,11 @@ function App() {
           {
             <>
               <div className="scroll">
-                <div className="board">
-                  {s && <GridRouting key={s.identity+"-"+s.rev+"-"+s.scene} state={s} disabled={busy || paused}
+                <div className="board" data-pair={pair ?? undefined}>
+                  {s && <GridRouting key={s.identity+"-"+s.rev+"-"+s.scene} state={s} pair={pair} disabled={busy || paused}
                     selection={route} open={openRoute}
                     commit={points=>remember("split",points)} />}
-                  {s?.lanes.map((lane, row) => (
+                  {s?.lanes.map((lane, row) => (pair == null || (row & ~1) === pair) && (
                     <React.Fragment key={row}>
                       <Port signalChannels={signalChannels} side="input" selected={route?.row===row && route.part==="input"} row={row} value={lane.input} name={lib.inputs[lane.input]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
                         branched={s.splits.some(v=>row===v.row+1 && v.start>=0)}
@@ -1490,14 +1494,18 @@ function App() {
                         open={()=>openRoute(row,"output")} />
                     </React.Fragment>
                   ))}
-                  {overlay && s && <GridCpuTotals cpu={cpu} blocks={s.blocks}/>}
+                  {overlay && s && <GridCpuTotals cpu={cpu} blocks={s.blocks} pair={pair}/>}
                 </div>
               </div>
               {route && (!gig || paramsOpen) && <RoutePanel key={route.row+route.part} route={route} state={s}
                 open={openRoute} busy={busy} paused={paused} commit={writeKnob}
                 setPoints={points=>remember("split",points)}
                 assign={p=>remember("route-assign",{...route,index:p.index,rev:s.rev,scene:s.scene})}/>}
-              {active && (!gig || paramsOpen) && (
+              {active && (!gig || paramsOpen) && (active.params.some(p=>p.index===1 && p.textOptions) && active.params.some(p=>p.index===9 && p.textOptions) ?
+                <CabinetPanel key={[s.identity,active.row,active.col,active.model,s.scene].join("-")} block={active} scene={s.scene}
+                  busy={busy} readOnly={paused} commit={writeKnob} Parameter={BlockParameter}
+                  assign={p=>blockAction("assign",{index:p.index,rev:s.rev,scene:s.scene})}
+                  bypass={()=>blockAction("bypass")}/> : (
                 <section
                   className="panel"
                   style={{ "--c": style(active.category)[2] }}
@@ -1553,7 +1561,7 @@ function App() {
                     ))}
                   </div>
                 </section>
-              )}
+              ))}
               {gig && (
                 <section className="gig-panel" aria-label="Gig view">
                   <div className="gig-side">

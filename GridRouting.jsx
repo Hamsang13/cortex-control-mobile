@@ -35,10 +35,11 @@ export function Port({side, row, value, name, branched, indicator, open, signalC
   </button>;
 }
 
-export function GridRouting({state,disabled,commit,open,selection}) {
+export function GridRouting({state,disabled,commit,open,selection,pair}) {
   const [drag,setDrag] = useState(null);
   const pointer = useRef(null);
   const wire = useRef(null);
+  const first = pair ?? 0, count = pair == null ? 4 : 2;
   useEffect(()=>{
     const board=wire.current.closest(".board");
     let hold=null, suppress=false;
@@ -48,8 +49,8 @@ export function GridRouting({state,disabled,commit,open,selection}) {
       if(!e.isPrimary || e.button!==0 || e.target.closest(".port,.tile,.del,.route-node"))return;
       const path=e.target.closest("[data-wire-row]");
       const box=board.getBoundingClientRect();
-      const t=(e.clientY-box.top)/box.height*4;
-      if(!path && Math.abs(t-Math.floor(t)-.5)*box.height/4>12)return;
+      const t=(e.clientY-box.top)/box.height*count+first;
+      if(!path && Math.abs(t-Math.floor(t)-.5)*box.height/count>12)return;
       const lane=Number(path?.dataset.wireRow ?? Math.floor(t));
       if(!path && !wire.current.querySelector('[data-wire-row="'+lane+'"]'))return;
       const row=lane & ~1, part=path?.dataset.part || "start";
@@ -71,7 +72,7 @@ export function GridRouting({state,disabled,commit,open,selection}) {
       board.removeEventListener("pointermove",move,true);board.removeEventListener("pointerleave",cancel);
       window.removeEventListener("pointerup",cancel,true);window.removeEventListener("pointercancel",cancel,true);
       board.removeEventListener("click",click,true);board.removeEventListener("contextmenu",context)};
-  },[open]);
+  },[open,first,count]);
   function points(row) {
     return (drag?.row===row ? drag : state.splits.find(s=>s.row===row)) ||
       {row,start:-1,end:-1};
@@ -82,7 +83,7 @@ export function GridRouting({state,disabled,commit,open,selection}) {
     if (!g.moved && Math.hypot(e.clientX-g.x,e.clientY-g.y)<5) return;
     g.moved=true;
     const bounds=e.currentTarget.closest(".board").getBoundingClientRect();
-    const y=(e.clientY-bounds.top)/bounds.height*4;
+    const y=(e.clientY-bounds.top)/bounds.height*count+first;
     const x=(e.clientX-bounds.left)/bounds.width*1000;
     const gap=Math.round((x-70)/107.5);
     const split=g.part==="start";
@@ -106,8 +107,9 @@ export function GridRouting({state,disabled,commit,open,selection}) {
     else if(g.candidate && g.candidate[g.part]!==g.original[g.part]){open(g.row,g.part);commit(g.candidate);}
   }
   return <>
-    <svg ref={wire} className="wires" viewBox="0 0 1000 400" preserveAspectRatio="none" >
+    <svg ref={wire} className="wires" viewBox={`0 ${first*100} 1000 ${count*100}`} preserveAspectRatio="none" >
       {state.lanes.map((lane,row)=>{
+        if (row<first || row>=first+count) return null;
         const y=row*100+50, lower=row%2===1;
         const p=points(lower?row-1:row);
         const left=lower && p.start>=0 ? gapX(0) : 35;
@@ -129,7 +131,7 @@ export function GridRouting({state,disabled,commit,open,selection}) {
       const p=points(row);
       return ["start","end"].map((part,i)=>{
         const parked=p[part]<0, x=parked?(i?944:56):gapX(p[part]+i);
-        const y=(row+(parked?1:0)+.5)*25;
+        const y=(row-first+(parked?1:0)+.5)*100/count;
         return <button key={row+part} className={"route-node "+part+(parked?" parked":"")}
           style={{left:x/10+"%",top:y+"%"}} aria-label={`${i?"Mixer":"Splitter"} ${row+1}/${row+2}`}
           onKeyDown={e=>{if(e.key==="Escape"){pointer.current=null;setDrag(null)}}}
