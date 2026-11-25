@@ -4,21 +4,24 @@ cd "$(dirname "$0")"
 if [[ $(id -u) == 0 ]]; then echo 'Run as your normal Pi user.'; exit 1; fi
 sudo -v
 sudo apt-get update
-sudo apt-get install -y python3-venv libhidapi-hidraw0 libportaudio2 network-manager dnsmasq-base
+sudo apt-get install -y python3-venv libhidapi-hidraw0 libportaudio2 network-manager dnsmasq-base usbutils
 app="$HOME/.local/share/qc-desk"
 mkdir -p "$app"
 install -m644 server.py editor.py demo.py io_settings.py plugin_sync.py plugin-names.json utilities.py pitch.py index.html app.js "$app/"
 if [[ -d .device-library ]]; then
     mkdir -p "$app/.device-library"
-    install -m600 .device-library/*.json "$app/.device-library/"
+    for cached in .device-library/*.json; do
+        [[ -f "$cached" && ! -e "$app/$cached" ]] || continue
+        install -m600 "$cached" "$app/.device-library/"
+    done
 fi
 python3 -m venv "$app/venv"
 "$app/venv/bin/pip" install 'pyquadcortex==0.40.0' sounddevice numpy
-"$app/venv/bin/python" -c 'import hid,pyquadcortex'
+"$app/venv/bin/python" -c 'import hid, pyquadcortex, numpy, sounddevice'
 if [[ ! -f "$app/key" ]]; then (umask 077; python3 -c 'import secrets;print(secrets.token_urlsafe(18))' > "$app/key"); fi
 key=$(cat "$app/key")
 sudo usermod -aG plugdev "$(id -un)"
-echo 'SUBSYSTEM=="hidraw", ATTRS{product}=="*Quad Cortex*", GROUP="plugdev", MODE="0660"' | sudo tee /etc/udev/rules.d/75-qc-desk.rules >/dev/null
+echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="152a", ATTRS{idProduct}=="880a", GROUP="plugdev", MODE="0660"' | sudo tee /etc/udev/rules.d/75-qc-desk.rules >/dev/null
 sudo udevadm control --reload-rules
 sudo udevadm trigger --subsystem-match=hidraw --action=add
 sudo tee /etc/systemd/system/qc-desk.service >/dev/null <<EOF
