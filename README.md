@@ -4,7 +4,16 @@
 
 ## 배포 파일 받기
 
-[다운로드 안내](downloads/)에서 새 SD 카드용 이미지와 기존 Pi용 업데이트 ZIP을 구분할 수 있습니다. v1.0.0은 공개 전입니다. 개발 소스와 패키지 생성 도구는 [dev/](dev/)에 있습니다.
+**v1.0.0 공개 준비 중**
+
+| 하려는 일 | 공개될 파일 |
+| --- | --- |
+| [새 SD 카드 설치](#install-sd) | `cortex-remote-v1.0.0-pi-zero2w-arm64.img.xz` |
+| [기존 Pi 업데이트](#update-pi) | `cortex-remote-v1.0.0-update.zip` |
+
+출시 후 이 표에서 설치 파일을 바로 받을 수 있습니다. 두 파일과 검증용 `SHA256SUMS`는 [GitHub Releases](https://github.com/Hamsang13/cortex-control-mobile/releases)에 함께 게시됩니다.
+
+<a id="install-sd"></a>
 
 ## 처음 설치 · microSD 이미지
 
@@ -18,6 +27,8 @@
 6. 개인 핫스팟 이름, 비밀번호, 웹 접속 키가 제안됩니다. 그대로 사용하거나 직접 변경한 뒤 **저장하기 전에 세 값을 보관**하세요. 저장하면 설치용 Wi-Fi가 닫히고 개인 핫스팟이 올라옵니다. iPad에서 새 Wi-Fi에 연결한 뒤 설정 완료 화면의 **Cortex Remote 열기**를 누르고 즐겨찾기에 추가합니다. 직접 입력할 주소는 `http://10.42.0.1:8765/#접속키`입니다.
 
 이미지에는 OS, 앱과 ARM64 USB 의존성이 들어 있습니다. 첫 부팅은 인터넷·SSH·터미널 없이 진행되며, 이후에는 개인 Wi-Fi와 앱이 자동으로 시작됩니다. 설치용 비밀번호는 공개값이고 개인 Wi-Fi 비밀번호와 접속 키는 각 카드의 최초 등록 때 결정됩니다. 이미지의 SSH 로그인은 꺼져 있습니다.
+
+<a id="update-pi"></a>
 
 ## 설치 후 · Wi-Fi로 업데이트
 
@@ -35,12 +46,12 @@ Pi 자체의 Wi-Fi 이름·비밀번호·접속 URL·키를 변경할 때는 같
 ```sh
 cd ~/cortex-control-mobile
 git pull --ff-only origin main
-bash dev/install-pi.sh
+bash source/install-pi.sh
 ```
 
 ## 배포자 · 패키지 재생성
 
-[배포 빌드와 검증 절차](dev/release/README.md)에 고정된 OS 원본, 서명 키 관리, ZIP 생성, 이미지 빌드, 가상 부팅 시험과 GitHub Releases 첨부 파일 목록이 있습니다.
+개발 소스는 [source/](source/)에 있습니다. [배포 빌드와 검증 절차](source/release/README.md)에 고정된 OS 원본, 서명 키 관리, ZIP 생성, 이미지 빌드, 가상 부팅 시험과 GitHub Releases 첨부 파일 목록이 있습니다.
 
 ## 사용 라이브러리
 
