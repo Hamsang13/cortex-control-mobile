@@ -4,24 +4,24 @@
 
 ## 1. 소스와 서명된 ZIP
 
-깨끗한 릴리스 소스에서 Node.js/npm, Python 3.11 이상, Python `cryptography`와 OpenSSL을 준비합니다.
+저장소 루트에서 Node.js/npm, Python 3.11 이상, Python `cryptography`와 OpenSSL을 준비합니다.
 
 ```sh
-npm ci
-npm run build
-mkdir -p dist
-python3 release/package.py /secure/cortex-update-ed25519.pem dist/cortex-remote-v1.0.0-update.zip
+npm --prefix dev ci
+npm --prefix dev run build
+mkdir -p downloads/v1.0.0
+python3 dev/release/package.py /secure/cortex-update-ed25519.pem downloads/v1.0.0/cortex-remote-v1.0.0-update.zip
 ```
 
-공식 ZIP에는 `release/update-public.pem`에 대응하는 **오프라인 Ed25519 개인 키**가 필요합니다. 개인 키는 저장소·SD·ZIP·GitHub 릴리스에 넣지 마세요. 최초로 독립 배포판을 만들 때만 별도 키 쌍을 생성하고 **자신의 이미지에 들어갈** 공개 키를 바꿉니다. 공개 키가 다른 이미지는 해당 ZIP을 거부합니다.
+공식 ZIP에는 `dev/release/update-public.pem`에 대응하는 **오프라인 Ed25519 개인 키**가 필요합니다. 개인 키는 저장소·SD·ZIP·GitHub 릴리스에 넣지 마세요. 최초로 독립 배포판을 만들 때만 별도 키 쌍을 생성하고 **자신의 이미지에 들어갈** 공개 키를 바꿉니다. 공개 키가 다른 이미지는 해당 ZIP을 거부합니다.
 
 ```sh
 umask 077
 openssl genpkey -algorithm ED25519 -out /secure/cortex-update-ed25519.pem
-openssl pkey -in /secure/cortex-update-ed25519.pem -pubout -out release/update-public.pem
+openssl pkey -in /secure/cortex-update-ed25519.pem -pubout -out dev/release/update-public.pem
 ```
 
-패키지 버전은 `release/package.py`에서 정의합니다. 사전 배포본은 v1.0.0을 유지합니다. 같은 버전의 여러 빌드는 서명된 manifest의 SHA-256으로 구분합니다. ZIP은 지정된 앱 파일만 포함합니다. OS, 파이썬 가상환경, 고정 실행기 또는 서명 키를 바꾸는 릴리스는 새 이미지나 설치 프로그램을 제공합니다.
+패키지 버전은 `dev/release/package.py`에서 정의합니다. 사전 배포본은 v1.0.0을 유지합니다. 같은 버전의 여러 빌드는 서명된 manifest의 SHA-256으로 구분합니다. ZIP은 지정된 앱 파일만 포함합니다. OS, 파이썬 가상환경, 고정 실행기 또는 서명 키를 바꾸는 릴리스는 새 이미지나 설치 프로그램을 제공합니다.
 
 ## 2. 이미지와 가상 부팅 시험
 
@@ -29,7 +29,7 @@ Linux 또는 Docker Desktop의 Linux 컨테이너 엔진을 사용합니다. x86
 
 ```sh
 docker run --rm --privileged -e TEST_BOOT=1 \
-  -v "$PWD:/src:ro" -v "$PWD/dist:/out" debian:trixie-slim \
+  -v "$PWD/dev:/src:ro" -v "$PWD/downloads/v1.0.0:/out" debian:trixie-slim \
   bash /src/release/build-image.sh /out
 ```
 
@@ -43,4 +43,4 @@ docker run --rm --privileged -e TEST_BOOT=1 \
 | `cortex-remote-v1.0.0-update.zip` | 기존 설치의 설정 화면에서 적용할 서명된 오프라인 앱 업데이트 |
 | `SHA256SUMS` | 내려받은 두 파일의 SHA-256 |
 
-이미지 기본 무선 국가 코드는 KR이며 해외 사용자는 최초 부팅 전에 bootfs의 `cortex-country.txt`를 해당 국가 코드로 변경합니다. 처음 설치하는 사용자의 단계별 안내와 구버전의 1회 이전 절차는 [프로젝트 README](../README.md)에 있습니다. 패키지 빌드는 GitHub 게시·태그 생성·실기 설치를 수행하지 않습니다.
+이미지 기본 무선 국가 코드는 KR이며 해외 사용자는 최초 부팅 전에 bootfs의 `cortex-country.txt`를 해당 국가 코드로 변경합니다. 처음 설치하는 사용자의 단계별 안내와 구버전의 1회 이전 절차는 [프로젝트 README](../../README.md)에 있습니다. 패키지 빌드는 GitHub 게시·태그 생성·실기 설치를 수행하지 않습니다.

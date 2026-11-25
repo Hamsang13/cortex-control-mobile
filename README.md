@@ -4,7 +4,7 @@
 
 ## 배포 파일 받기
 
-v1.0.0 설치 이미지와 업데이트 ZIP은 공개 전입니다. 공개 후에는 [GitHub Releases](https://github.com/Hamsang13/cortex-control-mobile/releases)의 **Assets**에서 처음 설치할 때는 .img.xz, 이미 설치한 Pi를 업데이트할 때는 -update.zip을 받으세요. **Source code (zip)**은 개발용 소스입니다.
+[다운로드 안내](downloads/)에서 새 SD 카드용 이미지와 기존 Pi용 업데이트 ZIP을 구분할 수 있습니다. v1.0.0은 공개 전입니다. 개발 소스와 패키지 생성 도구는 [dev/](dev/)에 있습니다.
 
 ## 처음 설치 · microSD 이미지
 
@@ -35,20 +35,20 @@ Pi 자체의 Wi-Fi 이름·비밀번호·접속 URL·키를 변경할 때는 같
 ```sh
 cd ~/cortex-control-mobile
 git pull --ff-only origin main
-bash install-pi.sh
+bash dev/install-pi.sh
 ```
 
 ## 배포자 · 패키지 재생성
 
-[배포 빌드와 검증 절차](release/README.md)에 고정된 OS 원본, 서명 키 관리, ZIP 생성, 이미지 빌드, 가상 부팅 시험과 GitHub Releases 첨부 파일 목록이 있습니다.
+[배포 빌드와 검증 절차](dev/release/README.md)에 고정된 OS 원본, 서명 키 관리, ZIP 생성, 이미지 빌드, 가상 부팅 시험과 GitHub Releases 첨부 파일 목록이 있습니다.
 
 ## 사용 라이브러리
 
 | 패키지 | 버전 | 역할 |
 | --- | --- | --- |
 | [pyquadcortex](https://github.com/stokes-audio/pyquadcortex) | 0.40.0 | Quad Cortex와 USB로 통신해 프리셋·씬·블록을 편집하고 본체 튜너가 측정한 음정(Hz)을 수신합니다. |
-| hid | 1.0.9 | Pi 이미지에서 시스템 HIDAPI 라이브러리인 libhidapi-hidraw0를 통해 USB HID 장치에 접근합니다. |
-| protobuf | 7.36.2 | Pi 이미지에서 Quad Cortex와 주고받는 메시지를 인코딩하고 디코딩합니다. |
+| hid | 1.0.9 | pyquadcortex가 USB 연결 시 hid.Device()를 호출합니다. Pi에서 로드하는 네이티브 라이브러리는 libhidapi-hidraw.so.0입니다. |
+| protobuf | 7.36.2 | USB 통신 메시지를 직렬화·역직렬화합니다. 리모트의 I/O 설정 화면도 MessageToDict()로 본체 응답을 변환합니다. |
 | [react, react-dom](https://github.com/facebook/react) | 각각 19.3.1 | 그리드, 파라미터 편집기, Gig View를 브라우저에 렌더링합니다. |
 
 튜너 음정과 레벨 미터는 Quad Cortex가 측정한 값을 USB HID로 받아 표시합니다. 상단에는 아날로그 IN 1·2와 OUT 1~4를 각각 표시합니다. 그리드 포트 아래에서는 해당 라우팅의 레벨을 표시합니다. 여러 채널을 사용하는 포트는 가장 높은 레벨을 표시합니다.

@@ -6,3 +6,5 @@ qc-test/
 node_modules/
 .device-library/
 dist/
+
+/downloads/v*/
