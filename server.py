@@ -98,7 +98,10 @@ def device_request(action, data):
                 target = cache_dir / (action + ".json")
                 if not target.exists():
                     raise ValueError("저장된 목록이 없습니다. USB 연결 후 읽어 주세요.")
-                return json.loads(target.read_text(encoding="utf8"))
+                entries = json.loads(target.read_text(encoding="utf8"))
+                if action == "library":
+                    entries.pop("access", None)
+                return entries
             if action == "live":
                 target = cache_dir / "preview.json"
                 return {
@@ -138,10 +141,6 @@ def device_request(action, data):
             store_library(action, result)
         if action in ("io-settings", "io-set") and not DEMO:
             store_library("io-settings", result)
-        if action == "library" and not DEMO:
-            access = cache_dir / "plugin-access.json"
-            if access.exists():
-                result["access"] = json.loads(access.read_text(encoding="utf8"))
         if action == "capture-layout":
             cached = cache_dir / "capture-layout.json"
             if cached.exists():
@@ -183,6 +182,8 @@ def operate(action, data):
             for entry in ("preview", "library", "presets"):
                 try:
                     cached[entry] = json.loads((cache_dir / (entry + ".json")).read_text(encoding="utf8"))
+                    if entry == "library":
+                        cached[entry].pop("access", None)
                 except (OSError, ValueError):
                     pass
         return cached

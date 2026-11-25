@@ -1077,7 +1077,7 @@ function App() {
     });
   }
   function placeModel(model, target) {
-    if (target?.col == null) return;
+    if (target?.col == null || model.plugin) return;
     const {row,col} = target;
     return remember("place", {row,col,...placement(model)}, () => {
       P({row,col});
@@ -1192,19 +1192,6 @@ function App() {
   const plugins = [
     ...new Set(lib.models.map((m) => m.plugin).filter(Boolean)),
   ].sort((a, b) => (pluginNames[a] || a).localeCompare(pluginNames[b] || b));
-  const pluginSections = lib.access
-    ? [
-        {
-          title: "OWNED PLUGINS",
-          ids: plugins.filter((id) => lib.access.owned.includes(id)),
-        },
-        {
-          title: "ALL PLUGINS",
-          ids: plugins.filter((id) => !lib.access.owned.includes(id)),
-          locked: true,
-        },
-      ]
-    : [{ title: "ALL PLUGINS", ids: plugins }];
   const items = React.useMemo(() => {
     let entries =
       category === "Neural Capture"
@@ -1231,6 +1218,8 @@ function App() {
   const modelRow = (m) => (
     <button
       key={m.capture || m.model}
+      disabled={Boolean(m.plugin)}
+      title={m.plugin ? "보유 상태 미확인" : undefined}
       className={
         "entry model " +
         (active?.model === m.model &&
@@ -1353,10 +1342,9 @@ function App() {
                 <>
                   <button onClick={() => C("")}>‹　{family(category)}</button>
                   {category === "Plugins" ? (
-                    pluginSections.map(({ title, ids, locked }) => (
-                      <details className="plugin-section" key={title} open>
-                        <summary title={lib.access?.source}>{title}</summary>
-                        {ids.map((id) => (
+                    <details className="plugin-section" open>
+                      <summary>ALL PLUGINS</summary>
+                        {plugins.map((id) => (
                           <section className="plugin-group" key={id}>
                             <button
                               className="entry product"
@@ -1366,11 +1354,6 @@ function App() {
                                 setFilter("");
                               }}
                             >
-                              {locked && (
-                                <span aria-label="마지막 확인 시 미보유">
-                                  🔒
-                                </span>
-                              )}
                               <span aria-hidden="true">
                                 {product === id ? "▾" : "▸"}
                               </span>
@@ -1381,8 +1364,7 @@ function App() {
                             )}
                           </section>
                         ))}
-                      </details>
-                    ))
+                    </details>
                   ) : category === "Neural Capture" ? (
                     <CaptureBrowser
                       captures={captures}
