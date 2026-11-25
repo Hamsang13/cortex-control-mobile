@@ -1855,7 +1855,7 @@ function App() {
               if(!rows.length && (search || !visibleSlots.length))return null;
               return <section key={group??"all"} data-bank={group}>
                 {group!==null && <small>BANK {group+1}</small>}
-                {rows.map((x,i)=><button key={JSON.stringify([x.folder,x.slot,x.name,i])} disabled={paused||busy||folders.some(f=>f.key===x.folder&&!f.local)} onClick={()=>recall(x)}>{group!==null && <span>{slotName(x.slot)}　</span>}{x.name}<small>{x.author}</small></button>)}
+                {rows.map((x,i)=><button key={JSON.stringify([x.folder,x.slot,x.name,i])} disabled={paused||busy||folders.some(f=>f.key===x.folder&&!f.local)} onClick={()=>recall(x)}>{group!==null && <span className="preset-slot">{slotName(x.slot)}</span>}<span className="preset-name" title={x.name}>{x.name}</span>{x.author && <small title={x.author}>{x.author}</small>}</button>)}
               </section>;
             })}</div></div></section>
         </DirectoryFrame>
