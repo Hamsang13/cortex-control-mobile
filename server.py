@@ -95,7 +95,7 @@ def device_request(action, data):
             if action in ("cpu", "tuner", "global-tempo", "io-settings"):
                 path = cache_dir / (action + ".json")
                 return json.loads(path.read_text(encoding="utf8")) if path.exists() else {}
-            if action in ("library", "captures", "presets", "capture-layout"):
+            if action in ("library", "captures", "presets", "capture-layout", "preset-directory"):
                 target = cache_dir / (action + ".json")
                 if not target.exists():
                     raise ValueError("저장된 목록이 없습니다. USB 연결 후 읽어 주세요.")
@@ -158,7 +158,7 @@ def device_request(action, data):
                         )
                         if previous:
                             f["members"] = previous["members"]
-        if action in ("library", "captures", "presets", "capture-layout") and not DEMO:
+        if action in ("library", "captures", "presets", "capture-layout", "preset-directory") and not DEMO:
             store_library(action, result)
         return result
     except (KeyError, IndexError, TypeError) as exc:

@@ -1012,29 +1012,20 @@ function App() {
       setLoadingPresets(false);
     };
   }, [Boolean(liveState)]);
+  const [folders,setFolders]=useState([]),[folderName,setFolderName]=useState("My Presets");
+  const directoryEpoch=useRef(0);
+  const directoryNames=[...new Set(["Downloads","Cloud Presets","Factory Presets","My Presets",...folders.map(f=>f.name)])];
+  const visibleSlots=folders.some(f=>f.name===folderName)
+    ? folders.filter(f=>f.name===folderName).flatMap(f=>f.entries)
+    : folderName==="My Presets"?directorySlots:[];
   async function directory(mode) {
-    if (!latest.current && mode !== "presets") return;
-    F("");
-    const warm = directorySlots.length > 0;
-    if (warm) K(Math.floor((directorySlots.find(x=>x.name===s?.name)?.slot ?? 0)/8));
-    M({ kind: mode, loading: true });
+    const epoch=++directoryEpoch.current;
+    setFolders([]);setFolderName("My Presets");K(0);F("");M({kind:"presets",loading:true});
     try {
-      const entries =
-        paused ? await api("presets") : await readPresets();
-      Q(entries);
-      setCachedSlots(entries);
-      if (!warm) K(
-        Math.floor(
-          (entries.find((x) => x.name === s?.name)?.slot ??
-            entries[0]?.slot ??
-            0) / 8,
-        ),
-      );
-      M((open) => (open?.kind === mode ? { ...open, loading: false } : open));
-    } catch (e) {
-      T(e.message);
-      M(null);
-    }
+      const data=await api("preset-directory");
+      if(epoch===directoryEpoch.current)setFolders(data);
+    } catch(e){if(epoch===directoryEpoch.current)T(e.message);}
+    finally{if(epoch===directoryEpoch.current)M(open=>open?.kind==="presets"?{...open,loading:false}:open);}
   }
   function recall(entry) {
     if (!s || !entry) return;
@@ -1364,11 +1355,11 @@ function App() {
           </span>
         </div>
         <nav>
-          <button className={!gig ? "current" : ""} onClick={() => H(false)}>
+          <button className={!gig && !modal ? "current" : ""} onClick={() => {M(null);H(false)}}>
             GRID
           </button>
-          <button onClick={() => directory("presets")}>DIRECTORY</button>
-          <button className={gig ? "current" : ""} onClick={() => H(!gig)}>
+          <button className={modal?"current":""} onClick={() => directory("presets")}>DIRECTORY</button>
+          <button className={gig && !modal ? "current" : ""} onClick={() => {M(null);H(!gig)}}>
             GIG VIEW
           </button>
         </nav>
@@ -1724,63 +1715,13 @@ function App() {
       )}
       {ioOpen && <IOSettings api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
       {modal && (
-        <Modal
-          title="My Presets"
-          close={close}
-        >
+        <section className="preset-directory-view" aria-label="Directory">
+          <aside><small>PRESETS</small>{directoryNames.map(name=><button key={name} aria-pressed={folderName===name} onClick={()=>{setFolderName(name);K(0);F("")}}>{name}</button>)}</aside>
+          <section><div className="directory-tools"><input aria-label="프리셋 검색" placeholder="Search" value={search} onChange={e=>F(e.target.value)}/><button onClick={close} aria-label="Directory 닫기">×</button></div>
           {modal.loading && <p role="status">프리셋 목록을 읽는 중…</p>}
-          {(!modal.loading || directorySlots.length > 0) && modal.kind === "presets" && (
-            <>
-              <input
-                aria-label="프리셋 검색"
-                placeholder="Search"
-                value={search}
-                onChange={(e) => F(e.target.value)}
-              />
-              <div className="picker">
-                <div className="banks">
-                  {Array.from({ length: 32 }, (_, i) => (
-                    <button
-                      key={i}
-                      className={i === bank ? "on" : ""}
-                      onClick={() => {
-                        K(i);
-                        F("");
-                      }}
-                    >
-                      {i + 1}
-                    </button>
-                  ))}
-                </div>
-                <div className="directory">
-                  {(search
-                    ? directorySlots.filter((x) =>
-                        x.name.toLowerCase().includes(search.toLowerCase()),
-                      )
-                    : Array.from(
-                        { length: 8 },
-                        (_, j) =>
-                          directorySlots.find((x) => x.slot === bank * 8 + j) || {
-                            slot: bank * 8 + j,
-                            name: "",
-                          },
-                      )
-                  ).map((x) => (
-                    <button
-                      key={x.slot}
-                      className={x.name === s?.name ? "on" : ""}
-                      disabled={busy || modal.loading || !x.name || paused}
-                      onClick={() => recall(x)}
-                    >
-                      <span className="slotno">{slotName(x.slot)}</span>
-                      {x.name || "Unsaved"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </Modal>
+          <div className="picker"><div className="banks">{Array.from({length:32},(_,i)=><button key={i} className={bank===i?"on":""} onClick={()=>{K(i);F("")}}>{i+1}</button>)}</div>
+          <div className="directory">{visibleSlots.filter(x=>search?x.name.toLowerCase().includes(search.toLowerCase()):Math.floor(x.slot/8)===bank).map(x=><button key={(x.folder||"")+x.slot} disabled={paused||busy||modal.loading||folders.some(f=>f.key===x.folder&&!f.local)} onClick={()=>recall(x)}><span>{slotName(x.slot)}</span>　{x.name}<small>{x.author}</small></button>)}</div></div></section>
+        </section>
       )}
     </div>
   );

@@ -184,6 +184,8 @@ class Demo:
                 inputs={1: "INPUT_1", 2: "INPUT_2"},
                 outputs={19: "MULTIPLE", 1: "XLR_1_2"},
             )
+        if a == "preset-directory":
+            return [dict(key="demo", name="My Presets", local=True, entries=[dict(slot=i,name=v["name"]) for i,v in self.saved.items()])]
         if a == "presets":
             return [dict(slot=i, name=v["name"]) for i, v in self.saved.items()]
         if a == "scene":

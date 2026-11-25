@@ -424,6 +424,25 @@ class Editor:
             return self.captures()
         if action == "library":
             return self.library()
+        if action == "preset-directory":
+            from pyquadcortex.client import pa
+            messages = q._t.collect(pa.FileMessage, lambda: q._t.send(pa.FileMessage(action=pa.MessageAction.READ)), 12,
+                                    match=lambda m: m.type == 0 and bool(m.folder.key))
+            folders = {}
+            for message in messages:
+                f = message.folder
+                key = f.key.rstrip("/")
+                factory = key == str(api.Setlist.FACTORY).rstrip("/")
+                if f.is_plugin or not (factory or key.startswith("/media/p4/Presets/") or f.is_downloads or f.is_cloud):
+                    continue
+                group = "Factory Presets" if factory else "Downloads" if f.is_downloads else "Cloud Presets" if f.is_cloud else f.name
+                entries = [dict(slot=x.index,name=x.name,author=x.author,folder=key) for x in f.files if x.name]
+                if key not in folders or len(entries)>len(folders[key]["entries"]):
+                    folders[key] = dict(key=key,name=group,entries=entries,local=factory or key.startswith("/media/p4/Presets/"))
+            if not any(f["name"]=="My Presets" for f in folders.values()):
+                raise ValueError("본체 세트리스트 응답이 지연되었습니다. 다시 열어 주세요.")
+            self.directory_folders = folders
+            return list(folders.values())
         if action == "presets":
             self.slots = {x.index: x.name for x in q.list_presets()}
             return [dict(slot=i, name=n) for i, n in self.slots.items()]
@@ -461,11 +480,18 @@ class Editor:
                 sleep(.035)
         elif action == "recall":
             slot = integer(d, "slot", 0, 255)
-            if slot not in self.slots or self.slots[slot] != d.get("name"):
+            folder = d.get("folder", api.Setlist.USER)
+            slots = self.slots
+            if "folder" in d:
+                listing = getattr(self,"directory_folders",{}).get(folder)
+                if not listing or not listing["local"]:
+                    raise ValueError("본체 세트리스트를 다시 열어 주세요.")
+                slots = {x["slot"]:x["name"] for x in listing["entries"]}
+            if slot not in slots or slots[slot] != d.get("name"):
                 raise ValueError("Preset slot changed")
             if state["dirty"] and not d.get("discard"):
                 raise ValueError("Unsaved changes")
-            q.recall_preset(api.Setlist.USER, slot)
+            q.recall_preset(api.Setlist.FACTORY if folder==str(api.Setlist.FACTORY).rstrip("/") else folder, slot)
         elif action == "save":
             # The device records the containing folder in its current Recents entry.
             recent = next(iter(q.recents().items), None)
