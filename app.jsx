@@ -2,7 +2,7 @@ import DeviceSettings from "./DeviceSettings";
 import IOSettings from "./IOSettings";
 import BlockMenu from "./BlockMenu";
 import CabinetPanel from "./CabinetPanel";
-import {meterReading, MeterTrack, outputReadings} from "./SignalTrack";
+import {hidReading, meterReading, MeterTrack, outputReadings, physicalInputs, physicalOutputs} from "./SignalTrack";
 import DeviceToolbar from "./DeviceToolbar";
 import {GridRouting, Port, portLabel, displayedInput} from "./GridRouting";
 import ChoiceParameter, {SceneMark} from "./ChoiceParameter";
@@ -136,12 +136,18 @@ function GridCpuTotals({cpu,blocks,pair}) {
     </span>;
   });
 }
+const headerMeters = [
+  physicalInputs.map((channel, index) => [channel, "IN " + (index + 1)]),
+  ...[0, 2].map(start => physicalOutputs.slice(start, start + 2)
+    .map((channel, index) => [channel, "OUT " + (start + index + 1)])),
+];
+
 function SignalMeters({ active, publish }) {
-  const [channels, setChannels] = useState([]);
+  const [io, setIO] = useState({});
   useEffect(() => {
     let current = true, timer;
     function update(values) {
-      setChannels(values.channels ?? []);
+      setIO(values.io ?? {});
       publish(values);
     }
     async function refresh() {
@@ -163,17 +169,16 @@ function SignalMeters({ active, publish }) {
     };
   }, [active, publish]);
 
-  return <div className="signal-meters" aria-label="Quad Cortex USB signal levels">
-    {[["IN", meterReading(channels[0], channels[1]), "USB 1/2 DI"],
-      ["OUT", meterReading(channels[2], channels[3]), "USB 3/4 Wet"]].map(([label, reading, source]) => (
-      <div className="signal-line" key={label} title={source}>
-        <span>{label}</span>
-        <MeterTrack reading={reading} />
-        <span className={reading?.clip ? "signal-clip" : ""}>
-          {reading?.clip ? "CLIP" : reading && reading.db > -60 ? reading.db.toFixed(1) + " dBFS" : "-"}
-        </span>
-      </div>
-    ))}
+  return <div className="signal-meters" aria-label="Quad Cortex physical signal levels">
+    {headerMeters.map(group => <div className="signal-group" key={group[0][0]}>
+      {group.map(([channel, label]) => {
+        const reading = hidReading(io, channel);
+        return <div className="signal-line" key={channel} title={reading?.clip ? label + " CLIP" : label}>
+          <span className={reading?.clip ? "signal-clip" : undefined}>{label}</span>
+          <MeterTrack reading={reading} />
+        </div>;
+      })}
+    </div>)}
   </div>;
 }
 const instrumentTags = {
@@ -810,7 +815,6 @@ function App() {
     };
   },[libraryOpen]);
   const [meterFrame, setMeterFrame] = useState({});
-  const signalChannels = meterFrame.channels ?? [];
   const [settingsOpen,setSettingsOpen]=useState(false);
   const [ioOpen,setIOOpen]=useState(false);
   const [liveState, S] = useState(null),
@@ -1700,7 +1704,7 @@ function App() {
                     commit={points=>remember("split",points)} />}
                   {s?.lanes.map((lane, row) => (pair == null || (row & ~1) === pair) && (
                     <React.Fragment key={row}>
-                      <Port reduction={meterFrame.gates?.[row]} signalChannels={signalChannels} side="input" selected={route?.row===row && route.part==="input"} row={row} value={displayedInput(s.lanes,row)} name={lib.inputs[displayedInput(s.lanes,row)]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
+                      <Port reduction={meterFrame.gates?.[row]} meterFrame={meterFrame} side="input" selected={route?.row===row && route.part==="input"} row={row} value={displayedInput(s.lanes,row)} name={lib.inputs[displayedInput(s.lanes,row)]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
                         branched={s.splits.some(v=>row===v.row+1 && v.start>=0)}
                         open={()=>openRoute(row,"input")} />
                       {Array.from({ length: 8 }, (_, col) => {
@@ -1774,7 +1778,7 @@ function App() {
                           </div>
                         );
                       })}
-                      <Port signalChannels={signalChannels} side="output" selected={route?.row===row && route.part==="output"} row={row} value={lane.output} name={lib.outputs[lane.output]} indicator={lane.output!==0 && (lane.mute?.[s.scene] ?? lane.mute?.[0])}
+                      <Port meterFrame={meterFrame} side="output" selected={route?.row===row && route.part==="output"} row={row} value={lane.output} name={lib.outputs[lane.output]} indicator={lane.output!==0 && (lane.mute?.[s.scene] ?? lane.mute?.[0])}
                         branched={s.splits.some(v=>row===v.row+1 && v.end>=0)}
                         open={()=>openRoute(row,"output")} />
                     </React.Fragment>
@@ -1993,9 +1997,9 @@ function RoutePanel({meterFrame,route,state,open,busy,paused,commit,assign,setPo
       scene={state.scene} readOnly={paused} busy={busy} disabled={paused||inactive(p)}
       commit={value=>commit(p,value)} assign={()=>assign(p)}/></React.Fragment>)}
       {outputLevels.length>0 && <div className="param route-output-meter">
-        <small>{state.lanes[row].output===19?"MULTI OUT · USB 3/4":"OUTPUT LEVEL"}</small>
+        <small>{state.lanes[row].output===19?"MULTI OUT LEVEL":"OUTPUT LEVEL"}</small>
         <div>{outputLevels.map((reading,i)=><MeterTrack key={i} reading={reading}/>)}</div>
-        <output>{meterReading(...outputLevels)?.db > -60 ? meterReading(...outputLevels).db.toFixed(1)+" dBFS" : "—"}</output>
+        <output>{meterReading(...outputLevels)?.db > -40 ? meterReading(...outputLevels).db.toFixed(1)+" dB" : "—"}</output>
       </div>}</div>
   </section>;
 }

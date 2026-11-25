@@ -119,11 +119,7 @@ export default function IOSettings({meterFrame,api,readOnly,close}){
     disabled={locked||off} write={n=>write(key,n)}/>;
   const toggle=(key,label,over={})=><Toggle key={label} label={label} on={!!v[key]} disabled={locked||v[key]==null}
     write={n=>write(key,+n)} {...over}/>;
-  const meter={...meterFrame.io};
-  (meterFrame.channels??[]).forEach((reading,i)=>{
-    const key="usb_output_"+(1+Math.floor(i/2))+(i%2?"r":"l");
-    if(meter[key]==null && reading)meter[key]=clamp(1+reading.db/40);
-  });
+  const meter = meterFrame.io ?? {};
   const linked12=v.xlr1_2_linked,linked34=v.out3_4_linked;
   const selected=groups.flat().find(p=>p[0]===port);
   const num=Number(port.split(".")[1]);

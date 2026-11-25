@@ -4,7 +4,7 @@ cd "$(dirname "$0")"
 if [[ $(id -u) == 0 ]]; then echo 'Run as your normal Pi user.'; exit 1; fi
 sudo -v
 sudo apt-get update
-sudo apt-get install -y python3-venv libhidapi-hidraw0 libportaudio2 network-manager dnsmasq-base usbutils
+sudo apt-get install -y python3-venv libhidapi-hidraw0 network-manager dnsmasq-base usbutils
 app="$HOME/.local/share/qc-desk"
 mkdir -p "$app"
 install -m644 server.py editor.py demo.py device_settings.py pi_settings.py io_settings.py plugin_sync.py plugin-names.json utilities.py pitch.py index.html app.js "$app/"
@@ -16,8 +16,8 @@ if [[ -d .device-library ]]; then
     done
 fi
 python3 -m venv "$app/venv"
-"$app/venv/bin/pip" install 'pyquadcortex==0.40.0' sounddevice numpy
-"$app/venv/bin/python" -c 'import hid, pyquadcortex, numpy, sounddevice'
+"$app/venv/bin/pip" install 'pyquadcortex==0.40.0'
+"$app/venv/bin/python" -c 'import hid, pyquadcortex'
 sudo usermod -aG plugdev "$(id -un)"
 echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="152a", ATTRS{idProduct}=="880a", GROUP="plugdev", MODE="0660"' | sudo tee /etc/udev/rules.d/75-qc-desk.rules >/dev/null
 sudo udevadm control --reload-rules
