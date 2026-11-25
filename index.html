@@ -81,6 +81,47 @@
       .desk-status span::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; background:#888; }
       .desk-status [data-connected=true]::before { background:#4eec69; }
       .shell > header { height:auto; min-height:54px; }
+      .signal-meters {
+        display: grid;
+        gap: 3px;
+        width: clamp(117px, 15vw, 210px);
+        padding: 4px 6px;
+        border: 1px solid #333;
+        border-radius: 6px;
+        background: #141414;
+      }
+      .signal-line {
+        display: grid;
+        grid-template-columns: 2.3em minmax(0, 1fr) 6em;
+        align-items: center;
+        gap: 4px;
+        font: 600 10px/1.2 system-ui, sans-serif;
+        font-variant-numeric: tabular-nums;
+      }
+      .signal-line > :last-child { text-align: right; color: #bbb; white-space: nowrap; }
+      .signal-line .signal-clip { color: #ff6468; }
+      .signal-track {
+        position: relative;
+        display: block;
+        height: 5px;
+        overflow: hidden;
+        border-radius: 4px;
+        background: #303030;
+      }
+      .signal-track::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, #40d771 0 64%, #f4d44f 81%, #ff554c 96%);
+        clip-path: inset(0 calc(100% - var(--signal-fill)) 0 0);
+        transition: clip-path 80ms linear;
+      }
+      .port { position: relative; }
+      .port:has(.port-signal) { padding-bottom: 10px; }
+      .port-signal { position: absolute; bottom: 4px; left: 15%; right: 15%; }
+      .port-signal .signal-track { height: 3px; }
+      .port-signal-muted { height: 3px; border-radius: 4px; background: #ff4656; }
+
       @media (max-width:540px) {
         .shell > header { flex-wrap:wrap; padding:5px 0; }
         .shell > header nav { order:1; width:100%; }

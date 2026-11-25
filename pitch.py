@@ -1,12 +1,18 @@
-"""Measure the Quad Cortex USB recording stream without occupying the HID worker."""
+"""Read Quad Cortex USB audio for the tuner and the signal meters."""
+from contextlib import ExitStack
+import math
+import re
 import threading
 import time
 
 lock = threading.Lock()
 worker = None
-channel = 0
-deadline = 0
-sample = {}
+pitch_channel = 0
+pitch_until = 0
+meter_until = 0
+buffers = {}
+levels = {}
+error = None
 
 
 def frequency(buffer, rate):
@@ -32,51 +38,121 @@ def frequency(buffer, rate):
     return rate / (k + .5 * (a - c) / (a - 2*b + c)) if a + c != 2*b else rate / k
 
 
-def listen(selected):
-    global sample, worker
+
+def endpoints(sd, channels):
+    devices = [(i, d) for i, d in enumerate(sd.query_devices())
+               if "quad cortex" in d["name"].lower() and d["max_input_channels"] > 0]
+    multichannel = next(((i, d) for i, d in devices if d["max_input_channels"] >= 8), None)
+    if multichannel:
+        i, device = multichannel
+        return [(i, device, range(8))]
+    result = []
+    for start in range(0, 8, 2):
+        if not channels.intersection((start, start + 1)):
+            continue
+        pair = rf"\(\s*{start + 1}\s*\+\s*{start + 2}\s*\)"
+        match = next(((i, d) for i, d in devices if d["max_input_channels"] >= 2
+                      and re.search(pair, d["name"])), None)
+        if match:
+            i, device = match
+            result.append((i, device, range(start, start + 2)))
+    return result
+
+
+def capture(channels, rate):
+    import numpy as np
+
+    def callback(frames, count, timing, status):
+        now = time.monotonic()
+        peaks = np.max(np.abs(frames), axis=0)
+        with lock:
+            for channel, peak in zip(channels, peaks):
+                peak = float(peak)
+                db = max(-60, min(0, 20 * math.log10(max(peak, .001))))
+                previous, clipped, updated = levels.get(channel, (-60, 0, now))
+                levels[channel] = (max(db, previous - 75 * (now - updated)),
+                                   now + .8 if peak >= .9999 else clipped, now)
+            if now < pitch_until and pitch_channel in channels:
+                previous, _ = buffers.get(pitch_channel, (np.empty(0), rate))
+                data = frames[:, pitch_channel - channels.start]
+                buffers[pitch_channel] = (np.concatenate((previous, data))[-4096:], rate)
+
+    return callback
+
+
+def listen():
+    global worker, error
     try:
-        import numpy as np
         import sounddevice as sd
 
-        pair = f"({selected // 2 * 2 + 1}+{selected // 2 * 2 + 2})"
-        devices = [(i, d) for i, d in enumerate(sd.query_devices())
-                   if "quad cortex" in d["name"].lower() and d["max_input_channels"] > 0]
-        matches = [(i, selected % 2, d) for i, d in devices if pair in d["name"]]
-        matches += [(i, selected, d) for i, d in devices if d["max_input_channels"] >= 8]
-        if not matches:
-            raise ValueError("Quad Cortex USB 녹음 채널을 열 수 없습니다.")
-        i, ch, device = matches[0]
-        rate = int(device["default_samplerate"])
-        with sd.InputStream(device=i, samplerate=rate, channels=min(8, device["max_input_channels"]), dtype="float32") as stream:
-            buf = np.zeros(4096)
-            while time.monotonic() < deadline and selected == channel:
-                frames, _ = stream.read(1024)
-                buf[:-1024] = buf[1024:]
-                buf[-1024:] = frames[:, ch]
-                hz = frequency(buf, rate)
+        with ExitStack() as streams:
+            opened = set()
+            while True:
+                now = time.monotonic()
                 with lock:
-                    if channel == selected:
-                        sample = {"hz": hz}
+                    channels = set(range(4)) if now < meter_until else set()
+                    if now < pitch_until:
+                        channels.add(pitch_channel)
+                if not channels:
+                    break
+                for i, device, channel_range in endpoints(sd, channels):
+                    if i in opened:
+                        continue
+                    rate = int(device["default_samplerate"])
+                    try:
+                        streams.enter_context(sd.InputStream(
+                            device=i, samplerate=rate, channels=len(channel_range),
+                            dtype="float32", blocksize=1024, callback=capture(channel_range, rate),
+                        ))
+                    except sd.PortAudioError as exc:
+                        with lock:
+                            error = str(exc)
+                        continue
+                    opened.add(i)
+                time.sleep(.1 if channels.issubset(levels) else .4)
     except Exception as exc:
         with lock:
-            sample = {"errorMessage": str(exc)}
+            error = str(exc)
     finally:
         with lock:
+            levels.clear()
+            buffers.clear()
             worker = None
 
 
+def ensure_worker():
+    global worker, error
+    if worker is None:
+        error = None
+        worker = threading.Thread(target=listen, daemon=True)
+        worker.start()
+
+
 def read(selected):
-    global worker, channel, deadline, sample
-    if type(selected) != int or not 0 <= selected < 8:
+    global pitch_channel, pitch_until
+    if type(selected) is not int or not 0 <= selected < 8:
         raise ValueError("Invalid USB audio channel")
     with lock:
-        deadline = time.monotonic() + 1
-        if selected != channel or worker is None:
-            channel = selected
-            previous = sample
-            sample = {}
-            if worker is None:
-                worker = threading.Thread(target=listen, args=(selected,), daemon=True)
-                worker.start()
-            return previous if "errorMessage" in previous else {}
-        return sample
+        if pitch_channel != selected:
+            buffers.clear()
+        pitch_channel = selected
+        pitch_until = time.monotonic() + 1
+        problem = error
+        ensure_worker()
+        reading = buffers.get(selected)
+    if reading and len(reading[0]) == 4096:
+        return {"hz": frequency(*reading)}
+    return {"errorMessage": problem} if problem else {}
+
+
+def read_meters():
+    global meter_until
+    with lock:
+        now = time.monotonic()
+        meter_until = now + .75
+        ensure_worker()
+        return {"channels": [
+            {"db": round(db, 1), "clip": clip > now}
+            if now - updated < .35 else None
+            for db, clip, updated in (levels.get(i, (-60, 0, -math.inf)) for i in range(4))
+        ]}

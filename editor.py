@@ -24,8 +24,18 @@ def read_grid(api, qc, metadata):
     preset = qc.read_current_preset()
     blocks = []
     lanes = []
+    output_model = qc.catalog.get(qc.LANE_OUTPUT_CONTROL)
+    mute_index = output_model.parameter("MUTE").index if output_model else None
     for row, chain in enumerate(preset.chains):
-        lanes.append(dict(input=chain.in_portid, output=chain.out_portid))
+        lane = dict(input=chain.in_portid, output=chain.out_portid)
+        control = next((block for block in chain.output_control
+                        if block.hash == qc.LANE_OUTPUT_CONTROL), None)
+        if control is not None and mute_index is not None and mute_index < len(control.params):
+            param = control.params[mute_index]
+            values = [value.HasField("float_value") and value.float_value >= .5
+                      for value in param.param_values]
+            lane["mute"] = values if param.scene_mode else values[:1]
+        lanes.append(lane)
         for col, block in enumerate(chain.models):
             if not block.hash:
                 continue

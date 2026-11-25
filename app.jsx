@@ -111,6 +111,61 @@ async function api(action, body = {}) {
   if (!response.ok) throw Error(data.error);
   return data;
 }
+function meterReading(...channels) {
+  const readings = channels.filter(Boolean);
+  if (!readings.length) return null;
+  return {
+    db: Math.max(...readings.map((reading) => reading.db)),
+    clip: readings.some((reading) => reading.clip),
+  };
+}
+
+function MeterTrack({ reading }) {
+  const fill = reading ? ((reading.db + 60) / 60) * 100 : 0;
+  return <span className="signal-track" aria-hidden="true"
+    style={{ "--signal-fill": fill + "%" }} />;
+}
+
+function SignalMeters({ active, publish }) {
+  const [channels, setChannels] = useState([]);
+  useEffect(() => {
+    let current = true, timer;
+    function update(values) {
+      setChannels(values);
+      publish(values);
+    }
+    async function refresh() {
+      let values = [];
+      try {
+        if (!document.hidden) values = (await api("meters")).channels ?? [];
+      } catch {
+        // Clear stale readings while USB or the network is unavailable.
+      }
+      if (!current) return;
+      update(values);
+      timer = setTimeout(refresh, document.hidden ? 500 : 100);
+    }
+    if (active) refresh();
+    else update([]);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [active, publish]);
+
+  return <div className="signal-meters" aria-label="Quad Cortex USB signal levels">
+    {[["IN", meterReading(channels[0], channels[1]), "USB 1/2 DI"],
+      ["OUT", meterReading(channels[2], channels[3]), "USB 3/4 Wet"]].map(([label, reading, source]) => (
+      <div className="signal-line" key={label} title={source}>
+        <span>{label}</span>
+        <MeterTrack reading={reading} />
+        <span className={reading?.clip ? "signal-clip" : ""}>
+          {reading?.clip ? "CLIP" : reading ? reading.db.toFixed(1) + " dBFS" : "?"}
+        </span>
+      </div>
+    ))}
+  </div>;
+}
 function Modal({ title, close, children }) {
   return (
     <div className="shade" onClick={close}>
@@ -566,6 +621,7 @@ function CaptureBrowser({ captures, error, retry, render }) {
 }
 
 function App() {
+  const [signalChannels, setSignalChannels] = useState([]);
   const [liveState, S] = useState(null),
     [preview, setPreview] = useState(null),
     [paramsOpen, setParamsOpen] = useState(false),
@@ -1135,6 +1191,7 @@ function App() {
             GIG VIEW
           </button>
         </nav>
+        <SignalMeters active={!!liveState && !paused} publish={setSignalChannels} />
         <button
           disabled={busy}
           onClick={toggleUsb}
@@ -1315,13 +1372,20 @@ function App() {
                       );
                     })}
                   </svg>
-                  {s?.lanes.map((lane, row) => (
-                    <React.Fragment key={row}>
+                  {s?.lanes.map((lane, row) => {
+                    const input = lib.inputs[lane.input] ?? lane.input;
+                    const output = lib.outputs[lane.output] ?? lane.output;
+                    const inputChannel = { INPUT_1: 0, INPUT_2: 1 }[input];
+                    const outputMuted = lane.mute?.[lane.mute.length === 1 ? 0 : s.scene];
+                    return <React.Fragment key={row}>
                       <button
                         className="port"
                         onClick={() => M({ kind: "routing", row })}
                       >
-                        {portLabel(lib.inputs[lane.input] ?? lane.input, true)}
+                        {portLabel(input, true)}
+                        {inputChannel != null && <span className="port-signal" title={`USB ${inputChannel + 1} DI`}>
+                          <MeterTrack reading={signalChannels[inputChannel]} />
+                        </span>}
                       </button>
                       {Array.from({ length: 8 }, (_, col) => {
                         const b = at(row, col),
@@ -1394,10 +1458,18 @@ function App() {
                         className="port"
                         onClick={() => M({ kind: "routing", row })}
                       >
-                        {portLabel(lib.outputs[lane.output] ?? lane.output)}
+                        {portLabel(output)}
+                        {outputMuted ? (
+                          <span className="port-signal port-signal-muted" role="img"
+                            aria-label="Muted" title="MUTE" />
+                        ) : output === "MULTIPLE" && (
+                          <span className="port-signal" title="USB 3/4 Wet">
+                            <MeterTrack reading={meterReading(signalChannels[2], signalChannels[3])} />
+                          </span>
+                        )}
                       </button>
-                    </React.Fragment>
-                  ))}
+                    </React.Fragment>;
+                  })}
                 </div>
               </div>
               {active && (!gig || paramsOpen) && (
