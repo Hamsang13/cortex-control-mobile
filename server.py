@@ -55,7 +55,11 @@ def disconnect():
         meter, tuner_meter = tuner_meter, None
         try:
             if meter is not None:
-                meter.close()
+                from pitch import subscribe_gate_meters
+                try:
+                    subscribe_gate_meters(client, False)
+                finally:
+                    meter.close()
         finally:
             client.close()
 
@@ -104,8 +108,9 @@ def device_request(action, data):
         if editor is None:
             connection = api.connect()
             editor = Editor(api, connection)
-            from pitch import TunerMeter
+            from pitch import TunerMeter, subscribe_gate_meters
             tuner_meter = TunerMeter(connection)
+            subscribe_gate_meters(connection, True)
         try:
             result = editor.request(action, data)
         except TimeoutError as exc:
@@ -157,6 +162,12 @@ def operate(action, data):
             return {"beat": msg.metronome_status.current_beat}
         except TimeoutError:
             return {}
+    if action == "gate-meter":
+        client = connection
+        if client is None or DEMO or browse_only:
+            return {"value": None}
+        from pitch import read_gate_meter
+        return read_gate_meter(client, data.get("row"))
     if action == "meters":
         if browse_only or DEMO or connection is None:
             return {}
@@ -186,7 +197,7 @@ def operate(action, data):
 
 class Handler(BaseHTTPRequestHandler):
     def log_request(self, code="-", size="-"):
-        if self.path != "/api/meters" or code != 200:
+        if self.path not in ("/api/meters", "/api/gate-meter") or code != 200:
             super().log_request(code, size)
 
     def send(self, status, content, mime):
@@ -216,7 +227,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("잘못된 요청입니다.")
             started = perf_counter()
             result = operate(self.path.removeprefix("/api/"), data)
-            if self.path != "/api/meters":
+            if self.path not in ("/api/meters", "/api/gate-meter"):
                 print(f"{self.path} {perf_counter() - started:.2f}s", flush=True)
             status = 200
         except Exception as exc:

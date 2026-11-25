@@ -8,6 +8,45 @@ from threading import Lock, Timer
 from time import monotonic
 
 
+def subscribe_gate_meters(client, enabled):
+    from pyquadcortex.client import pa
+
+    transport = client._t
+    if enabled:
+        for row in range(4):
+            transport.send(pa.GridModelMeterMessage(
+                request_id=transport.next_request_id(), row=row, column=-1))
+    else:
+        transport.send(pa.GridModelMeterMessage(action=pa.MessageAction.DELETE,
+            request_id=transport.next_request_id(), row=-1, column=-1))
+
+
+def read_gate_meter(client, row):
+    from pyquadcortex.client import pa
+
+    if type(row) is not int or not 0 <= row < 4:
+        raise ValueError("Invalid input gate row")
+    def reading(message):
+        if not message.HasField("update_type") or message.update_type != pa.GridMessage.METER_UPDATE:
+            return None
+        for chain in message.preset.chains:
+            if chain.row == row:
+                for model in chain.input_control:
+                    for param in model.params:
+                        if param.index == 2 and param.param_values:
+                            value = param.param_values[0]
+                            if value.HasField("float_value") and 0 <= value.float_value <= 1:
+                                return value.float_value
+        return None
+
+    try:
+        msg = client._t.await_broadcast(pa.GridMessage, lambda: None, timeout=.24,
+                                       match=lambda m: reading(m) is not None)
+        return {"value": reading(msg)}
+    except TimeoutError:
+        return {"value": None}
+
+
 class TunerMeter:
     def __init__(self, client):
         from pyquadcortex.client import pa

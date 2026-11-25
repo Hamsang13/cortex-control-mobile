@@ -1632,6 +1632,30 @@ function PortList({route,lane,lib,disabled,back,choose}){
     </details>)}</div>;
 }
 
+function GateMeter({row,online}){
+  const [value,setValue]=useState(null);
+  useEffect(()=>{
+    let valid=true,timer;
+    async function poll(){
+      let next=null;
+      if(!document.hidden){
+        try{next=(await api("gate-meter",{row})).value ?? null}catch{}
+      }
+      if(valid){setValue(next);timer=setTimeout(poll,document.hidden?500:80)}
+    }
+    if(online)poll();else setValue(null);
+    return ()=>{valid=false;clearTimeout(timer)};
+  },[row,online]);
+  return <div className="param gate-meter">
+    <small>GAIN REDUCTION</small>
+    <div role="meter" aria-label="Gain reduction" aria-valuemin={0} aria-valuemax={100}
+      aria-valuenow={value==null?undefined:Math.round(value*100)} className="gate-track">
+      <i style={{width:((value??0)*100)+"%"}}/>
+    </div>
+    {value==null && <output>—</output>}
+  </div>;
+}
+
 function RoutePanel({route,state,open,busy,paused,commit,assign}){
   const {part,row}=route, params=state.lanes[row].controls?.[part] || [];
   const pair=part==="start" || part==="end";
@@ -1648,10 +1672,12 @@ function RoutePanel({route,state,open,busy,paused,commit,assign}){
       <strong className="grow">{part==="input"?"Input gate control":"Lane output control"}　Path {row+1}</strong>}
       {gate && <button disabled={busy||paused} aria-label="Input gate" aria-pressed={current(gate)<.5} onClick={()=>commit(gate,current(gate)<.5?1:0)}>⏻</button>}
     </div>
-    <div className="params">{params.filter(p=>p!==gate).map(p=><BlockParameter key={p.index+"-"+state.scene}
+    <div className="params">{params.filter(p=>p!==gate).map(p=><React.Fragment key={p.index+"-"+state.scene}>
+      {part==="input" && p.name==="INPUT GAIN" && gate && current(gate)<.5 && <GateMeter row={row} online={!paused}/>}
+      <BlockParameter
       p={p} pressButton={part==="output" && ["MUTE","SOLO"].includes(p.name)}
       scene={state.scene} readOnly={paused} busy={busy} disabled={paused||inactive(p)}
-      commit={value=>commit(p,value)} assign={()=>assign(p)}/>)}</div>
+      commit={value=>commit(p,value)} assign={()=>assign(p)}/></React.Fragment>)}</div>
   </section>;
 }
 createRoot(document.getElementById("root")).render(<App />);
