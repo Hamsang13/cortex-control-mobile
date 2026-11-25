@@ -204,6 +204,24 @@ function DirectoryFrame({close,children}) {
       if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)close();
     }}>{children}</dialog>;
 }
+function RefreshPrompt({preset, choose}) {
+  const dialog = useRef(null);
+  useLayoutEffect(() => {
+    const node = dialog.current;
+    node.showModal();
+    return () => node.close();
+  }, []);
+  return <dialog className="refresh-prompt" ref={dialog} aria-labelledby="refresh-title"
+    onCancel={e=>{e.preventDefault();choose("cancel")}}>
+    <h2 id="refresh-title">플러그인 목록 갱신</h2>
+    <p>‘{preset.name}’에 저장하지 않은 변경사항이 있습니다. 갱신 전에 저장할까요?</p>
+    <div className="actions">
+      <button onClick={()=>choose("save")}>저장 후 갱신</button>
+      <button onClick={()=>choose("skip")}>저장하지 않고 갱신</button>
+      <button autoFocus onClick={()=>choose("cancel")}>취소</button>
+    </div>
+  </dialog>;
+}
 function Modal({ title, close, children }) {
   return (
     <div className="shade" onClick={close}>
@@ -775,13 +793,13 @@ function App() {
   useEffect(()=>{
     if(!libraryOpen)return;
     function escape(event){
-      if(event.key==="Escape"){
+      if(event.key==="Escape" && !event.target.closest(".refresh-prompt")){
         setLibraryOpen(false);
         libraryToggle.current?.focus();
       }
     }
     function outside(event){
-      if(!event.target.closest("#block-library, .library-toggle"))setLibraryOpen(false);
+      if(!event.target.closest("#block-library, .library-toggle, .refresh-prompt"))setLibraryOpen(false);
     }
     document.addEventListener("keydown",escape);
     document.addEventListener("click",outside,true);
@@ -843,8 +861,30 @@ function App() {
     S(next);
   }
   const [pluginNotice,setPluginNotice]=useState(""), [syncingPlugins,setSyncingPlugins]=useState(false);
+  const [refreshPrompt,setRefreshPrompt] = useState(null);
+  const pluginRefreshPending = useRef(false);
   const libraryRequest = useRef(0);
+  function requestPluginRefresh() {
+    if (pluginRefreshPending.current || lock.current) return;
+    const preset=latest.current;
+    if (preset?.dirty) setRefreshPrompt(preset);
+    else refreshPlugins();
+  }
+  async function chooseRefresh(choice) {
+    const requested=refreshPrompt;
+    setRefreshPrompt(null);
+    if (choice==="cancel" || !requested || lock.current || pluginRefreshPending.current) return;
+    const current=latest.current;
+    if (current?.identity!==requested.identity || current.rev!==requested.rev || current.scene!==requested.scene) {
+      setPluginNotice("프리셋 상태가 바뀌었습니다. Refresh를 다시 눌러 주세요.");
+      return;
+    }
+    if (choice==="save" && !await run("save",{identity:requested.identity,rev:requested.rev,scene:requested.scene})) return;
+    await refreshPlugins();
+  }
   async function refreshPlugins() {
+    if (pluginRefreshPending.current) return;
+    pluginRefreshPending.current=true;
     const version=epoch.current;
     setSyncingPlugins(true);
     setPluginNotice("");
@@ -861,6 +901,7 @@ function App() {
     } catch(error) {
       if(version===epoch.current)setPluginNotice(error.message);
     } finally {
+      pluginRefreshPending.current=false;
       setSyncingPlugins(false);
     }
   }
@@ -1550,7 +1591,7 @@ function App() {
                 <>
                   <button onClick={() => C("")}>‹　{family(category)}</button>
                   {category === "Plugins" ? (
-                    <><button onClick={refreshPlugins} disabled={syncingPlugins}>Refresh ↻</button>
+                    <><button onClick={requestPluginRefresh} disabled={syncingPlugins || busy}>Refresh ↻</button>
                     <small className="plugin-sync-note" role="status">{pluginNotice || "플러그인이 바뀌면 Cortex Control에서 목록을 갱신하세요."}</small>
                     <details className="plugin-section" open>
                       <summary>ALL PLUGINS</summary>
@@ -1854,6 +1895,7 @@ function App() {
           <Icon category={drag.category} />
         </div>
       )}
+      {refreshPrompt && <RefreshPrompt preset={refreshPrompt} choose={chooseRefresh}/>}
       {ioOpen && <IOSettings meterFrame={meterFrame} api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
       {modal && (
         <DirectoryFrame close={close}>
