@@ -3,19 +3,28 @@ import React, {useRef, useState} from "react";
 const clamp = v => Math.max(0,Math.min(1,v));
 const colors = ["#7153ff","#ffcf32"];
 
-function DragPoint({x,y,label,color,disabled,onDrop,onPreview,minX=0,maxX=1,children}) {
+function DragPoint({x,y,label,color,disabled,onDrop,onPreview,originX,children}) {
   const [preview,setPreview]=useState(null);
   const drag=useRef(null);
   function move(e) {
     const g=drag.current;
     if (!g || e.pointerId!==g.id) return;
     const rect=e.currentTarget.parentElement.getBoundingClientRect();
-    g.point=[Math.max(minX,Math.min(maxX,g.startX+(e.clientX-g.x)/rect.width)),clamp(g.startY+(e.clientY-g.y)/rect.height)];
+    g.point=[clamp(g.startX+(e.clientX-g.x)/rect.width),clamp(g.startY+(e.clientY-g.y)/rect.height)];
     setPreview(g.point);
     onPreview?.(g.point);
   }
-  return <button type="button" className="cab-point" disabled={disabled} aria-label={label}
-    style={{left:100*(preview?.[0]??x)+"%",top:100*(children?y:preview?.[1]??y)+"%",background:color}}
+  const px=preview?.[0]??x, py=children?y:preview?.[1]??y;
+  return <>
+    {originX!=null && <svg className="cab-guide" aria-hidden="true">
+      <line x1={originX*100+"%"} y1="0" x2={px*100+"%"} y2={py*100+"%"}
+        stroke="#ddd" strokeWidth="1" strokeDasharray="1 3" strokeLinecap="round"/>
+      {[.3,.6].map((fraction,i)=><circle key={fraction}
+        cx={(originX+(px-originX)*fraction)*100+"%"} cy={py*fraction*100+"%"}
+        r={i?6:3.5} fill={color}/>)}
+    </svg>}
+    <button type="button" className="cab-point" disabled={disabled} aria-label={label}
+    style={{left:100*px+"%",top:100*py+"%",background:color}}
     onPointerDown={e=>{
       if (!e.isPrimary || e.button!==0) return;
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -30,7 +39,7 @@ function DragPoint({x,y,label,color,disabled,onDrop,onPreview,minX=0,maxX=1,chil
     onKeyDown={e=>{
       const delta={ArrowRight:[.01,0],ArrowLeft:[-.01,0],ArrowDown:[0,.01],ArrowUp:[0,-.01]}[e.key];
       if(delta){e.preventDefault();onDrop(clamp(x+delta[0]),clamp(y+delta[1]))}
-    }}>{children}</button>;
+    }}>{children}</button></>;
 }
 
 export default function CabinetPanel({block,scene,busy,readOnly,previewMic,commit,assign,bypass,Parameter}){
@@ -75,12 +84,14 @@ export default function CabinetPanel({block,scene,busy,readOnly,previewMic,commi
         {[0,8].map(n=>{
           const pos=at(n+5), dist=at(n+4);
           if(!pos || !dist)return null;
-          const sign=n?1:-1;
-          return <DragPoint key={n} label={"MIC "+(n/8+1)+" 위치와 거리"} color={colors[n/8]} disabled={busy||(readOnly&&!previewMic)}
-            minX={n ? .5 : 0} maxX={n?1:.5}
-            onPreview={point=>setMoving(point?{[pos.index]:clamp(sign*(point[0]-.5)*2),[dist.index]:point[1]}:null)}
-            x={.5+sign*value(pos)/2} y={value(dist)}
-            onDrop={async(x,y)=>{const write=previewMic??commit;await write(pos,clamp(sign*(x-.5)*2));await write(dist,y)}}/>;
+          const originX=n?0:1;
+          const position=x=>n?x:1-x;
+          return <div className="cab-cone" key={n} style={{"--origin":originX*100+"%"}}>
+            <DragPoint label={"MIC "+(n/8+1)+" 위치와 거리"} color={colors[n/8]} disabled={busy||(readOnly&&!previewMic)}
+              originX={originX} x={position(value(pos))} y={value(dist)}
+              onPreview={point=>setMoving(point?{[pos.index]:position(point[0]),[dist.index]:point[1]}:null)}
+              onDrop={async(x,y)=>{const write=previewMic??commit;await write(pos,position(x));await write(dist,y)}}/>
+          </div>;
         })}
       </div> : page===1 ? <>
         {high && low && <div className="cab-filter"><div className="cab-hz" aria-hidden="true">{["Hz","100","1k","10k"].map((tick,i)=><span key={tick} style={{left:[0,23,57,90][i]+"%"}}>{tick}</span>)}</div><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">

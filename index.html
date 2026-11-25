@@ -884,13 +884,17 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
       .cabinet .cab-phase {position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
       .cab-center {display:flex;flex-direction:column;justify-content:center;padding:10px 12px;min-height:150px}
       .cab-field,.cab-filter {position:relative;flex:1;margin:6px 4px;border:1px solid #333;background-color:#171717;background-image:linear-gradient(#333 1px,transparent 1px),linear-gradient(90deg,#333 1px,transparent 1px);background-size:10% 12.5%}
-      .cab-field {background-image:linear-gradient(#333 1px,transparent 1px),linear-gradient(90deg,#333 1px,transparent 1px),radial-gradient(ellipse at 50% 0%,#080808 0 32%,#171717 33% 63%,#202020 64%);background-size:5% 12.5%,5% 12.5%,100% 100%}
+      .cab-field {display:grid;grid-template-columns:1fr 1fr;gap:8px;border:0;background:none}
+      .cab-cone {position:relative;min-width:0;border:1px solid #303030;border-radius:4px;background-color:#202020;
+        background-image:linear-gradient(#303030 1px,transparent 1px),linear-gradient(90deg,#303030 1px,transparent 1px),radial-gradient(circle at var(--origin) 0%,#2b2b2b 0 12%,#0b0b0b 12.5% 40%,#171717 40.5% 68%,#202020 68.5%);
+        background-size:11.11% 11.11%,11.11% 11.11%,100% 100%}
+      .cab-guide {position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+      .cab-cone:focus-within {z-index:1}
+      .cab-cone .cab-point:active::after {width:12px;height:12px}
       .cab-point {position:absolute;transform:translate(-50%,-50%);border-radius:50%;border:0;width:21px;height:21px;min-height:0;padding:0;touch-action:none;color:#111;font:10px sans-serif}
       .cab-point:empty::after {content:"";display:block;margin:auto;width:5px;height:5px;background:white;border-radius:50%}
       .cab-point::before {content:"";position:absolute;inset:-8px}
       .cab-hz span {position:absolute;top:1px;color:#777;font-size:9px}
-      .cab-field .cab-point:first-child {box-shadow:15px 0 0 -4px #7153ff,26px 0 0 -7px #7153ff}
-      .cab-field .cab-point:last-child {box-shadow:-15px 0 0 -4px #ffcf32,-26px 0 0 -7px #ffcf32}
       .cab-filter svg {position:absolute;width:100%;height:100%}
       .cab-filter-knobs,.cab-extra {display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
       .cab-extra {grid-template-columns:repeat(2,minmax(0,1fr))}
