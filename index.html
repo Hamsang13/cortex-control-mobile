@@ -257,9 +257,8 @@
         touch-action: none;
         border-radius: 12px;
       }
-      .tile.selected .icon {
-        outline: 2px solid var(--c);
-      }
+      .tile.muted { opacity:1; }
+      .tile.muted .icon { filter:brightness(.44); }
       .cell .del {
         display: none;
         position: absolute;
@@ -273,7 +272,9 @@
         width: 24px;
         padding: 0;
       }
-      .cell:hover .del,
+      @media (hover:hover) and (pointer:fine) {
+        .cell:hover .del { display:block; }
+      }
       .cell .selected + .del {
         display: block;
       }
@@ -569,9 +570,6 @@
         width: 100%;
         padding: 7px;
         margin: 5px 0;
-      }
-      .tile.selected .icon {
-        outline-offset: -4px;
       }
       .workspace main {
         min-width: 0;
