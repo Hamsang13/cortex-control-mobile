@@ -599,6 +599,25 @@ function CaptureBrowser({ captures, error, retry, render }) {
 }
 
 function App() {
+  const [libraryOpen,setLibraryOpen]=useState(false);
+  const libraryToggle=useRef(null);
+  useEffect(()=>{
+    const portrait=window.matchMedia("(orientation: portrait) and (max-width: 1024px)");
+    const reset=()=>setLibraryOpen(false);
+    portrait.addEventListener("change",reset);
+    return ()=>portrait.removeEventListener("change",reset);
+  },[]);
+  useEffect(()=>{
+    if(!libraryOpen)return;
+    function escape(event){
+      if(event.key==="Escape"){
+        setLibraryOpen(false);
+        libraryToggle.current?.focus();
+      }
+    }
+    document.addEventListener("keydown",escape);
+    return ()=>document.removeEventListener("keydown",escape);
+  },[libraryOpen]);
   const [signalChannels, setSignalChannels] = useState([]);
   const [liveState, S] = useState(null),
     [preview, setPreview] = useState(null),
@@ -981,6 +1000,10 @@ function App() {
       const dx = ev.clientX - g.x,
         dy = ev.clientY - g.y;
       if (!g.moved && Math.hypot(dx, dy) < 7) return;
+      if (!g.moved && libraryOpen && src.row==null) {
+        if (ev.pointerType==="touch" && Math.abs(dy)>Math.abs(dx)) return;
+        setLibraryOpen(false);
+      }
       g.moved = true;
       D({
         x: ev.clientX,
@@ -1015,6 +1038,7 @@ function App() {
       } else if (src.row != null) select(src.row, src.col);
       else if (picked)
         remember("place", { ...picked, ...placement(src) }, () => {
+          setLibraryOpen(false);
           reveal(src);
           G(0);
         });
@@ -1097,7 +1121,7 @@ function App() {
       onPointerDown={(e) => gesture(e, m)}
       onClick={(e) => {
         if (e.detail === 0 && picked)
-          remember("place", { ...picked, ...placement(m) });
+          remember("place", { ...picked, ...placement(m) },()=>setLibraryOpen(false));
       }}
     >
       {m.capture ? (
@@ -1202,12 +1226,16 @@ function App() {
           ↻
         </button>
       </header>
-      <div className="workspace">
+      <div className={"workspace"+(libraryOpen?" library-open":"")}>
+        <button ref={libraryToggle} className="library-toggle" aria-controls="block-library"
+          aria-expanded={libraryOpen} aria-label={libraryOpen?"라이브러리 닫기":"라이브러리 열기"}
+          onClick={()=>setLibraryOpen(v=>!v)}><span aria-hidden="true">{libraryOpen?"‹":"›"}</span></button>
+        {libraryOpen && <div className="library-backdrop" onClick={()=>{setLibraryOpen(false);libraryToggle.current?.focus()}}/>}
         {
-          <aside className={category && !route ? "expanded" : ""}>
+          <aside id="block-library" aria-label="블록 라이브러리" className={category && !route ? "expanded" : ""}>
             {route && ["input","output"].includes(route.part) ?
               <PortList route={route} lane={s.lanes[route.row]} lib={lib} disabled={busy || paused}
-                back={()=>P(null)} choose={value=>remember(route.part,{row:route.row,value})}/> : <>
+                back={()=>P(null)} choose={value=>remember(route.part,{row:route.row,value},()=>setLibraryOpen(false))}/> : <>
             {category && (
               <div className="rail">
                 {categories.map((c) => (
