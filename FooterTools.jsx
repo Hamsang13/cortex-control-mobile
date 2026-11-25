@@ -129,7 +129,7 @@ export default function FooterTools({report,api,s,paused,busy,run,refresh,cpu,se
     <button onClick={()=>toggle("tuner")}>TUNER {mini && note}</button>
     <button onClick={()=>toggle("tempo")}>TEMPO</button>
     <strong className="foot-bpm">{bpm ?? "—"}</strong>{stepper}<button disabled={locked} onClick={tap}>TAP</button>
-    <button aria-pressed={overlay} title={cpu?.estimated?"모델별 DSP 비용으로 계산한 추정치":"DSP 사용률"} onClick={()=>setOverlay(!overlay)}>CPU {cpu?.estimated?"≈":""}{cpu?.total==null?"—":Math.round(cpu.total)+"%"}</button>
+    <button aria-pressed={overlay} title={cpu?.estimated?"모델별 DSP 비용으로 계산한 추정치":"DSP 사용률"} onClick={()=>setOverlay(!overlay)}>CPU {cpu?.total==null?"—":Math.round(cpu.total)+"%"}</button>
     {panel && <div className="shade utility-shade" onClick={()=>open("")}><section className="utility" role="dialog" aria-modal="true" aria-label={panel} onClick={e=>e.stopPropagation()}>
       <header><strong>{panel==="tempo"?"Tempo":"Tuner"}</strong>
       {panel==="tempo" ? <button disabled={locked} aria-pressed={values[2]>=.5} onClick={()=>write(2,values[2]>=.5?0:1)}>Tempo LED</button> :

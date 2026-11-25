@@ -127,7 +127,7 @@ function GridCpuTotals({cpu,blocks}) {
       known && cpu.total===0 ? 0 : null;
     return <span key={index} className="cpu-pair" style={{bottom:index===0?"50%":"0%"}}
       title="블록별 DSP 비용에 따른 행 그룹 추정 사용률">
-      {index===0?"1–2":"3–4"} CPU {percent==null?"—":"≈"+Math.round(percent)+"%"}
+      {index===0?"1–2":"3–4"} CPU {percent==null?"—":Math.round(percent)+"%"}
     </span>;
   });
 }
@@ -1430,7 +1430,7 @@ function App() {
                                     (b.bypass[s.scene] ? "muted" : "")
                                   }
                                   title={overlay && Number.isFinite(cpu?.columns?.[row]?.[col])
-                                    ? b.name+" · CPU "+(cpu.estimated?"≈":"")+cpu.columns[row][col].toFixed(1)+"%" : b.name}
+                                    ? b.name+" · CPU "+cpu.columns[row][col].toFixed(1)+"%" : b.name}
                                   aria-label={b.name}
                                   aria-pressed={selected}
                                   onPointerDown={(e) => gesture(e, b)}
