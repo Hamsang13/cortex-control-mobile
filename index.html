@@ -779,7 +779,19 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
       .port-list [aria-pressed=true],.panelhead [aria-pressed=true] {color:#70ed86;background:#141414}
       .board {user-select:none;-webkit-user-select:none}
       .library-toggle,.library-backdrop {display:none}
+      @media (orientation:landscape), (min-width:1025px) {
+        .workspace {--rail-width:44px;--list-width:min(260px,30vw);position:relative;grid-template-columns:var(--rail-width) minmax(0,1fr)}
+        #block-library {position:relative;z-index:4;display:block;overflow:visible;padding:0}
+        #block-library .rail {height:100%;padding-top:44px;overflow-x:hidden;scrollbar-width:none}
+        #block-library .rail::-webkit-scrollbar {display:none}
+        .library-toggle {position:absolute;z-index:5;left:0;top:0;display:grid;place-items:center;width:var(--rail-width);height:44px;padding:0;font-size:26px;background:#202021}
+        #block-library .models {position:absolute;top:0;bottom:0;left:100%;width:var(--list-width);padding:4px;background:#171718;border-radius:0 8px 8px 0;
+          visibility:hidden;pointer-events:none;clip-path:inset(0 100% 0 0);transform:translateX(-8px);
+          transition:clip-path .18s ease-out,transform .18s ease-out,visibility 0s linear .18s}
+        .library-open #block-library .models {visibility:visible;pointer-events:auto;clip-path:inset(0);transform:none;transition-delay:0s}
+      }
       @media (orientation:portrait) and (max-width:1024px) {
+        #block-library:not(.expanded) .rail {display:none}
         .workspace {position:relative;display:block;--library-width:min(82vw,330px)}
         .workspace .bar {padding-left:48px;min-height:44px}
         .library-toggle {position:absolute;left:0;top:0;display:grid;place-items:center;width:44px;height:44px;padding:0;font-size:26px;line-height:1}
@@ -793,7 +805,7 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
         .workspace:not(.library-open) #block-library {pointer-events:none}
         .workspace .entry.model {touch-action:pan-y}
       }
-      @media (prefers-reduced-motion:reduce) {#block-library {transition:none}}
+      @media (prefers-reduced-motion:reduce) {#block-library,#block-library .models {transition:none}}
 </style>
   </head>
   <body>

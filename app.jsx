@@ -615,8 +615,15 @@ function App() {
         libraryToggle.current?.focus();
       }
     }
+    function outside(event){
+      if(!event.target.closest("#block-library, .library-toggle, .library-backdrop"))setLibraryOpen(false);
+    }
     document.addEventListener("keydown",escape);
-    return ()=>document.removeEventListener("keydown",escape);
+    document.addEventListener("pointerdown",outside,true);
+    return ()=>{
+      document.removeEventListener("keydown",escape);
+      document.removeEventListener("pointerdown",outside,true);
+    };
   },[libraryOpen]);
   const [signalChannels, setSignalChannels] = useState([]);
   const [liveState, S] = useState(null),
@@ -946,6 +953,8 @@ function App() {
   },[editingBranch]);
   const openRoute = useCallback((row,part)=>{
     P({row,part}); setParamsOpen(true); C(""); G(0);
+    if ((part==="input" || part==="output") && !window.matchMedia("(orientation: portrait) and (max-width: 1024px)").matches)
+      setLibraryOpen(true);
   },[]);
   function select(row, col) {
     P({ row, col });
@@ -1233,24 +1242,22 @@ function App() {
         {libraryOpen && <div className="library-backdrop" onClick={()=>{setLibraryOpen(false);libraryToggle.current?.focus()}}/>}
         {
           <aside id="block-library" aria-label="블록 라이브러리" className={category && !route ? "expanded" : ""}>
-            {route && ["input","output"].includes(route.part) ?
-              <PortList route={route} lane={s.lanes[route.row]} lib={lib} disabled={busy || paused}
-                back={()=>P(null)} choose={value=>remember(route.part,{row:route.row,value},()=>setLibraryOpen(false))}/> : <>
-            {category && (
-              <div className="rail">
+            <div className="rail">
                 {categories.map((c) => (
                   <button
                     key={c}
                     title={c}
                     aria-label={c}
                     className={family(category) === c ? "chosen" : ""}
-                    onClick={() => C(c)}
+                    onClick={() => {if(route)P(null); C(c); setLibraryOpen(true)}}
                   >
                     <Icon category={c} rail />
                   </button>
                 ))}
               </div>
-            )}
+            {route && ["input","output"].includes(route.part) ?
+              <PortList route={route} lane={s.lanes[route.row]} lib={lib} disabled={busy || paused}
+                back={()=>P(null)} choose={value=>remember(route.part,{row:route.row,value},()=>setLibraryOpen(false))}/> :
             <div className="models">
               {category ? (
                 <>
@@ -1308,8 +1315,7 @@ function App() {
                   </button>
                 ))
               )}
-            </div>
-            </>}
+            </div>}
           </aside>
         }
         <main>
