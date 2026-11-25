@@ -112,6 +112,25 @@ async function api(action, body = {}) {
   }
   return data;
 }
+function GridCpuTotals({cpu,blocks}) {
+  const costs=[0,0];
+  let known=Number.isFinite(cpu?.total) && Array.isArray(cpu?.columns);
+  for(const block of blocks){
+    const cost=cpu?.columns?.[block.row]?.[block.col];
+    if(Number.isFinite(cost) && cost>=0) costs[Math.floor(block.row/2)]+=cost;
+    else known=false;
+  }
+  const sum=costs[0]+costs[1];
+  return costs.map((cost,index)=>{
+    // Each row pair has half the total capacity. Allocate the overall load by block cost.
+    const percent=known && sum>0 ? Math.min(100,200*cpu.total*cost/sum) :
+      known && cpu.total===0 ? 0 : null;
+    return <span key={index} className="cpu-pair" style={{bottom:index===0?"50%":"0%"}}
+      title="블록별 DSP 비용에 따른 행 그룹 추정 사용률">
+      {index===0?"1–2":"3–4"} CPU {percent==null?"—":"≈"+Math.round(percent)+"%"}
+    </span>;
+  });
+}
 function SignalMeters({ active, publish }) {
   const [channels, setChannels] = useState([]);
   useEffect(() => {
@@ -1410,7 +1429,8 @@ function App() {
                                     (selected ? "selected " : "") +
                                     (b.bypass[s.scene] ? "muted" : "")
                                   }
-                                  title={b.name}
+                                  title={overlay && Number.isFinite(cpu?.columns?.[row]?.[col])
+                                    ? b.name+" · CPU "+(cpu.estimated?"≈":"")+cpu.columns[row][col].toFixed(1)+"%" : b.name}
                                   aria-label={b.name}
                                   aria-pressed={selected}
                                   onPointerDown={(e) => gesture(e, b)}
@@ -1418,7 +1438,8 @@ function App() {
                                     if (e.detail === 0) select(row, col);
                                   }}
                                 >
-                                  {overlay && cpu?.columns?.[row]?.[col] != null && <span className="cpu-meter" title={cpu.columns[row][col].toFixed(1)+"%"}><i style={{width:Math.min(100,cpu.columns[row][col])+"%"}}/></span>}
+                                  {overlay && Number.isFinite(cpu?.columns?.[row]?.[col]) && <span className="cpu-meter"
+                                    style={{"--load":Math.max(0,Math.min(100,cpu.columns[row][col]))+"%","--fill":style(b.category)[2]}}/>}
                                   <Icon
                                     selected={selected}
                                     category={b.category}
@@ -1462,6 +1483,7 @@ function App() {
                         open={()=>openRoute(row,"output")} />
                     </React.Fragment>
                   ))}
+                  {overlay && s && <GridCpuTotals cpu={cpu} blocks={s.blocks}/>}
                 </div>
               </div>
               {route && (!gig || paramsOpen) && <RoutePanel key={route.row+route.part} route={route} state={s}
