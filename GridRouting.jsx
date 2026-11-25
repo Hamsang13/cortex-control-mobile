@@ -20,12 +20,12 @@ export function portLabel(name) {
     numbers.join("/")].filter(Boolean).join(" ");
 }
 
-export function Port({side, row, value, name, branched, indicator, open, signalChannels}) {
+export function Port({side, row, value, name, branched, indicator, open, signalChannels, selected}) {
   const label = portLabel(name ?? (value || "EMPTY"));
   const usbChannel = side==="input" ? {INPUT_1:0, INPUT_2:1}[name] : undefined;
   const wet = side==="output" && name==="MULTIPLE";
   return <button className={"port port-"+side} aria-label={`${row+1}행 ${side==="input"?"입력":"출력"} · ${label}`}
-    disabled={branched} onClick={open}>
+    aria-pressed={selected} disabled={branched} onClick={open}>
     {indicator && side==="input" && <i className="port-status" aria-label={side==="input"?"Noise gate On":"Mute On"}/>}
     {label.split(" ").map((part,i)=><span key={i}>{part}</span>)}
     {side==="output" && indicator ? <span className="port-signal port-signal-muted" role="img" aria-label="Mute On" title="MUTE"/> :

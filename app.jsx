@@ -1335,7 +1335,7 @@ function App() {
           </aside>
         }
         <main onClick={event=>{
-          if (!active) return;
+          if (!active && !route) return;
           const target=event.target;
           const gridBackground=target.closest(".scroll") && !target.closest("button");
           if (target===event.currentTarget || gridBackground) {
@@ -1385,7 +1385,7 @@ function App() {
                     commit={points=>remember("split",points)} />}
                   {s?.lanes.map((lane, row) => (
                     <React.Fragment key={row}>
-                      <Port signalChannels={signalChannels} side="input" row={row} value={lane.input} name={lib.inputs[lane.input]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
+                      <Port signalChannels={signalChannels} side="input" selected={route?.row===row && route.part==="input"} row={row} value={lane.input} name={lib.inputs[lane.input]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
                         branched={s.splits.some(v=>row===v.row+1 && v.start>=0)}
                         open={()=>openRoute(row,"input")} />
                       {Array.from({ length: 8 }, (_, col) => {
@@ -1457,7 +1457,7 @@ function App() {
                           </div>
                         );
                       })}
-                      <Port signalChannels={signalChannels} side="output" row={row} value={lane.output} name={lib.outputs[lane.output]} indicator={lane.output!==0 && (lane.mute?.[s.scene] ?? lane.mute?.[0])}
+                      <Port signalChannels={signalChannels} side="output" selected={route?.row===row && route.part==="output"} row={row} value={lane.output} name={lib.outputs[lane.output]} indicator={lane.output!==0 && (lane.mute?.[s.scene] ?? lane.mute?.[0])}
                         branched={s.splits.some(v=>row===v.row+1 && v.end>=0)}
                         open={()=>openRoute(row,"output")} />
                     </React.Fragment>
