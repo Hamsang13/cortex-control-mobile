@@ -883,7 +883,7 @@ function App() {
       });
       if (a === "scene") accept({ ...before, scene: result.scene });
       else accept(result);
-      if (a === "save") Q([]);
+      if (a === "save") { presetRequest.current = null; Q([]); }
       T(result.savedName ? "저장됨 · " + result.savedName : "");
       done?.(result);
       return true;
@@ -964,6 +964,34 @@ function App() {
     })();
     return queue.writing;
   }
+  const presetRequest = useRef(null);
+  const [loadingPresets, setLoadingPresets] = useState(false);
+  function readPresets() {
+    if (presetRequest.current) return presetRequest.current;
+    const request = api("presets").then(entries => {
+      if (presetRequest.current === request) {
+        Q(entries);
+        setCachedSlots(entries);
+      }
+      return entries;
+    }).catch(error => {
+      if (presetRequest.current === request) presetRequest.current = null;
+      throw error;
+    }).finally(() => {
+      if (!presetRequest.current || presetRequest.current === request) setLoadingPresets(false);
+    });
+    presetRequest.current = request;
+    setLoadingPresets(true);
+    return request;
+  }
+  useEffect(() => {
+    if (!liveState) return;
+    readPresets().catch(error => T(error.message));
+    return () => {
+      presetRequest.current = null;
+      setLoadingPresets(false);
+    };
+  }, [Boolean(liveState)]);
   async function directory(mode) {
     if (!latest.current && mode !== "presets") return;
     F("");
@@ -972,7 +1000,7 @@ function App() {
     M({ kind: mode, loading: true });
     try {
       const entries =
-        mode === "presets" && slots.length ? slots : await api("presets");
+        paused ? await api("presets") : await readPresets();
       Q(entries);
       setCachedSlots(entries);
       if (!warm) K(
@@ -1004,7 +1032,7 @@ function App() {
   }
   async function adjacent(offset) {
     try {
-      const entries = slots.length ? slots : await api("presets");
+      const entries = await readPresets();
       Q(entries);
       const i = entries.findIndex((x) => x.name === s?.name);
       if (i < 0) {
@@ -1293,6 +1321,7 @@ function App() {
   );
   return (
     <div className="shell">
+      {loadingPresets && <div className="preset-loading" role="status">My Presets 불러오는 중…</div>}
       <header>
         <div className="desk-heading">
           <strong className="device-name" title={lib.deviceName || "Quad Cortex"}>
