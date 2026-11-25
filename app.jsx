@@ -1649,7 +1649,8 @@ function RoutePanel({route,state,open,busy,paused,commit,assign}){
       {gate && <button disabled={busy||paused} aria-label="Input gate" aria-pressed={current(gate)<.5} onClick={()=>commit(gate,current(gate)<.5?1:0)}>⏻</button>}
     </div>
     <div className="params">{params.filter(p=>p!==gate).map(p=><BlockParameter key={p.index+"-"+state.scene}
-      p={p} scene={state.scene} readOnly={paused} busy={busy} disabled={paused||inactive(p)}
+      p={p} pressButton={part==="output" && ["MUTE","SOLO"].includes(p.name)}
+      scene={state.scene} readOnly={paused} busy={busy} disabled={paused||inactive(p)}
       commit={value=>commit(p,value)} assign={()=>assign(p)}/>)}</div>
   </section>;
 }
