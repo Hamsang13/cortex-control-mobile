@@ -123,7 +123,7 @@ function GridCpuTotals({cpu,blocks}) {
   const sum=costs[0]+costs[1];
   return costs.map((cost,index)=>{
     // Each row pair has half the total capacity. Allocate the overall load by block cost.
-    const percent=known && sum>0 ? Math.min(100,200*cpu.total*cost/sum) :
+    const percent=known && sum>0 ? Math.min(100,2*cpu.total*cost/sum) :
       known && cpu.total===0 ? 0 : null;
     return <span key={index} className="cpu-pair" style={{bottom:index===0?"50%":"0%"}}
       title="블록별 DSP 비용에 따른 행 그룹 추정 사용률">
