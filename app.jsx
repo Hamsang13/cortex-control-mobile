@@ -5,7 +5,7 @@ import {GridRouting, Port, portLabel} from "./GridRouting";
 import ChoiceParameter, {SceneMark} from "./ChoiceParameter";
 import FooterTools from "./FooterTools";
 import icons from "./cortex-icons.json";
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 
 const letters = "ABCDEFGH",
@@ -1001,7 +1001,34 @@ function App() {
   }
   const route = picked?.part && s ? picked : null;
   const editorRow = (active || route)?.row;
-  const pair = !drag && editorRow != null && (!gig || paramsOpen) ? editorRow & ~1 : null;
+  const mainRef = useRef(null);
+  const [needsTwoRows, setNeedsTwoRows] = useState(false);
+  const editorVisible = editorRow != null && (!gig || paramsOpen);
+  const pair = editorVisible && needsTwoRows && !drag ? editorRow & ~1 : null;
+  useLayoutEffect(() => {
+    if (!editorVisible) return;
+    const main = mainRef.current, shell = main.closest(".shell");
+    const grid = main.querySelector(".scroll"), board = grid.querySelector(".board");
+    const panel = main.querySelector(".panel"), gigPanel = main.querySelector(".gig-panel");
+    const footer = shell.querySelector("footer");
+    function measure() {
+      // Use the height of four full rows even when only two are currently visible.
+      const rowHeight = parseFloat(getComputedStyle(board).gridTemplateRows);
+      const gridTop = grid.getBoundingClientRect().top - shell.getBoundingClientRect().top;
+      const required = gridTop + rowHeight * 4 + grid.offsetHeight - grid.clientHeight
+        + parseFloat(getComputedStyle(panel).marginTop) + panel.scrollHeight
+        + (gigPanel?.offsetHeight || 0) + footer.offsetHeight + parseFloat(getComputedStyle(shell).paddingBottom);
+      setNeedsTwoRows(required > document.documentElement.clientHeight + 1);
+    }
+    measure();
+    const observer = new ResizeObserver(measure);
+    for (const el of [main, board, panel, ...panel.children, main.querySelector(".bar"),
+                      shell.querySelector("header"), gigPanel, footer]) {
+      if (el) observer.observe(el);
+    }
+    window.addEventListener("resize", measure);
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
+  }, [editorVisible, active?.model, route?.part, gig, page]);
   const editingBranch = route?.part === "start" || route?.part === "end";
   useEffect(()=>{
     if (!editingBranch) return;
@@ -1364,7 +1391,7 @@ function App() {
             </div>}
           </aside>
         }
-        <main onClick={event=>{
+        <main ref={mainRef} onClick={event=>{
           if (!active && !route) return;
           const target=event.target;
           const gridBackground=target.closest(".scroll") && !target.closest("button");
