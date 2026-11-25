@@ -95,7 +95,12 @@ async function api(action, body = {}) {
   if (response.status === 403)
     throw Error("설치 시 표시된 키 포함 주소로 여세요.");
   const data = await response.json();
-  if (!response.ok) throw Error(data.error);
+  if (!response.ok) {
+    if (["connect", "live"].includes(action) && /no RecallPresetMessage broadcast within/i.test(data.error)) {
+      throw Error("본체에서 현재 프리셋 응답이 없습니다. Cortex Control이 열려 있으면 종료한 뒤 USB 연결을 누르세요. 이미 닫았다면 USB 케이블을 확인하세요.");
+    }
+    throw Error(data.error);
+  }
   return data;
 }
 function SignalMeters({ active, publish }) {
