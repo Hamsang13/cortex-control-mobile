@@ -45,7 +45,7 @@ const pluginNames = {
   20: "Archetype: Misha Mansoor X",
   21: "Archetype: John Mayer X",
 };
-function Icon({ category, name = "", plugin, rail = false }) {
+function Icon({ category, name = "", plugin, rail = false, selected = false }) {
   const map = {
     plugins: "plugin",
     "neural capture": "capture",
@@ -67,11 +67,20 @@ function Icon({ category, name = "", plugin, rail = false }) {
     icons[key + (rail ? "Rail" : plugin ? "Plugin" : "")] ||
     icons[key] ||
     icons.utility;
+  const iconSource = React.useMemo(() => {
+    const prefix = "data:image/svg+xml;base64,";
+    if (!selected || !source.startsWith(prefix)) return source;
+    const svg = new DOMParser().parseFromString(atob(source.slice(prefix.length)), "image/svg+xml");
+    const frame = svg.documentElement.querySelector("rect[stroke]");
+    if (!frame) return source;
+    frame.setAttribute("stroke-width", "6");
+    return prefix + btoa(new XMLSerializer().serializeToString(svg.documentElement));
+  }, [source, selected]);
   return (
     <img
       className="icon"
       draggable={false}
-      src={source}
+      src={iconSource}
       alt=""
       style={{ "--c": style(category)[2] }}
     />
@@ -1386,6 +1395,7 @@ function App() {
                                   }
                                   title={b.name}
                                   aria-label={b.name}
+                                  aria-pressed={selected}
                                   onPointerDown={(e) => gesture(e, b)}
                                   onClick={(e) => {
                                     if (e.detail === 0) select(row, col);
@@ -1393,6 +1403,7 @@ function App() {
                                 >
                                   {overlay && cpu?.columns?.[row]?.[col] != null && <span className="cpu-meter" title={cpu.columns[row][col].toFixed(1)+"%"}><i style={{width:Math.min(100,cpu.columns[row][col])+"%"}}/></span>}
                                   <Icon
+                                    selected={selected}
                                     category={b.category}
                                     name={b.name}
                                     plugin={
