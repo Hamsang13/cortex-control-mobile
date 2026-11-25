@@ -612,7 +612,7 @@ function App() {
   const [libraryOpen,setLibraryOpen]=useState(false);
   const libraryToggle=useRef(null);
   useEffect(()=>{
-    const portrait=window.matchMedia("(orientation: portrait) and (max-width: 1024px)");
+    const portrait=window.matchMedia("(orientation: portrait)");
     const reset=()=>setLibraryOpen(false);
     portrait.addEventListener("change",reset);
     return ()=>portrait.removeEventListener("change",reset);
@@ -626,13 +626,13 @@ function App() {
       }
     }
     function outside(event){
-      if(!event.target.closest("#block-library, .library-toggle, .library-backdrop"))setLibraryOpen(false);
+      if(!event.target.closest("#block-library, .library-toggle"))setLibraryOpen(false);
     }
     document.addEventListener("keydown",escape);
-    document.addEventListener("pointerdown",outside,true);
+    document.addEventListener("click",outside,true);
     return ()=>{
       document.removeEventListener("keydown",escape);
-      document.removeEventListener("pointerdown",outside,true);
+      document.removeEventListener("click",outside,true);
     };
   },[libraryOpen]);
   const [signalChannels, setSignalChannels] = useState([]);
@@ -963,7 +963,7 @@ function App() {
   },[editingBranch]);
   const openRoute = useCallback((row,part)=>{
     P({row,part}); setParamsOpen(true); C(""); G(0);
-    if ((part==="input" || part==="output") && !window.matchMedia("(orientation: portrait) and (max-width: 1024px)").matches)
+    if ((part==="input" || part==="output") && !window.matchMedia("(orientation: portrait)").matches)
       setLibraryOpen(true);
   },[]);
   function select(row, col) {
@@ -1023,7 +1023,7 @@ function App() {
       if (!g.moved && Math.hypot(dx, dy) < 7) return;
       if (!g.moved && libraryOpen && src.row==null) {
         if (ev.pointerType==="touch" && Math.abs(dy)>Math.abs(dx)) return;
-        setLibraryOpen(false);
+        if (window.matchMedia("(orientation: portrait)").matches) setLibraryOpen(false);
       }
       g.moved = true;
       D({
@@ -1045,7 +1045,7 @@ function App() {
         const cell = target(ev);
         if (!cell) return;
         const [row, col] = cell.dataset.cell.split(":").map(Number);
-        if (src.row == null) remember("place", { row, col, ...placement(src) });
+        if (src.row == null) remember("place", { row, col, ...placement(src) }, ()=>setLibraryOpen(false));
         else if (src.row !== row || src.col !== col)
           remember(
             "move",
@@ -1251,7 +1251,6 @@ function App() {
         <button ref={libraryToggle} className="library-toggle" aria-controls="block-library"
           aria-expanded={libraryOpen} aria-label={libraryOpen?"라이브러리 닫기":"라이브러리 열기"}
           onClick={()=>setLibraryOpen(v=>!v)}><span aria-hidden="true"/></button>
-        {libraryOpen && <div className="library-backdrop" onClick={()=>{setLibraryOpen(false);libraryToggle.current?.focus()}}/>}
         {
           <aside id="block-library" aria-label="블록 라이브러리" className={category && !route ? "expanded" : ""}>
             <div className="rail">
