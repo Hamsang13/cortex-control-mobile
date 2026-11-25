@@ -910,6 +910,16 @@ function App() {
     if (plugin) setProduct(plugin);
   }
   const route = picked?.part && s ? picked : null;
+  const editingBranch = route?.part === "start" || route?.part === "end";
+  useEffect(()=>{
+    if (!editingBranch) return;
+    function dismiss(event) {
+      if (event.isPrimary && event.button === 0 &&
+          !event.target.closest(".route-node, .branch-panel, .param-options")) P(null);
+    }
+    document.addEventListener("pointerdown", dismiss, true);
+    return ()=>document.removeEventListener("pointerdown", dismiss, true);
+  },[editingBranch]);
   const openRoute = useCallback((row,part)=>{
     P({row,part}); setParamsOpen(true); C(""); G(0);
   },[]);
@@ -1646,7 +1656,7 @@ function RoutePanel({route,state,open,busy,paused,commit,assign}){
   const inactive=p=> (pair && !(split?.[part]>=0)) || (part==="start" && (
     (p.name==="BALANCE" && type!==0) || (["LEVEL TO A","LEVEL TO B"].includes(p.name) && type!==1) ||
     (["FREQUENCY","MODE"].includes(p.name) && type!==2)));
-  return <section className={"panel"+(pair?"":" port-panel")} style={{"--c":pair?(part==="start"?"#168bea":"#eb1e9d"):"#ddd"}}>
+  return <section className={"panel "+(pair?"branch-panel":"port-panel")} style={{"--c":pair?(part==="start"?"#168bea":"#eb1e9d"):"#ddd"}}>
     <div className="panelhead">{pair?["start","end"].map(k=>
       <button key={k} aria-pressed={part===k} onClick={()=>open(row,k)}>{k==="start"?"Splitter":"Mixer"} {(row+1)+"/"+(row+2)}</button>):
       <span className="grow route-title">{part==="input"?"Input gate control":"Lane output control"} <b>Path {row+1}</b></span>}
