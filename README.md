@@ -2,6 +2,10 @@
 
 코텍스 리모트(Cortex Remote)는 iPad·iPhone의 브라우저에서 Neural DSP Quad Cortex의 프리셋과 씬을 편집하는 비공식 웹 앱입니다. Windows PC 또는 Raspberry Pi가 USB로 본체와 통신하고, Safari는 로컬 네트워크를 통해 편집 화면을 표시합니다.
 
+## 배포 파일 받기
+
+v1.0.0 설치 이미지와 업데이트 ZIP은 공개 전입니다. 공개 후에는 [GitHub Releases](https://github.com/Hamsang13/cortex-control-mobile/releases)의 **Assets**에서 처음 설치할 때는 .img.xz, 이미 설치한 Pi를 업데이트할 때는 -update.zip을 받으세요. **Source code (zip)**은 개발용 소스입니다.
+
 ## 처음 설치 · microSD 이미지
 
 **Raspberry Pi Zero 2 W/WH**, 8GB 이상 microSD, 안정적인 5V 전원, USB OTG 어댑터와 Quad Cortex용 USB 데이터 케이블을 준비하세요. Mac과 Windows는 같은 이미지를 사용합니다.
@@ -43,8 +47,10 @@ bash install-pi.sh
 | 패키지 | 버전 | 역할 |
 | --- | --- | --- |
 | [pyquadcortex](https://github.com/stokes-audio/pyquadcortex) | 0.40.0 | Quad Cortex와 USB로 통신해 프리셋·씬·블록을 편집하고 본체 튜너가 측정한 음정(Hz)을 수신합니다. |
+| hid | 1.0.9 | Pi 이미지에서 시스템 HIDAPI 라이브러리인 libhidapi-hidraw0를 통해 USB HID 장치에 접근합니다. |
+| protobuf | 7.36.2 | Pi 이미지에서 Quad Cortex와 주고받는 메시지를 인코딩하고 디코딩합니다. |
 | [react, react-dom](https://github.com/facebook/react) | 각각 19.3.1 | 그리드, 파라미터 편집기, Gig View를 브라우저에 렌더링합니다. |
 
 튜너 음정과 레벨 미터는 Quad Cortex가 측정한 값을 USB HID로 받아 표시합니다. 상단에는 아날로그 IN 1·2와 OUT 1~4를 각각 표시합니다. 그리드 포트 아래에서는 해당 라우팅의 레벨을 표시합니다. 여러 채널을 사용하는 포트는 가장 높은 레벨을 표시합니다.
 
-USB 통신에서 `pyquadcortex`는 `hid`와 네이티브 HIDAPI로 장치에 접근하고, `protobuf`로 메시지를 처리합니다. HTTP 서버는 Python 표준 라이브러리의 `http.server`를 사용합니다. 프런트엔드 번들 생성 도구는 [esbuild](https://github.com/evanw/esbuild) 0.28.2입니다.
+배포자는 Python `cryptography`로 업데이트 ZIP에 서명하고, Pi는 이미지에 포함된 OpenSSL로 서명을 검증합니다. HTTP 서버는 Python 표준 라이브러리의 `http.server`를 사용합니다. 프런트엔드 번들 생성 도구는 [esbuild](https://github.com/evanw/esbuild) 0.28.2입니다.
