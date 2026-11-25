@@ -1247,7 +1247,7 @@ function App() {
       <div className={"workspace"+(libraryOpen?" library-open":"")}>
         <button ref={libraryToggle} className="library-toggle" aria-controls="block-library"
           aria-expanded={libraryOpen} aria-label={libraryOpen?"라이브러리 닫기":"라이브러리 열기"}
-          onClick={()=>setLibraryOpen(v=>!v)}><span aria-hidden="true">{libraryOpen?"‹":"›"}</span></button>
+          onClick={()=>setLibraryOpen(v=>!v)}><span aria-hidden="true"/></button>
         {libraryOpen && <div className="library-backdrop" onClick={()=>{setLibraryOpen(false);libraryToggle.current?.focus()}}/>}
         {
           <aside id="block-library" aria-label="블록 라이브러리" className={category && !route ? "expanded" : ""}>
