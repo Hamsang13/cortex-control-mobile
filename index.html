@@ -974,6 +974,20 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
 .route-output-meter>div {position:absolute;bottom:7px;left:8px;right:8px;display:grid;gap:2px}
 .route-output-meter .signal-track {width:100%;height:4px}
 .route-output-meter output {bottom:22px}
+@media (max-width:599px) and (orientation:portrait) {
+  .panel .parameter-page {grid-template-columns:repeat(3,minmax(0,1fr));touch-action:none;user-select:none;-webkit-user-select:none}
+  .parameter-page[data-paged] {grid-template-rows:repeat(2,68px)}
+  .parameter-page .param {height:68px;min-width:0;padding:5px;overflow:hidden}
+  .parameter-page .param:disabled {pointer-events:none}
+  .parameter-page .param small {top:5px;left:5px;right:4px;line-height:11px}
+  .parameter-page .param output {bottom:6px;left:5px;max-width:calc(100% - 34px);font-size:11px}
+  .parameter-page .dial {width:26px;height:26px;right:5px;bottom:5px}
+  .parameter-page .dial:after {left:calc(50% - 1px);height:9px;top:2px}
+  .parameter-page .scene-mark {left:5px}
+  .parameter-page .param-switch {bottom:3px;left:5px;transform:scale(.78);transform-origin:bottom left}
+  .parameter-page .param-select {bottom:5px;left:4px;right:4px;padding:5px}
+  .panelhead:has(+.parameter-page) .grow {min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
 </style>
   </head>
   <body>

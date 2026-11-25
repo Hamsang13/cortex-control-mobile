@@ -693,7 +693,68 @@ function CaptureBrowser({ captures, error, retry, render }) {
   );
 }
 
+const phoneEditorQuery = "(max-width:599px) and (orientation:portrait)";
+function ParameterPage({compact, multiple, turn, children, muted}) {
+  const touches = useRef(new Map()), swipe = useRef(null), suppressClick = useRef(false);
+  useEffect(()=>{touches.current.clear();swipe.current=null;suppressClick.current=false},[compact]);
+  function down(e) {
+    if (!compact || e.pointerType !== "touch") return;
+    const points=touches.current;
+    if (!points.size) suppressClick.current=false;
+    points.set(e.pointerId,{x:e.clientX,y:e.clientY,target:e.target});
+    if (points.size<2) return;
+    if (points.size===2 && !swipe.current) {
+      const [a,b]=points.values();
+      swipe.current={x:(a.x+b.x)/2,y:(a.y+b.y)/2, dx:0,dy:0};
+      suppressClick.current=true;
+      // Cancel the first finger's dial drag or pending scene-assignment timer.
+      a.target.dispatchEvent(new PointerEvent("pointercancel",{bubbles:true,pointerId:[...points.keys()][0],pointerType:"touch"}));
+    } else if (swipe.current) swipe.current.cancelled=true;
+    for (const id of points.keys()) if (e.currentTarget.hasPointerCapture(id)===false) {
+      try { e.currentTarget.setPointerCapture(id); } catch {}
+    }
+    e.stopPropagation();
+  }
+  function move(e) {
+    const points=touches.current, p=points.get(e.pointerId);
+    if (!p) return;
+    p.x=e.clientX;p.y=e.clientY;
+    const s=swipe.current;
+    if (!s) return;
+    e.stopPropagation();
+    if(points.size===2){
+      const [a,b]=points.values();
+      s.dx=(a.x+b.x)/2-s.x;s.dy=(a.y+b.y)/2-s.y;
+    }
+  }
+  function finish(e) {
+    // Synthetic cancellation above is for the control, not the swipe.
+    if (e.type==="pointercancel" && !e.nativeEvent.isTrusted) return;
+    const points=touches.current,s=swipe.current;
+    if (!points.delete(e.pointerId) || !s) return;
+    e.stopPropagation();
+    if(e.type==="pointercancel")s.cancelled=true;
+    if(!points.size){
+      swipe.current=null;
+      if(!s.cancelled && Math.abs(s.dx)>=32 && Math.abs(s.dx)>1.4*Math.abs(s.dy))turn(s.dx<0?1:-1);
+    }
+  }
+  return <div data-paged={multiple || undefined} className={"params parameter-page"+(muted?" muted":"")}
+    onPointerDownCapture={down} onPointerMoveCapture={move} onPointerUpCapture={finish}
+    onPointerCancelCapture={finish} onPointerLeave={e=>{
+      if(!swipe.current && !e.currentTarget.contains(e.relatedTarget instanceof Node?e.relatedTarget:null))touches.current.delete(e.pointerId);
+    }}
+    onClickCapture={e=>{if(compact && suppressClick.current && e.detail){e.preventDefault();e.stopPropagation()}}}>
+    {children}</div>;
+}
+
 function App() {
+  const [compactParams,setCompactParams]=useState(()=>matchMedia(phoneEditorQuery).matches);
+  useEffect(()=>{
+    const media=matchMedia(phoneEditorQuery),resize=()=>setCompactParams(media.matches);
+    media.addEventListener("change",resize);
+    return ()=>media.removeEventListener("change",resize);
+  },[]);
   const [libraryOpen,setLibraryOpen]=useState(false);
   const libraryToggle=useRef(null);
   useEffect(()=>{
@@ -1234,6 +1295,9 @@ function App() {
     });
   }
   const powerButton = active && <BlockPower key={[s.identity,active.row,active.col,active.model].join("-")} block={active} scene={s.scene} disabled={busy || paused} action={blockAction}/>;
+  const perPage=compactParams?6:10;
+  const pageCount=Math.ceil((active?.params.length??0)/perPage);
+  const shownPage=Math.min(page,Math.max(0,pageCount-1));
   const editorMenu = active && <BlockMenu key={[s.identity,active.row,active.col,active.model].join("-")} block={active} blocks={s.blocks} disabled={busy || paused} action={blockAction}/>;
   function blockAction(a, d = {}, done) {
     if (active) remember(a, { row: active.row, col: active.col, ...d }, done);
@@ -1687,11 +1751,12 @@ function App() {
                       {active.name}
                     </b>
                     {Array.from(
-                      { length: Math.ceil(active.params.length / 10) },
+                      { length: pageCount },
                       (_, i) => (
                         <button
                           key={i}
-                          className={page === i ? "on" : ""}
+                          aria-label={"파라미터 페이지 "+(i+1)} aria-pressed={shownPage===i}
+                          className={shownPage === i ? "on" : ""}
                           onClick={() => G(i)}
                         >
                           {i + 1}
@@ -1700,12 +1765,10 @@ function App() {
                     )}
                     {powerButton}
                   </div>
-                  <div
-                    className={
-                      "params " + (active.bypass[s.scene] ? "muted" : "")
-                    }
-                  >
-                    {active.params.slice(page * 10, page * 10 + 10).map((p) => (
+                  <ParameterPage key={[s.identity,active.row,active.col,active.model].join("-")}
+                    compact={compactParams} multiple={pageCount>1} muted={active.bypass[s.scene]}
+                    turn={delta=>G(Math.max(0,Math.min(pageCount-1,shownPage+delta)))}>
+                    {active.params.slice(shownPage*perPage,(shownPage+1)*perPage).map((p) => (
                       <BlockParameter
                         key={[
                           s.identity,
@@ -1724,7 +1787,7 @@ function App() {
                         assign={() => blockAction("assign",{index:p.index,rev:s.rev,scene:s.scene})}
                       />
                     ))}
-                  </div>
+                  </ParameterPage>
                 </section>
               ))}
               {gig && (
