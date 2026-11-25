@@ -82,6 +82,7 @@ class Demo:
         }
         self.scene = 0
         self.volume = .5
+        self.knob_volume = self.volume
         self.tuner_mute = False
         self.dirty = False
         self.undo = []
@@ -90,13 +91,15 @@ class Demo:
     def request(self, a, d):
         g = self.grid
         if a == "toolbar":
-            return dict(volume=self.volume,undo=bool(self.undo),redo=bool(self.redo))
+            return dict(volume=self.volume,engaged=self.volume==self.knob_volume,undo=bool(self.undo),redo=bool(self.redo))
+        if a == "master-state":
+            return dict(volume=self.volume,engaged=self.volume==self.knob_volume)
         if a == "master-volume":
             v=d.get("value")
             if type(v) not in (int,float) or not 0 <= v <= 1:
                 raise ValueError("Invalid master volume")
             self.volume=v
-            return dict(volume=v)
+            return dict(volume=v,engaged=v==self.knob_volume)
         if a == "cpu":
             return {}
         if a == "tuner-mute":

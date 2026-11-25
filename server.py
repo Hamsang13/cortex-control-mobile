@@ -114,7 +114,7 @@ def device_request(action, data):
         try:
             result = editor.request(action, data)
         except TimeoutError as exc:
-            if action in ("cpu", "tuner", "global-tempo", "set-tempo", "master-volume", "toolbar", "undo", "redo"):
+            if action in ("cpu", "tuner", "global-tempo", "set-tempo", "master-volume", "master-state", "toolbar", "undo", "redo"):
                 raise ValueError("본체에서 유틸리티 응답이 지연되었습니다.") from exc
             raise
         if action in ("cpu", "tuner", "global-tempo") and not DEMO:
@@ -197,7 +197,7 @@ def operate(action, data):
 
 class Handler(BaseHTTPRequestHandler):
     def log_request(self, code="-", size="-"):
-        if self.path not in ("/api/meters", "/api/gate-meter") or code != 200:
+        if self.path not in ("/api/meters", "/api/gate-meter", "/api/master-state") or code != 200:
             super().log_request(code, size)
 
     def send(self, status, content, mime):
@@ -227,7 +227,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("잘못된 요청입니다.")
             started = perf_counter()
             result = operate(self.path.removeprefix("/api/"), data)
-            if self.path not in ("/api/meters", "/api/gate-meter"):
+            if self.path not in ("/api/meters", "/api/gate-meter", "/api/master-state"):
                 print(f"{self.path} {perf_counter() - started:.2f}s", flush=True)
             status = 200
         except Exception as exc:

@@ -756,6 +756,11 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
       .device-tools .master-dial {position:relative;width:40px;min-height:36px;touch-action:none;user-select:none;border-left:1px solid #333;border-radius:0}
       .master-dial i {display:block;margin:auto;width:26px;height:26px;border:1px solid #aaa;border-radius:50%;transform:rotate(var(--turn));position:relative}
       .master-dial i::after {content:"";position:absolute;background:#eee;height:5px;width:2px;left:50%;top:0}
+      .device-tools .master-dial:disabled {opacity:1;cursor:default}
+      .device-tools .master-dial.pickup {color:#70ed86}
+      .master-dial.pickup i {border-color:currentColor}
+      .master-dial.pickup i::after {background:currentColor}
+      .device-tools .master-lock {display:grid;place-items:center;min-width:30px;min-height:36px}
       .master-dial span {position:absolute;font-size:10px;inset:0;display:grid;place-items:center}
       .wire-hit,.wire-branch {pointer-events:stroke;touch-action:none}
       .cell {pointer-events:none}

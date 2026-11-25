@@ -322,9 +322,15 @@ class Editor:
 
     def request(self, action, d):
         q, api = self.qc, self.api
-        if action in ("toolbar", "master-volume"):
+        if action in ("toolbar", "master-volume", "master-state"):
             from pyquadcortex.client import pa
             from time import monotonic, sleep
+            def volume_state():
+                msg = q.master_volume(timeout=.7)
+                return dict(volume=msg.volume, engaged=msg.engaged if msg.HasField("engaged") else None)
+
+            if action == "master-state":
+                return volume_state()
             if action == "master-volume":
                 target = d.get("value")
                 if type(target) not in (int, float) or not 0 <= target <= 1:
@@ -332,14 +338,14 @@ class Editor:
                 q.set_master_volume(target)
                 deadline = monotonic() + .9
                 while True:
-                    level = q.master_volume(timeout=.5).volume
-                    if abs(level - target) <= .005:
-                        return dict(volume=level)
+                    actual = volume_state()
+                    if abs(actual["volume"] - target) <= .005:
+                        return actual
                     if monotonic() >= deadline:
                         raise ValueError("본체에서 마스터 볼륨 변경을 확인하지 못했습니다.")
                     sleep(.045)
             frames = q._t.request(pa.UndoRedoMessage(action=pa.MessageAction.READ), timeout=.7)
-            return dict(volume=q.master_volume(timeout=.7).volume,
+            return dict(**volume_state(),
                         undo=bool(frames.undo_frames), redo=bool(frames.redo_frames))
         if action in ("cpu", "tuner", "global-tempo", "set-tempo"):
             return utility_request(self, action, d)
