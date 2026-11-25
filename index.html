@@ -192,8 +192,10 @@
       .preset {
         flex: 1;
         text-align: left;
-        font-style: italic;
         min-width: 140px;
+      }
+      .preset[data-dirty="true"] {
+        font-style: italic;
       }
       .scene {
         padding: 4px;

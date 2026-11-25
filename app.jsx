@@ -1666,7 +1666,7 @@ function App() {
             >
               ›
             </button>
-            <button className="preset" onClick={() => directory("presets")}>
+            <button className="preset" data-dirty={Boolean(s?.dirty)} onClick={() => directory("presets")}>
               {slots.some((x) => x.name === s?.name)
                 ? slotName(slots.find((x) => x.name === s.name).slot) + "　"
                 : ""}
