@@ -293,7 +293,7 @@ function BlockParameter(props) {
   const { p } = props;
   if (["comboBox", "switch", "toggleButton"].includes(p.type) ||
       (!p.type && (p.steps === 2 || p.options?.length > 2))) {
-    return <ChoiceParameter {...props} />;
+    return <ChoiceParameter {...props} busy={props.busy === true || props.busy?.parameter === p.index} />;
   }
   return <Knob {...props} />;
 }
@@ -705,7 +705,7 @@ function App() {
   const s = liveState ?? preview;
   const paused = !liveState;
   const directorySlots = slots.length ? slots : cachedSlots;
-  const stream = useRef({ writing: false, pending: null }),
+  const stream = useRef({ writing: false, pending: [] }),
     history = useRef({ undo: [], redo: [] });
   const mode = useRef(null);
   const latest = useRef(null),
@@ -908,7 +908,7 @@ function App() {
     if (!before) return;
     lock.current = true;
     epoch.current++;
-    B(true);
+    B(a === "edit" || a === "route-edit" ? {parameter:d.index} : true);
     if (a === "scene") J(d.target);
     try {
       const result = await api(a, {
@@ -960,7 +960,7 @@ function App() {
   }
   async function writeKnob(p, value) {
     const queue = stream.current;
-    queue.pending = {
+    const next = {
       row: route?.row ?? active.row,
       ...(route ? {part:route.part} : {col:active.col,model:active.model}),
       index: p.index,
@@ -968,13 +968,15 @@ function App() {
       identity: s.identity,
       scene: s.scene,
     };
+    const last=queue.pending.at(-1);
+    if (last && ["identity","scene","row","col","model","part","index"].every(k=>last[k]===next[k])) queue.pending.pop();
+    queue.pending.push(next);
     if (queue.writing) return queue.writing;
     queue.writing = (async () => {
       await Promise.resolve();
       try {
-        while (queue.pending) {
-          const n = queue.pending;
-          queue.pending = null;
+        while (queue.pending.length) {
+          const n = queue.pending.shift();
           const now = latest.current;
           const b = now?.blocks.find((x) => x.row === n.row && x.col === n.col);
           if (
@@ -983,18 +985,19 @@ function App() {
             (!n.part && b?.model !== n.model)
           )
             break;
+          const params=n.part ? now.lanes[n.row].controls[n.part] : b.params;
+          const param=params.find(candidate=>candidate.index===n.index);
+          if (!param || isInactive(param,params,n.scene)) continue;
           if (
             Math.abs(
-              ((n.part ? now.lanes[n.row].controls[n.part] : b.params).find(p=>p.index===n.index)?.values[
-                p.assigned ? n.scene : 0
-              ] ?? -1) - n.value,
+              (param.values[param.assigned ? n.scene : 0] ?? -1) - n.value,
             ) < 1e-6
           )
             continue;
           if (!(await remember(n.part ? "route-edit" : "edit", n))) break;
         }
       } finally {
-        queue.pending = null;
+        queue.pending.length = 0;
         queue.writing = null;
       }
     })();
