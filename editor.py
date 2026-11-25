@@ -200,6 +200,7 @@ def read_grid(api, qc, metadata):
                     stomp=stomps.get((row,col)),
                     momentary=(row,col) in stomps and bool(preset.stomp_is_momentary.get(stomps[row,col], False)),
                     params=params,
+                    bypassAssigned=bypass.scene_mode,
                     bypass=list(bypass.scenes),
                 )
             )
@@ -533,7 +534,7 @@ class Editor:
             "move",
             "assign",
             "edit",
-            "bypass",
+            "bypass", "bypass-assign",
             "input",
             "output",
             "route-edit",
@@ -620,6 +621,12 @@ class Editor:
             q.move_block(row, col, integer(d, "toRow", 0, 3), integer(d, "toCol", 0, 7))
         elif action == "delete":
             q.remove_block(row, col)
+        elif action == "bypass-assign":
+            from pyquadcortex.client import preset
+            update = preset.BinaryPreset()
+            entry = update.bypass.add(row=row).colBypass.add(column=col)
+            entry.sceneMode = not block["bypassAssigned"]
+            q.write_preset(update)
         elif action == "bypass":
             q.set_bypass(row, col, not block["bypass"][state["scene"]])
         elif action == "expression-bypass":
@@ -715,6 +722,10 @@ def verify_edit(action, data, before, after):
         )
     elif action == "delete":
         success = current is None
+    elif action == "bypass-assign" and current:
+        if current["bypassAssigned"] == previous["bypassAssigned"]:
+            raise ValueError("본체에서 블록의 씬 할당 변경을 확인하지 못했습니다.")
+        success = True
     elif action == "bypass" and current:
         scene = after["scene"]
         success = current["bypass"][scene] != previous["bypass"][scene]

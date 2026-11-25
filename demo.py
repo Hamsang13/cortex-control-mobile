@@ -52,6 +52,7 @@ def block(row, col, model):
         model=model,
         name=name,
         category=category,
+        bypassAssigned=False,
         bypass=[False] * 8,
         params=cabinet_params() if model == 5 else [
             dict(
@@ -258,8 +259,16 @@ class Demo:
                     if other:
                         raise ValueError("Destination occupied")
                     b.update(row=d["toRow"], col=d["toCol"])
+                elif a == "bypass-assign":
+                    b["bypassAssigned"] = not b["bypassAssigned"]
+                    if not b["bypassAssigned"]:
+                        b["bypass"] = [b["bypass"][self.scene]] * 8
                 elif a == "bypass":
-                    b["bypass"][self.scene] = not b["bypass"][self.scene]
+                    target = not b["bypass"][self.scene]
+                    if b["bypassAssigned"]:
+                        b["bypass"][self.scene] = target
+                    else:
+                        b["bypass"] = [target] * 8
                 elif a == "expression-bypass":
                     b["expressionBypass"] = {k:d[k] for k in ("pedal","mode","delay","invert","latch")}
                 elif a == "expression":

@@ -959,6 +959,18 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
 .expression-pane label {display:flex;align-items:center;gap:8px;padding:4px}
 .expression-pane input[type=range] {min-width:0;flex:1;accent-color:#41dc63}
 .expression-pane>button:last-child {margin-top:auto}
+.panel:has(.block-power) .panelhead {padding:0 6px;height:34px;box-sizing:border-box}
+.panel :is(.panelhead,.cab-title):has(.block-power) button {min-height:32px;height:32px;padding-block:0}
+.panel .block-power {position:relative;display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:40px;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.block-power svg {pointer-events:none}
+.block-power .scene-mark {position:static;transform:none}
+.panel .block-power[aria-pressed=true] {color:#61e878}
+.panel .block-power[aria-pressed=false] {color:#999}
+@media (min-width:600px) and (max-width:1440px) and (min-height:480px) {
+  .workspace main:has(.board[data-pair]) > .panel:has(.block-power) {flex:0 1 auto}
+  .workspace main:has(.board[data-pair]) > .panel:has(.block-power) ~ .gig-panel {flex-shrink:1;min-height:120px}
+  .workspace main:has(.board[data-pair]) > .panel:not(.cabinet) .param {height:clamp(65px,10.5dvh,99px)}
+}
 </style>
   </head>
   <body>

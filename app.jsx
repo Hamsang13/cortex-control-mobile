@@ -213,6 +213,29 @@ function Modal({ title, close, children }) {
     </div>
   );
 }
+function BlockPower({block,scene,disabled,action}) {
+  const hold = useRef(null), suppress = useRef(false);
+  const cancel = () => { clearTimeout(hold.current); hold.current=null; };
+  useEffect(() => cancel, [block.row,block.col,block.model,scene,disabled]);
+  return <button type="button" className="block-power" disabled={disabled}
+    aria-label={"블록 전원 · "+(block.bypassAssigned?"씬 할당됨":"씬 미할당")}
+    aria-pressed={!block.bypass[scene]} title="전원 전환 · 길게 눌러 씬 할당"
+    onContextMenu={e=>e.preventDefault()} onPointerDown={e=>{
+      if (!e.isPrimary || e.button!==0) return;
+      cancel(); suppress.current=false;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      hold.current=setTimeout(()=>{suppress.current=true;action("bypass-assign")},550);
+    }} onPointerMove={e=>{
+      if(hold.current===null)return;
+      const r=e.currentTarget.getBoundingClientRect();
+      if(e.clientX<r.left || e.clientX>r.right || e.clientY<r.top || e.clientY>r.bottom){cancel();suppress.current=true}
+    }} onPointerUp={cancel} onPointerCancel={()=>{cancel();suppress.current=true}} onLostPointerCapture={cancel}
+    onKeyDown={e=>{suppress.current=false;if(e.shiftKey && e.key==="Enter"){e.preventDefault();if(!e.repeat)action("bypass-assign")}}}
+    onClick={()=>{if(!suppress.current)action("bypass");suppress.current=false}}>
+    {block.bypassAssigned && <SceneMark scene={scene}/>}
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 2v10M6.2 5.5a9 9 0 1 0 11.6 0"/></svg>
+  </button>;
+}
 function Knob({ p, scene, commit, assign, busy, disabled, readOnly }) {
   const current = p.values[p.assigned ? scene : 0];
   const [preview, setPreview] = useState(null),
@@ -1209,6 +1232,7 @@ function App() {
       G(0);
     });
   }
+  const powerButton = active && <BlockPower key={[s.identity,active.row,active.col,active.model].join("-")} block={active} scene={s.scene} disabled={busy || paused} action={blockAction}/>;
   const editorMenu = active && <BlockMenu key={[s.identity,active.row,active.col,active.model].join("-")} block={active} blocks={s.blocks} disabled={busy || paused} action={blockAction}/>;
   function blockAction(a, d = {}, done) {
     if (active) remember(a, { row: active.row, col: active.col, ...d }, done);
@@ -1651,7 +1675,7 @@ function App() {
                 <CabinetPanel menu={editorMenu} key={[s.identity,active.row,active.col,active.model,s.scene,usbPaused].join("-")} block={active} scene={s.scene}
                   busy={busy} readOnly={paused} previewCabinet={usbPaused ? previewCabinet : null} commit={writeKnob} Parameter={BlockParameter}
                   assign={p=>blockAction("assign",{index:p.index,rev:s.rev,scene:s.scene})}
-                  bypass={()=>blockAction("bypass")}/> : (
+                  powerButton={powerButton}/> : (
                 <section
                   className="panel"
                   style={{ "--c": style(active.category)[2] }}
@@ -1673,13 +1697,7 @@ function App() {
                         </button>
                       ),
                     )}
-                    <button
-                      aria-label="바이패스"
-                      aria-pressed={active.bypass[s.scene]}
-                      onClick={() => blockAction("bypass")}
-                    >
-                      ⏻
-                    </button>
+                    {powerButton}
                   </div>
                   <div
                     className={

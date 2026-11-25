@@ -42,7 +42,7 @@ function DragPoint({x,y,label,color,disabled,onDrop,onPreview,originX,bounds=[0,
     }}>{children}</button></>;
 }
 
-export default function CabinetPanel({menu,block,scene,busy,readOnly,previewCabinet,commit,assign,bypass,Parameter}){
+export default function CabinetPanel({menu,block,scene,busy,readOnly,previewCabinet,commit,assign,powerButton,Parameter}){
   const [page,setPage]=useState(0);
   const [moving,setMoving]=useState(null);
   const params=block.params, at=index=>params.find(p=>p.index===index);
@@ -79,7 +79,7 @@ export default function CabinetPanel({menu,block,scene,busy,readOnly,previewCabi
     {micHeader(0)}
     <div className="cab-title">{menu}<strong title={block.name}>{block.name}</strong>
       {tabs.map((label,i)=><button key={label} aria-label={label} aria-pressed={page===i} onClick={()=>setPage(i)}>{i+1}</button>)}
-      <button aria-label="캐비넷 바이패스" aria-pressed={block.bypass[scene]} disabled={busy||readOnly} onClick={bypass}>⏻</button>
+      {powerButton}
     </div>
     {micHeader(8)}
     {side(0)}
