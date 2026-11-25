@@ -216,6 +216,7 @@ function Knob({ p, scene, commit, assign, busy, disabled }) {
   return (
     <button
       className="param"
+      style={{"--sweep":value*270+"deg"}}
       disabled={disabled}
       aria-label={p.name + " " + formatted}
       onContextMenu={(e) => e.preventDefault()}
@@ -1646,13 +1647,14 @@ function GateMeter({row,online}){
     if(online)poll();else setValue(null);
     return ()=>{valid=false;clearTimeout(timer)};
   },[row,online]);
+  const db=value==null?null:(value-1)*40;
   return <div className="param gate-meter">
     <small>GAIN REDUCTION</small>
-    <div role="meter" aria-label="Gain reduction" aria-valuemin={0} aria-valuemax={100}
-      aria-valuenow={value==null?undefined:Math.round(value*100)} className="gate-track">
-      <i style={{width:((value??0)*100)+"%"}}/>
+    <div role="meter" aria-label="Gain reduction" aria-valuemin={-40} aria-valuemax={0}
+      aria-valuenow={db??undefined} aria-valuetext={db==null?"—":db.toFixed(1)+" dB"} className="gate-track">
+      <i style={{width:(db==null?0:-db/40*100)+"%"}}/>
     </div>
-    {value==null && <output>—</output>}
+    <output>{db==null?"—":db.toFixed(1)+" dB"}</output>
   </div>;
 }
 
@@ -1666,10 +1668,10 @@ function RoutePanel({route,state,open,busy,paused,commit,assign}){
   const inactive=p=> (pair && !(split?.[part]>=0)) || (part==="start" && (
     (p.name==="BALANCE" && type!==0) || (["LEVEL TO A","LEVEL TO B"].includes(p.name) && type!==1) ||
     (["FREQUENCY","MODE"].includes(p.name) && type!==2)));
-  return <section className="panel" style={{"--c":pair?(part==="start"?"#168bea":"#eb1e9d"):"#ddd"}}>
+  return <section className={"panel"+(pair?"":" port-panel")} style={{"--c":pair?(part==="start"?"#168bea":"#eb1e9d"):"#ddd"}}>
     <div className="panelhead">{pair?["start","end"].map(k=>
       <button key={k} aria-pressed={part===k} onClick={()=>open(row,k)}>{k==="start"?"Splitter":"Mixer"} {(row+1)+"/"+(row+2)}</button>):
-      <strong className="grow">{part==="input"?"Input gate control":"Lane output control"}　Path {row+1}</strong>}
+      <span className="grow route-title">{part==="input"?"Input gate control":"Lane output control"} <b>Path {row+1}</b></span>}
       {gate && <button disabled={busy||paused} aria-label="Input gate" aria-pressed={current(gate)<.5} onClick={()=>commit(gate,current(gate)<.5?1:0)}>⏻</button>}
     </div>
     <div className="params">{params.filter(p=>p!==gate).map(p=><React.Fragment key={p.index+"-"+state.scene}>

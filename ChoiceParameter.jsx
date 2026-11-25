@@ -86,8 +86,11 @@ export default function ChoiceParameter({p, scene, disabled, busy, readOnly, com
           choose(target?Number(target.dataset.choice):(index+1)%count);
         } else show();
       }}>
-      <small>{pressButton?"":p.name}{p.assigned?" · "+"ABCDEFGH"[scene]:""}</small>
-      {pressButton ? <span className="param-push">{p.name}</span> : vertical ? <span className="param-switch" style={{gridTemplateRows:"repeat("+count+",22px)"}}>
+      {!pressButton && <small>{p.name}{p.assigned?" · "+"ABCDEFGH"[scene]:""}</small>}
+      {pressButton ? <span className="param-push">
+        {p.assigned && <span className="scene-mark" title={"Scene "+"ABCDEFGH"[scene]}>A B<br/>C D</span>}
+        {index===1 && p.name==="MUTE"?"MUTED":p.name}
+      </span> : vertical ? <span className="param-switch" style={{gridTemplateRows:"repeat("+count+",22px)"}}>
         <i aria-hidden="true" style={{gridRow:"span "+count,height:(count*22-1)+"px","--switch-position":(3+index*22)+"px"}}/>
         {Array.from({length:count},(_,i)=>count-1-i).map(i=><span key={i} data-choice={i} className={index===i?"current":""}>{label(i)}</span>)}
       </span> : <span className="param-select"><span>{label(index)}</span><b aria-hidden="true">⌄</b></span>}
