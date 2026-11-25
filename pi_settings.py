@@ -1,4 +1,5 @@
 """Persistent settings for the installer-managed Raspberry Pi hotspot."""
+import hmac
 import ipaddress
 import json
 import os
@@ -60,6 +61,10 @@ def read_config(path):
     return validate(json.loads(path.read_text(encoding="utf8")))
 
 
+def boot_proof(config):
+    return hmac.digest(config["key"].encode(), ("reconnect:" + config["revision"]).encode(), "sha256").hex()
+
+
 def pi_request(path, data, save):
     if path is None:
         return {"available": False}
@@ -76,7 +81,11 @@ def pi_request(path, data, save):
                     config[field] = value
             config["revision"] = secrets.token_hex(8)
             write_config(path, config)
-        return {k: config[k] for k in ("ssid", "url", "revision")} | {"available": True}
+        result = {k: config[k] for k in ("ssid", "url", "revision")} | {"available": True}
+        if save:
+            result["reconnect"] = {"url": config["url"].rstrip("/") + "/#" + config["key"],
+                                   "proof": boot_proof(config)}
+        return result
 
 
 def apply_network(config):

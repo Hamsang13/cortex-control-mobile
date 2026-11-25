@@ -1,3 +1,4 @@
+import {watchPiRestart} from "./piReconnect";
 import React, {useEffect, useRef, useState} from "react";
 
 const groups = [
@@ -44,8 +45,10 @@ function PiForm({initial,api}) {
     e.preventDefault();setBusy(true);setMessage("");
     try {
       const result=await api("pi-set",form);
-      setForm({...result,wifi:"",key:""});
-      setMessage("저장했습니다. Pi를 재부팅한 뒤 "+result.ssid+"에 연결하고 "+result.url+"에서 접속 키를 사용하세요.");
+      const {reconnect,...settings}=result;
+      setForm({...settings,wifi:"",key:""});
+      if(reconnect)watchPiRestart(reconnect);
+      setMessage("저장했습니다. 이 탭을 열어 두세요. Pi 재부팅 후 "+result.ssid+"에 연결되면 "+result.url+"로 자동 이동합니다. Wi-Fi 이름이나 비밀번호를 바꿨다면 Wi-Fi 설정에서 다시 연결하세요.");
     }catch(e){setMessage(e.message)}finally{setBusy(false)}
   }
   return <form onSubmit={submit}><p>변경 사항은 다음 Pi 부팅부터 적용됩니다. 새 비밀번호와 접속 키를 보관하세요.</p>

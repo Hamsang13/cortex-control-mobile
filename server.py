@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from time import perf_counter
 
 ROOT = Path(__file__).resolve().parent
-from pi_settings import address, pi_request, read_config
+from pi_settings import address, boot_proof, pi_request, read_config
 PI_PATH = Path(os.environ["QC_PI_CONFIG"]) if os.getenv("QC_PI_CONFIG") else None
 PI_CONFIG = read_config(PI_PATH) if PI_PATH else {}
 PORT = address(PI_CONFIG["url"])[1] if PI_CONFIG else 8765
@@ -330,6 +330,16 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(content)
 
     def do_GET(self):
+        if self.path == "/pi-ready" and PI_CONFIG:
+            self.send_response(200)
+            data = boot_proof(PI_CONFIG).encode("ascii")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if self.path == "/app.js":
             return self.send(200, (ROOT / "app.js").read_bytes(), "text/javascript")
         if self.path != "/":
