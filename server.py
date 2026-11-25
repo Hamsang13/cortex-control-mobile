@@ -157,8 +157,12 @@ def operate(action, data):
             return {"beat": msg.metronome_status.current_beat}
         except TimeoutError:
             return {}
-    if action in ("pitch", "tuner-stop", "tuner-input"):
+    if action in ("pitch", "tuner-stop", "tuner-input", "tuner-mute"):
         meter = tuner_meter
+        if DEMO and action == "tuner-mute":
+            return USB.submit(device_request, action, data).result()
+        if (meter is None or browse_only) and action in ("tuner-mute", "tuner-input") and not DEMO:
+            raise ValueError("본체가 연결된 상태에서 변경할 수 있습니다.")
         if meter is None or browse_only or DEMO:
             return {}
         owner = data.get("owner")
@@ -167,7 +171,9 @@ def operate(action, data):
         if action == "pitch":
             return meter.read(owner, data.get("mode"))
         if action == "tuner-input":
-            return meter.select_input(owner, data.get("input"))
+            return meter.set_control(owner, "input_port_id", data.get("input"))
+        if action == "tuner-mute":
+            return meter.set_control(owner, "mute", data.get("mute"))
         meter.stop(owner)
         return {}
     return USB.submit(device_request, action, data).result()

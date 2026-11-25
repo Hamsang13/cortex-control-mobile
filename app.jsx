@@ -1,3 +1,4 @@
+import {GridRouting, Port, portLabel} from "./GridRouting";
 import ChoiceParameter from "./ChoiceParameter";
 import FooterTools from "./FooterTools";
 import icons from "./cortex-icons.json";
@@ -21,22 +22,6 @@ const styles = [
 ];
 function style(category) {
   return styles.find((s) => s[0].test(category)) || [null, "≋", "#aaa"];
-}
-function portLabel(name, input = false) {
-  const names = {
-    EMPTY: input ? "Prev. row" : "—",
-    MULTIPLE: "Multi Out",
-    NEXT_ROW_3_4: "Row 3/4",
-    NEXT_ROW_3: "Row 3",
-    NEXT_ROW_4: "Row 4",
-    PREV_ROW: "Prev. row",
-  };
-  return (
-    names[name] ??
-    String(name ?? "—")
-      .replace("INPUT_", "In ")
-      .replaceAll("_", " ")
-  );
 }
 function family(name = "") {
   if (/amplifier/i.test(name)) return "Amp";
@@ -1285,44 +1270,14 @@ function App() {
             <>
               <div className="scroll">
                 <div className="board">
-                  <svg
-                    className="wires"
-                    viewBox="0 0 1000 400"
-                    preserveAspectRatio="none"
-                  >
-                    {s?.lanes.map((_, i) => (
-                      <path
-                        key={i}
-                        d={"M35 " + (50 + i * 100) + "H965"}
-                        stroke="#888"
-                        fill="none"
-                      />
-                    ))}
-                    {s?.splits.map((v) => {
-                      const x = 70 + v.start * 107.5,
-                        y = v.row * 100 + 50,
-                        z = 70 + v.end * 107.5;
-                      return (
-                        <path
-                          key={v.row}
-                          d={
-                            `M${x} ${y}v40H76v60` +
-                            (v.end < 0 ? "" : `M${z} ${y + 100}V${y}`)
-                          }
-                          stroke="#bbb"
-                          fill="none"
-                        />
-                      );
-                    })}
-                  </svg>
+                  {s && <GridRouting key={s.identity+"-"+s.rev+"-"+s.scene} state={s} disabled={busy || paused}
+                    open={(row,part)=>M({kind:"routing",row,part})}
+                    commit={points=>remember("split",points)} />}
                   {s?.lanes.map((lane, row) => (
                     <React.Fragment key={row}>
-                      <button
-                        className="port"
-                        onClick={() => M({ kind: "routing", row })}
-                      >
-                        {portLabel(lib.inputs[lane.input] ?? lane.input, true)}
-                      </button>
+                      <Port side="input" row={row} value={lane.input} name={lib.inputs[lane.input]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
+                        branched={s.splits.some(v=>row===v.row+1 && v.start>=0)}
+                        open={()=>M({kind:"routing",row,part:"input"})} />
                       {Array.from({ length: 8 }, (_, col) => {
                         const b = at(row, col),
                           selected = picked?.row === row && picked?.col === col,
@@ -1390,12 +1345,9 @@ function App() {
                           </div>
                         );
                       })}
-                      <button
-                        className="port"
-                        onClick={() => M({ kind: "routing", row })}
-                      >
-                        {portLabel(lib.outputs[lane.output] ?? lane.output)}
-                      </button>
+                      <Port side="output" row={row} value={lane.output} name={lib.outputs[lane.output]} indicator={lane.output!==0 && (lane.mute?.[s.scene] ?? lane.mute?.[0])}
+                        branched={s.splits.some(v=>row===v.row+1 && v.end>=0)}
+                        open={()=>M({kind:"routing",row,part:"output"})} />
                     </React.Fragment>
                   ))}
                 </div>
@@ -1525,7 +1477,7 @@ function App() {
               presets: "My Presets",
               save: "My Presets에 저장",
               assign: modal.p?.name,
-              routing: "Grid routing",
+              routing: ({input:"Input",output:"Output",start:"Splitter",end:"Mixer"})[modal.part] + " · " + (modal.row+1),
             }[modal.kind]
           }
           close={close}
@@ -1623,12 +1575,13 @@ function App() {
           )}
           {modal.kind === "routing" && s && (
             <Routing
-              key={modal.row}
+              key={modal.row+"-"+modal.part}
+              part={modal.part}
               row={modal.row}
               s={s}
               lib={lib}
-              run={run}
-              busy={busy}
+              run={remember}
+              busy={busy || paused}
             />
           )}
         </Modal>
@@ -1636,13 +1589,13 @@ function App() {
     </div>
   );
 }
-function Routing({ row, s, lib, run, busy }) {
+function Routing({ part, row, s, lib, run, busy }) {
   const split = s.splits.find((v) => v.row === row),
     [start, A] = useState(split?.start ?? -1),
     [end, E] = useState(split?.end ?? -1);
   return (
     <>
-      {["input", "output"].map((k) => (
+      {[part].filter(k=>k==="input" || k==="output").map((k) => (
         <label key={k}>
           {k.toUpperCase()}
           <select
@@ -1650,15 +1603,21 @@ function Routing({ row, s, lib, run, busy }) {
             value={s.lanes[row][k]}
             onChange={(e) => run(k, { row, value: Number(e.target.value) })}
           >
-            {Object.entries(lib[k + "s"]).map(([v, n]) => (
+            {Object.entries(lib[k + "s"]).filter(([v])=>k!=="input" || Number(v)!==14 || s.lanes[row].input===14).map(([v, n]) => (
               <option key={v} value={v}>
-                {n}
+                {portLabel(n)}
               </option>
             ))}
           </select>
         </label>
       ))}
-      {row % 2 === 0 && (
+      {part==="output" && s.lanes[row].mute?.length>0 && ![0,16,17,18].includes(s.lanes[row].output) && (
+        <button aria-label="출력 Mute" aria-pressed={s.lanes[row].mute[s.scene] ?? s.lanes[row].mute[0]}
+          disabled={busy} onClick={()=>run("lane-mute",{row,mute:!(s.lanes[row].mute[s.scene] ?? s.lanes[row].mute[0])})}>
+          Mute {(s.lanes[row].mute[s.scene] ?? s.lanes[row].mute[0])?"On":"Off"}
+        </button>
+      )}
+      {(part==="start" || part==="end") && (
         <>
           {[
             [start, A, "분기"],
@@ -1666,7 +1625,7 @@ function Routing({ row, s, lib, run, busy }) {
           ].map(([v, set, n]) => (
             <label key={n}>
               {n}
-              <select value={v} onChange={(e) => set(Number(e.target.value))}>
+              <select disabled={busy} value={v} onChange={(e) => set(Number(e.target.value))}>
                 {Array.from({ length: 9 }, (_, i) => (
                   <option key={i} value={i - 1}>
                     {i || "없음"}
@@ -1676,7 +1635,7 @@ function Routing({ row, s, lib, run, busy }) {
             </label>
           ))}
           <button
-            disabled={busy}
+            disabled={busy || (start>=0 && end>=0 && end<start)}
             onClick={() => run("split", { row, start, end })}
           >
             배선 적용

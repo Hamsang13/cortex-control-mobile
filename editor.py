@@ -20,12 +20,25 @@ def integer(data, key, low, high):
     return value
 
 
+def lane_flags(models, model_id, index, invert=False):
+    model = next((m for m in models if m.hash == model_id), None)
+    if not model or index >= len(model.params):
+        return []
+    param = model.params[index]
+    flags = [(v.float_value >= .5) != invert for v in param.param_values]
+    return flags if param.scene_mode else flags[:1]
+
+
 def read_grid(api, qc, metadata):
     preset = qc.read_current_preset()
     blocks = []
     lanes = []
     for row, chain in enumerate(preset.chains):
-        lanes.append(dict(input=chain.in_portid, output=chain.out_portid))
+        lanes.append(dict(
+            input=chain.in_portid, output=chain.out_portid,
+            gate=lane_flags(chain.input_control, qc.INPUT_GATE_CONTROL, 1, invert=True),
+            mute=lane_flags(chain.output_control, qc.LANE_OUTPUT_CONTROL, 2),
+        ))
         for col, block in enumerate(chain.models):
             if not block.hash:
                 continue
@@ -120,8 +133,9 @@ def read_grid(api, qc, metadata):
         blocks=blocks,
         lanes=lanes,
         splits=[
-            dict(row=s.row, start=s.split_column, end=s.mix_column)
-            for s in api.splits(preset)
+            dict(row=row, start=point.split, end=point.mix)
+            for row, chain in enumerate(preset.chains) if row in (0, 2)
+            for point in chain.split_control_points if point.split >= 0 or point.mix >= 0
         ],
     )
 
@@ -349,6 +363,7 @@ class Editor:
             "bypass",
             "input",
             "output",
+            "lane-mute",
             "split",
         ):
             verify_edit(action, d, state, result)
@@ -370,12 +385,17 @@ class Editor:
                 row, int(port)
             )
             return
+        if action == "lane-mute":
+            if type(d.get("mute")) != bool or not state["lanes"][row]["mute"]:
+                raise ValueError("Invalid lane mute")
+            q.set_lane_output(row, "MUTE", value=float(d["mute"]))
+            return
         if action == "split":
             if row not in (0, 2):
                 raise ValueError("Invalid split lane")
             start = integer(d, "start", -1, 7)
             end = integer(d, "end", -1, 7)
-            if start < 0:
+            if start == end == -1:
                 q.clear_split(row)
             elif end == -1 or end >= start:
                 q.set_split(row, start, end)
@@ -440,11 +460,14 @@ def verify_edit(action, data, before, after):
         raise ValueError("편집 중 프리셋 또는 씬이 바뀌었습니다.")
     if action in ("input", "output"):
         success = after["lanes"][row][action] == data["value"]
+    elif action == "lane-mute":
+        flags = after["lanes"][row]["mute"]
+        success = bool(flags) and flags[after["scene"] if len(flags) > 1 else 0] == data["mute"]
     elif action == "split":
         split = next((s for s in after["splits"] if s["row"] == row), None)
         success = (
             split is None
-            if data["start"] == -1
+            if data["start"] == data["end"] == -1
             else split == dict(row=row, start=data["start"], end=data["end"])
         )
     elif action == "move":

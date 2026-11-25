@@ -72,13 +72,15 @@ export default function FooterTools({report,api,s,paused,busy,run,refresh,cpu,se
       stop();
     };
   },[tunerMode,paused,!!s]);
-  async function selectTunerInput(e){
+  const [changingTuner,setChangingTuner]=useState(false);
+  async function changeTuner(field,value){
     const owner=tunerOwner.current;
-    if(!owner)return;
+    if(!owner || changingTuner)return;
+    setChangingTuner(true);
     try{
-      const state=await api("tuner-input",{owner,input:Number(e.target.value)});
+      const state=await api("tuner-"+field,{owner,[field]:value});
       if(owner===tunerOwner.current)setTuner(state);
-    } catch(err){report(err.message)}
+    } catch(err){report(err.message)} finally {setChangingTuner(false)}
   }
   useEffect(()=>{
     const close=e=>{if(e.key==="Escape")open("")};
@@ -131,10 +133,10 @@ export default function FooterTools({report,api,s,paused,busy,run,refresh,cpu,se
     {panel && <div className="shade utility-shade" onClick={()=>open("")}><section className="utility" role="dialog" aria-modal="true" aria-label={panel} onClick={e=>e.stopPropagation()}>
       <header><strong>{panel==="tempo"?"Tempo":"Tuner"}</strong>
       {panel==="tempo" ? <button disabled={locked} aria-pressed={values[2]>=.5} onClick={()=>write(2,values[2]>=.5?0:1)}>Tempo LED</button> :
-      <><select aria-label="본체 튜너 입력" value={tuner.input ?? ""} disabled={paused || !s || tuner.input==null} onChange={selectTunerInput}>
+      <><select aria-label="본체 튜너 입력" value={tuner.input ?? ""} disabled={paused || changingTuner || !s || tuner.input==null} onChange={e=>changeTuner("input",Number(e.target.value))}>
         <option value="" disabled>Input</option>
         {[[1,"Input 1"],[2,"Input 2"],[3,"Input 1/2"],[4,"Return 1"],[5,"Return 2"],[8,"USB 5"],[9,"USB 6"]].map(([id,label])=><option key={id} value={id}>{label}</option>)}
-      </select><button aria-pressed={cents} onClick={()=>showCents(!cents)}>Cents</button><span title="본체 튜너 설정">Mute {tuner.mute==null?"—":tuner.mute?"On":"Off"}</span></>}
+      </select><button aria-pressed={cents} onClick={()=>showCents(!cents)}>Cents</button><button aria-label="튜너 Mute" aria-pressed={!!tuner.mute} disabled={paused || !s || changingTuner || tuner.mute==null} onClick={()=>changeTuner("mute",!tuner.mute)}>Mute {tuner.mute==null?"—":tuner.mute?"On":"Off"}</button></>}
       <button aria-label="닫기" onClick={()=>open("")}>×</button></header>
       {panel==="tempo" ? <>
         <div className="util-tabs">{["Global","Preset"].map((v,i)=><button key={v} aria-pressed={global===(i===0)} onClick={()=>setScope(i===0)}>{v}</button>)}</div>

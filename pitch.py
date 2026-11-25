@@ -59,19 +59,23 @@ class TunerMeter:
                 self.users.pop(owner, None)
                 self._sync()
 
-    def select_input(self, owner, port):
-        if type(port) != int or port not in (1, 2, 3, 4, 5, 8, 9):
+    def set_control(self, owner, field, value):
+        if field == "input_port_id" and (type(value) != int or value not in (1, 2, 3, 4, 5, 8, 9)):
             raise ValueError("Invalid tuner input")
+        if field == "mute" and type(value) != bool:
+            raise ValueError("Invalid tuner mute")
+        if field not in ("input_port_id", "mute"):
+            raise ValueError("Unknown tuner control")
         with self.lock:
             if self.closed or self.users.get(owner, (None,))[0] != "panel":
-                raise ValueError("튜너를 연 상태에서 입력을 선택하세요.")
+                raise ValueError("튜너를 연 상태에서 설정을 변경하세요.")
             self.transport.send(self.pa.TunerMessage(
                 action=self.pa.MessageAction.UPDATE,
-                request_id=self.transport.next_request_id(), input_port_id=port))
+                request_id=self.transport.next_request_id(), **{field: value}))
             actual = self.client.tuner(timeout=1)
-            if actual.input_port_id != port:
-                raise ValueError("본체에서 튜너 입력 변경을 확인하지 못했습니다.")
-            return dict(input=port, reference=440 + actual.frequency, mute=actual.mute)
+            if getattr(actual, field) != value:
+                raise ValueError("본체에서 튜너 설정 변경을 확인하지 못했습니다.")
+            return dict(input=actual.input_port_id, reference=440 + actual.frequency, mute=actual.mute)
 
     def close(self):
         with self.lock:

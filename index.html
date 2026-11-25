@@ -183,13 +183,26 @@
         z-index: 1;
       }
       .port {
-        max-width: 100%;
-        font-size: 10px;
-        padding: 3px;
-        overflow-wrap: anywhere;
-        background: #121213;
-        min-height: 45px;
+        box-sizing:border-box; width:81%; height:81%; min-height:0; padding:2px;
+        border-radius:12px; display:flex; flex-direction:column; align-items:center;
+        justify-content:center; gap:5px; color:#ddd; background:#131314;
+        font-size:clamp(10px,1.3vw,15px); line-height:1.35;
       }
+      .port {position:relative}
+      .port-status {position:absolute;left:22%;right:22%;height:4px;border-radius:4px}
+      .port-input .port-status {top:9%;background:#ffc928}
+      .port-output .port-status {bottom:9%;background:#ff3046}
+      .port-input {justify-self:start}
+      .port-output {justify-self:end}
+      .route-node {position:absolute; transform:translate(-50%,-50%); z-index:3;
+        width:24px; height:24px; min-height:0; padding:0; border-radius:50%;
+        color:white; border:1px solid var(--route); background:var(--route);
+        font:600 13px/1 sans-serif; touch-action:none; user-select:none;}
+      .route-node.start {--route:#007bec}
+      .route-node.end {--route:#da009c}
+      .route-node.parked {background:#0a0a0b; color:var(--route)}
+      .route-node:hover,.route-node:focus-visible {background:var(--route);color:#fff}
+      .route-node::before {content:"";position:absolute;inset:-5px;border-radius:50%}
       .cell {
         width: 100%;
         height: 100%;

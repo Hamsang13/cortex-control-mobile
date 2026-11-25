@@ -21,4 +21,4 @@ Windows: 기존 qc-test 가상환경에서 python.exe로 server.py 실행, 출�
 
 하단 TEMPO에서 프리셋 BPM과 메트로놈을 조정합니다. Global 탭은 조회용입니다.
 CPU의 ≈ 표시는 본체 모델별 DSP 비용으로 계산한 추정값입니다.
-TUNER는 본체에서 USB HID로 보내는 음정을 표시합니다. 본체 입력을 선택할 수 있고 Reference는 웹 튜너 표시에 적용됩니다.
+TUNER는 본체에서 USB HID로 보내는 음정을 표시합니다. 본체 입력과 튜닝 중 Mute를 변경할 수 있고 Reference는 웹 튜너 표시에 적용됩니다.

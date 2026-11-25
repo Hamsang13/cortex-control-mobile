@@ -51,7 +51,7 @@ class Demo:
             tempo=[[v] for v in self.global_tempo],
             name="Demo · Clean",
             identity="demo-0",
-            lanes=[dict(input=1, output=19) for _ in range(4)],
+            lanes=[dict(input=1, output=19, mute=[False]) for _ in range(4)],
             blocks=[block(0, 0, 1), block(0, 2, 2), block(0, 4, 3)],
             splits=[],
         )
@@ -60,6 +60,7 @@ class Demo:
             1: dict(deepcopy(self.grid), name="Demo · Drive", identity="demo-1"),
         }
         self.scene = 0
+        self.tuner_mute = False
         self.dirty = False
         self.undo = []
         self.redo = []
@@ -68,8 +69,12 @@ class Demo:
         g = self.grid
         if a == "cpu":
             return {}
-        if a == "tuner":
-            return dict(reference=440, mute=False)
+        if a == "tuner-mute":
+            if type(d.get("mute")) != bool:
+                raise ValueError("Invalid tuner mute")
+            self.tuner_mute = d["mute"]
+        if a in ("tuner", "tuner-mute"):
+            return dict(reference=440, mute=self.tuner_mute)
         if a == "global-tempo":
             return self.global_tempo
         if a == "set-tempo":
@@ -123,9 +128,11 @@ class Demo:
                 )
                 if a in ("input", "output"):
                     g["lanes"][row][a] = d["value"]
+                elif a == "lane-mute":
+                    g["lanes"][row]["mute"] = [d["mute"]]
                 elif a == "split":
                     g["splits"] = [s for s in g["splits"] if s["row"] != row]
-                    if d["start"] >= 0:
+                    if d["start"] >= 0 or d["end"] >= 0:
                         g["splits"].append(
                             dict(row=row, start=d["start"], end=d["end"])
                         )
