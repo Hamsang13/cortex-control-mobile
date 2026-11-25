@@ -967,9 +967,11 @@ function App() {
       setLibraryOpen(true);
   },[]);
   function select(row, col) {
+    const block = at(row, col);
     P({ row, col });
-    setParamsOpen(!!at(row, col));
-    reveal(at(row, col));
+    setParamsOpen(!!block);
+    if (!block) setLibraryOpen(true);
+    reveal(block);
     G(0);
   }
   function remember(action, d, done) {
