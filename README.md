@@ -80,7 +80,9 @@ Zero 2 W의 Wi-Fi를 핫스팟에서 설치 때 사용한 공유기로 잠시 �
 | --- | --- | --- |
 | [pyquadcortex](https://github.com/stokes-audio/pyquadcortex) | 0.40.0 | Quad Cortex와 USB로 통신해 프리셋·씬·블록을 편집하고 본체 튜너가 측정한 음정(Hz)을 수신합니다. |
 | [react, react-dom](https://github.com/facebook/react) | 각각 19.3.1 | 그리드, 파라미터 편집기, Gig View를 브라우저에 렌더링합니다. |
-| [sounddevice](https://github.com/spatialaudio/python-sounddevice) | Windows 검증 0.5.6 | PortAudio로 미터용 USB 오디오 입력을 읽습니다. |
-| [numpy](https://github.com/numpy/numpy) | Windows 검증 2.5.5 | Quad Cortex USB 오디오 입력의 채널별 피크를 계산합니다. |
+| [sounddevice](https://github.com/spatialaudio/python-sounddevice) | Pi 설치 확인 0.5.6 | Python 서버에서 PortAudio로 Quad Cortex USB 녹음 채널을 열고, 입출력 레벨 미터에 사용할 오디오 샘플을 읽습니다. |
+| [numpy](https://github.com/numpy/numpy) | Pi 설치 확인 2.5.5 | 입력 샘플의 채널별 피크를 계산합니다. 서버는 이 값으로 dBFS 레벨과 클리핑을 표시합니다. |
+
+두 패키지는 설치 스크립트가 설치합니다. 위 버전은 Raspberry Pi에서 확인한 설치 버전입니다. 튜너의 음정(Hz)은 Quad Cortex 본체에서 측정하고 Python 서버가 USB HID로 받아 표시합니다.
 
 USB 통신에서 `pyquadcortex`는 `hid`와 네이티브 HIDAPI로 장치에 접근하고, `protobuf`로 메시지를 처리합니다. HTTP 서버는 Python 표준 라이브러리의 `http.server`를 사용합니다. 프런트엔드 번들 생성 도구는 [esbuild](https://github.com/evanw/esbuild) 0.28.2입니다.
