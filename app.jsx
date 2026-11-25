@@ -967,7 +967,7 @@ function App() {
   },[]);
   function select(row, col) {
     P({ row, col });
-    if (at(row, col)) setParamsOpen(true);
+    setParamsOpen(!!at(row, col));
     reveal(at(row, col));
     G(0);
   }
@@ -1327,7 +1327,17 @@ function App() {
             </div>}
           </aside>
         }
-        <main>
+        <main onClick={event=>{
+          if (!active) return;
+          const target=event.target;
+          const gridBackground=target.closest(".scroll") && !target.closest("button");
+          if (target===event.currentTarget || gridBackground) {
+            P(null);
+            setParamsOpen(false);
+            reveal(null);
+            G(0);
+          }
+        }}>
           <div className="bar">
             <button
               disabled={!s || busy}
