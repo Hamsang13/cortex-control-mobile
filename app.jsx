@@ -1,7 +1,7 @@
 import {meterReading, MeterTrack} from "./SignalTrack";
 import DeviceToolbar from "./DeviceToolbar";
 import {GridRouting, Port, portLabel} from "./GridRouting";
-import ChoiceParameter from "./ChoiceParameter";
+import ChoiceParameter, {SceneMark} from "./ChoiceParameter";
 import FooterTools from "./FooterTools";
 import icons from "./cortex-icons.json";
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -156,14 +156,14 @@ function Modal({ title, close, children }) {
     </div>
   );
 }
-function Knob({ p, scene, commit, assign, busy, disabled }) {
+function Knob({ p, scene, commit, assign, busy, disabled, readOnly }) {
   const current = p.values[p.assigned ? scene : 0];
   const [preview, setPreview] = useState(null),
     gesture = useRef(null);
   useEffect(() => () => clearTimeout(gesture.current?.timer), []);
   const value = preview ?? current ?? 0;
   function start(e) {
-    if (busy || current == null || gesture.current) return;
+    if (busy || readOnly || !e.isPrimary || e.button!==0 || current == null || gesture.current) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     const g = {
       y: e.clientY,
@@ -225,8 +225,8 @@ function Knob({ p, scene, commit, assign, busy, disabled }) {
       onPointerUp={() => end(false)}
       onPointerCancel={() => end(true)}
       onKeyDown={(e) => {
-        if (busy) return;
-        if (e.key === "Enter") assign();
+        if (busy || readOnly) return;
+        if (e.key === "Enter" && !e.repeat) assign();
         if (["ArrowUp", "ArrowDown"].includes(e.key)) {
           e.preventDefault();
           commit(
@@ -244,7 +244,7 @@ function Knob({ p, scene, commit, assign, busy, disabled }) {
       }}
     >
       <small>
-        {p.name} {p.assigned ? "· " + letters[scene] : ""}
+        {p.name}{p.assigned && <SceneMark scene={scene}/>}
       </small>
       <i className="dial" style={{ "--angle": value * 270 - 135 + "deg" }} />
       <output>{current == null ? "—" : formatted}</output>
@@ -1389,7 +1389,7 @@ function App() {
               </div>
               {route && (!gig || paramsOpen) && <RoutePanel key={route.row+route.part} route={route} state={s}
                 open={openRoute} busy={busy} paused={paused} commit={writeKnob}
-                assign={p=>M({kind:"assign",p,route,rev:s.rev,scene:s.scene})}/>}
+                assign={p=>remember("route-assign",{...route,index:p.index,rev:s.rev,scene:s.scene})}/>}
               {active && (!gig || paramsOpen) && (
                 <section
                   className="panel"
@@ -1441,9 +1441,7 @@ function App() {
                         scene={s.scene}
                         busy={busy}
                         commit={(value) => writeKnob(p, value)}
-                        assign={() =>
-                          M({ kind: "assign", p, rev: s.rev, scene: s.scene })
-                        }
+                        assign={() => blockAction("assign",{index:p.index,rev:s.rev,scene:s.scene})}
                       />
                     ))}
                   </div>
@@ -1514,7 +1512,6 @@ function App() {
             {
               presets: "My Presets",
               save: "My Presets에 저장",
-              assign: modal.p?.name,
             }[modal.kind]
           }
           close={close}
@@ -1594,25 +1591,6 @@ function App() {
               </label>
               <button disabled={busy}>저장</button>
             </form>
-          )}
-          {modal.kind === "assign" && (
-            <button
-              disabled={busy}
-              onClick={() => {
-                if(modal.route) {
-                  remember("route-assign",{...modal.route,index:modal.p.index,rev:modal.rev,scene:modal.scene},close);
-                  return;
-                }
-                blockAction(
-                  "assign",
-                  { index: modal.p.index, rev: modal.rev, scene: modal.scene },
-                  close,
-                );
-              }}
-            >
-              {modal.p.assigned ? "씬 할당 해제" : "씬별 값 할당"} ·{" "}
-              {letters[modal.scene]}
-            </button>
           )}
         </Modal>
       )}

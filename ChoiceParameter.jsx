@@ -1,6 +1,11 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+export function SceneMark({scene}) {
+  const description="씬 할당 · "+"ABCDEFGH"[scene];
+  return <span className="scene-mark" role="img" aria-label={description} title={description}>A B<br/>C D</span>;
+}
+
 export default function ChoiceParameter({p, scene, disabled, busy, readOnly, commit, assign, pressButton=false}) {
   const value = p.values[p.assigned ? scene : 0];
   const binary = (p.options.length || p.steps || 2) === 2;
@@ -71,7 +76,7 @@ export default function ChoiceParameter({p, scene, disabled, busy, readOnly, com
       }}
       onPointerLeave={cancelHold} onPointerCancel={cancelHold} onPointerUp={cancelHold}
       onKeyDown={e=>{
-        if(e.key==="F10" && e.shiftKey && !readOnly){e.preventDefault();assign()}
+        if(e.key==="F10" && e.shiftKey && !e.repeat && !readOnly){e.preventDefault();assign()}
         if(!pressButton && ["ArrowDown","ArrowUp"].includes(e.key)){
           e.preventDefault();
           if(vertical)choose(Math.max(0,Math.min(count-1,index+(e.key==="ArrowUp"?1:-1))));
@@ -86,9 +91,9 @@ export default function ChoiceParameter({p, scene, disabled, busy, readOnly, com
           choose(target?Number(target.dataset.choice):(index+1)%count);
         } else show();
       }}>
-      {!pressButton && <small>{p.name}{p.assigned?" · "+"ABCDEFGH"[scene]:""}</small>}
+      {!pressButton && <small>{p.name}{p.assigned && <SceneMark scene={scene}/>}</small>}
       {pressButton ? <span className="param-push">
-        {p.assigned && <span className="scene-mark" title={"Scene "+"ABCDEFGH"[scene]}>A B<br/>C D</span>}
+        {p.assigned && <SceneMark scene={scene}/>}
         {index===1 && p.name==="MUTE"?"MUTED":p.name}
       </span> : vertical ? <span className="param-switch" style={{gridTemplateRows:"repeat("+count+",22px)"}}>
         <i aria-hidden="true" style={{gridRow:"span "+count,height:(count*22-1)+"px","--switch-position":(3+index*22)+"px"}}/>
