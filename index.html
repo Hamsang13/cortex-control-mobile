@@ -946,6 +946,19 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
 .preset-directory-view.tablet-directory{position:fixed;inset:0;margin:auto;width:min(940px,94vw);height:min(700px,85dvh);border:1px solid #464646;border-radius:10px;padding:6px;box-sizing:border-box}
 .tablet-directory::backdrop{background:#000a}.tablet-directory .picker{min-height:0;grid-template-columns:clamp(65px,13vw,125px) minmax(0,1fr)}
 .preset-directory-view .directory{overflow:auto;min-height:0}.preset-directory-view .directory section>button{display:block;width:100%}.preset-directory-view .directory section>small{display:block;padding:6px;color:#aaa}
+.expression-dial {display:grid;place-items:center;font:600 12px system-ui;color:#41dc63;border-color:#111;background:#080808}
+.expression-dial:after {display:none}
+.param:has(.expression-dial) output,.expression-choice {color:#41dc63}
+.device-menu {position:fixed;z-index:100;background:#202020;border:1px solid #505050;border-radius:5px;padding:5px;width:min(260px,96vw);max-height:80dvh;overflow:auto;color:#eee}
+.device-menu button {display:block;text-align:left;width:100%;padding:7px;background:transparent}
+.device-menu button:not(:disabled):hover,.device-menu button:focus-visible {background:#343434}
+.device-menu button[aria-pressed=true],.expression-pane strong {color:#41dc63}
+.device-menu .switch-bank {display:flex}
+.switch-bank button {text-align:center;padding:6px 0}
+.expression-pane {top:65px;left:8px;bottom:45px;display:flex;flex-direction:column;gap:8px;padding:12px}
+.expression-pane label {display:flex;align-items:center;gap:8px;padding:4px}
+.expression-pane input[type=range] {min-width:0;flex:1;accent-color:#41dc63}
+.expression-pane>button:last-child {margin-top:auto}
 </style>
   </head>
   <body>

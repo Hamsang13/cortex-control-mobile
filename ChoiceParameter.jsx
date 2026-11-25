@@ -92,6 +92,7 @@ export default function ChoiceParameter({p, scene, disabled, busy, readOnly, com
         } else show();
       }}>
       {!pressButton && <small>{p.name}</small>}
+      {p.expression > 0 && <span className="expression-choice">X{p.expression}</span>}
       {p.assigned && <SceneMark scene={scene}/>}
       {pressButton ? <span className="param-push">
         {index===1 && p.name==="MUTE"?"MUTED":p.name}

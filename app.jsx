@@ -1,4 +1,5 @@
 import IOSettings from "./IOSettings";
+import BlockMenu from "./BlockMenu";
 import CabinetPanel from "./CabinetPanel";
 import {meterReading, MeterTrack} from "./SignalTrack";
 import DeviceToolbar from "./DeviceToolbar";
@@ -304,7 +305,7 @@ function Knob({ p, scene, commit, assign, busy, disabled, readOnly }) {
         {p.name}
       </small>
       {p.assigned && <SceneMark scene={scene}/>}
-      <i className="dial" style={{ "--angle": value * 270 - 135 + "deg" }} />
+      <i className={"dial" + (p.expression ? " expression-dial" : "")} style={{ "--angle": p.expression ? "0deg" : value * 270 - 135 + "deg" }}>{p.expression ? "X"+p.expression : null}</i>
       <output>{current == null ? "—" : formatted}</output>
     </button>
   );
@@ -854,7 +855,7 @@ function App() {
       if (cached.library) L(cached.library);
     }).catch(() => {}).finally(()=>{if(mounted)setPreviewChecked(true)});
     refresh(true);
-    const timer = setInterval(() => refresh(), 850),
+    const timer = setInterval(() => refresh(), 250),
       wake = () => refresh(true);
     document.addEventListener("visibilitychange", wake);
     return () => {
@@ -1208,6 +1209,7 @@ function App() {
       G(0);
     });
   }
+  const editorMenu = active && <BlockMenu key={[s.identity,active.row,active.col,active.model].join("-")} block={active} blocks={s.blocks} disabled={busy || paused} action={blockAction}/>;
   function blockAction(a, d = {}, done) {
     if (active) remember(a, { row: active.row, col: active.col, ...d }, done);
   }
@@ -1646,7 +1648,7 @@ function App() {
                 setPoints={points=>remember("split",points)}
                 assign={p=>remember("route-assign",{...route,index:p.index,rev:s.rev,scene:s.scene})}/>}
               {active && (!gig || paramsOpen) && (active.params.some(p=>p.index===1 && p.textOptions) && active.params.some(p=>p.index===9 && p.textOptions) ?
-                <CabinetPanel key={[s.identity,active.row,active.col,active.model,s.scene,usbPaused].join("-")} block={active} scene={s.scene}
+                <CabinetPanel menu={editorMenu} key={[s.identity,active.row,active.col,active.model,s.scene,usbPaused].join("-")} block={active} scene={s.scene}
                   busy={busy} readOnly={paused} previewCabinet={usbPaused ? previewCabinet : null} commit={writeKnob} Parameter={BlockParameter}
                   assign={p=>blockAction("assign",{index:p.index,rev:s.rev,scene:s.scene})}
                   bypass={()=>blockAction("bypass")}/> : (
@@ -1655,7 +1657,7 @@ function App() {
                   style={{ "--c": style(active.category)[2] }}
                 >
                   <div className="panelhead">
-                    <span>{active.category}</span>
+                    {editorMenu}<span>{active.category}</span>
                     <b className="grow" style={{ color: "var(--c)" }}>
                       {active.name}
                     </b>

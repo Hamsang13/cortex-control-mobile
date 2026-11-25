@@ -113,6 +113,7 @@ def model_params(block, model, metadata):
                 type=spec.type,
                 values=values,
                 assigned=param.scene_mode,
+                expression=param.expression, expressionMin=param.expression_min, expressionMax=param.expression_max,
                 min=spec.minimum,
                 max=spec.maximum,
                 unit=spec.units,
@@ -159,6 +160,7 @@ def route_params(chain, qc, metadata):
 def read_grid(api, qc, metadata):
     preset = qc.read_current_preset()
     blocks = []
+    stomps = {(a.row, a.column): a.footswitch for a in api.stomp_assignments(preset)}
     lanes = []
     for row, chain in enumerate(preset.chains):
         lanes.append(dict(
@@ -181,6 +183,11 @@ def read_grid(api, qc, metadata):
                         values = api.param_state(preset, row, col, spec.index).values
                         if values and isinstance(values[0], str):
                             capture_key, capture_name = values[0][:64], values[0][64:]
+            be = next(iter(block.bypass_expression), None)
+            info = next(iter(block.expression_bypass_info), None)
+            expression_bypass = dict(pedal=be.expression if be else 0, mode=info.type if info else 0,
+                                     invert=bool(info and info.invert), delay=info.delay_ms if info else 0,
+                                     latch=bool(info and info.latch_emulation))
             blocks.append(
                 dict(
                     row=row,
@@ -189,6 +196,9 @@ def read_grid(api, qc, metadata):
                     name=capture_name or (model.name if model else str(block.hash)),
                     capture=capture_key,
                     category=model.category if model else "Other",
+                    expressionBypass=expression_bypass,
+                    stomp=stomps.get((row,col)),
+                    momentary=(row,col) in stomps and bool(preset.stomp_is_momentary.get(stomps[row,col], False)),
                     params=params,
                     bypass=list(bypass.scenes),
                 )
@@ -517,6 +527,7 @@ class Editor:
         if action == "recall" and result["name"] != d["name"]:
             raise ValueError("요청한 프리셋과 본체 응답이 다릅니다.")
         if action in (
+            "expression", "expression-bypass", "stomp", "momentary",
             "place",
             "delete",
             "move",
@@ -611,6 +622,34 @@ class Editor:
             q.remove_block(row, col)
         elif action == "bypass":
             q.set_bypass(row, col, not block["bypass"][state["scene"]])
+        elif action == "expression-bypass":
+            pedal = integer(d, "pedal", 0, 2)
+            mode = integer(d, "mode", 0, 2)
+            delay = integer(d, "delay", 0, 5000)
+            if type(d.get("invert")) != bool or type(d.get("latch")) != bool:
+                raise ValueError("Invalid expression bypass settings")
+            q.set_expression_bypass(row,col,pedal,mode,d["invert"],delay,d["latch"])
+        elif action == "stomp":
+            switch = integer(d, "switch", -1, 7)
+            if switch == -1:
+                q.clear_stomp_assignment(row, col)
+            else:
+                q.set_stomp_assignment(row, col, switch)
+        elif action == "momentary":
+            switch = block["stomp"]
+            if switch is None or sum(b["stomp"] == switch for b in state["blocks"]) != 1 or type(d.get("value")) != bool:
+                raise ValueError("Footswitch mode unavailable")
+            q.set_stomp_momentary(switch, d["value"])
+        elif action == "expression":
+            pedal = integer(d, "pedal", 0, 2)
+            p = next((p for p in block["params"] if p["index"] == d.get("index") and "expression" in p), None)
+            if not p:
+                raise ValueError("Unknown expression parameter")
+            limits = [d.get(k, p[k] if p["expression"] else default)
+                      for k, default in (("expressionMin", 0), ("expressionMax", 1))]
+            if any(type(x) not in (int, float) or not 0 <= x <= 1 for x in limits):
+                raise ValueError("Invalid expression range")
+            q.set_expression(row, col, p["index"], pedal, *limits)
         elif action in ("edit", "assign"):
             param = next(
                 (p for p in block["params"] if p["index"] == d.get("index")), None
@@ -679,6 +718,16 @@ def verify_edit(action, data, before, after):
     elif action == "bypass" and current:
         scene = after["scene"]
         success = current["bypass"][scene] != previous["bypass"][scene]
+    elif current and action == "expression-bypass":
+        success = all(data[k] == v for k,v in current["expressionBypass"].items())
+    elif current and action == "expression":
+        p = next(p for p in current["params"] if p["index"] == data["index"])
+        success = p["expression"] == data["pedal"] and all(
+            abs(p[k] - data[k]) < .002 for k in ("expressionMin","expressionMax") if k in data)
+    elif current and action == "stomp":
+        success = current["stomp"] == (None if data["switch"] == -1 else data["switch"])
+    elif current and action == "momentary":
+        success = current["momentary"] == data["value"]
     elif current and action in ("edit", "assign"):
         param = next(p for p in current["params"] if p["index"] == data["index"])
         if action == "assign":

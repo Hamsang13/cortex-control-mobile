@@ -260,6 +260,16 @@ class Demo:
                     b.update(row=d["toRow"], col=d["toCol"])
                 elif a == "bypass":
                     b["bypass"][self.scene] = not b["bypass"][self.scene]
+                elif a == "expression-bypass":
+                    b["expressionBypass"] = {k:d[k] for k in ("pedal","mode","delay","invert","latch")}
+                elif a == "expression":
+                    p = next(p for p in b["params"] if p["index"] == d["index"])
+                    p.update(expression=d["pedal"], expressionMin=d.get("expressionMin", p.get("expressionMin", 0)),
+                             expressionMax=d.get("expressionMax", p.get("expressionMax", 1)))
+                elif a == "stomp":
+                    b["stomp"] = None if d["switch"] == -1 else d["switch"]
+                elif a == "momentary":
+                    b["momentary"] = d["value"]
                 elif a in ("assign", "edit"):
                     p = b["params"][d["index"]]
                     if a == "assign":
