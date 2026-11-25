@@ -289,6 +289,8 @@ class Editor:
             if m.get("id")
             for i, p in enumerate(m.findall("Parameter"))
         }
+        self.edit_history = {"undo": [], "redo": []}
+        self.history_frames = None
         self.grid = None
         self.slots = {}
         self.slots_valid_until = 0
@@ -296,8 +298,26 @@ class Editor:
         self.device_name = None
         self.device_key = None
 
+    def read_history_frames(self):
+        from pyquadcortex.client import pa
+        msg = self.qc._t.request(pa.UndoRedoMessage(action=pa.MessageAction.READ), timeout=.7)
+        return tuple(msg.undo_frames), tuple(msg.redo_frames)
+
+    def clear_edit_history(self):
+        self.edit_history = {"undo": [], "redo": []}
+        self.history_frames = None
+
+    def history_available(self, action, rev, frames):
+        records = self.edit_history[action]
+        return bool(records and self.history_frames == frames and
+                    records[-1][1 if action == "undo" else 0] == rev and
+                    frames[0 if action == "undo" else 1])
+
     def snapshot(self):
-        self.grid = read_grid(self.api, self.qc, self.metadata)
+        grid = read_grid(self.api, self.qc, self.metadata)
+        if self.grid and self.grid["identity"] != grid["identity"]:
+            self.clear_edit_history()
+        self.grid = grid
         return self.view()
 
     def view(self):
@@ -426,9 +446,10 @@ class Editor:
                     if monotonic() >= deadline:
                         raise ValueError("본체에서 마스터 볼륨 변경을 확인하지 못했습니다.")
                     sleep(.045)
-            frames = q._t.request(pa.UndoRedoMessage(action=pa.MessageAction.READ), timeout=.7)
+            frames = self.read_history_frames()
+            rev = revision(self.grid) if self.grid else None
             return dict(**volume_state(),
-                        undo=bool(frames.undo_frames), redo=bool(frames.redo_frames))
+                        **{a:self.history_available(a, rev, frames) for a in ("undo","redo")})
         if action in ("cpu", "tuner", "global-tempo", "set-tempo"):
             return utility_request(self, action, d)
         if action == "live":
@@ -485,19 +506,17 @@ class Editor:
         if action in ("undo", "redo"):
             from time import sleep, monotonic
             from pyquadcortex.client import pa
-            def frames():
-                return q._t.request(pa.UndoRedoMessage(action=pa.MessageAction.READ), timeout=.7)
-            previous_frames = frames()
-            if not getattr(previous_frames, action + "_frames"):
-                raise ValueError("사용할 수 있는 편집 기록이 없습니다.")
+            previous_frames = self.read_history_frames()
+            if not self.history_available(action, state["rev"], previous_frames):
+                raise ValueError("현재 프리셋에서 되돌릴 편집 기록이 없습니다.")
 
             q._t.send(
                 pa.UndoRedoMessage(action=pa.MessageAction.UPDATE, **{action: True})
             )
             until = monotonic() + .7
             while True:
-                current = frames()
-                if (list(current.undo_frames), list(current.redo_frames)) != (list(previous_frames.undo_frames), list(previous_frames.redo_frames)):
+                current = self.read_history_frames()
+                if current != previous_frames:
                     break
                 if monotonic() >= until:
                     raise ValueError("본체에서 편집 기록 변경을 확인하지 못했습니다.")
@@ -515,6 +534,7 @@ class Editor:
                 raise ValueError("Preset slot changed")
             if state["dirty"] and not d.get("discard"):
                 raise ValueError("Unsaved changes")
+            self.clear_edit_history()
             q.recall_preset(api.Setlist.FACTORY if folder==str(api.Setlist.FACTORY).rstrip("/") else folder, slot)
         elif action == "save":
             # The device records the containing folder in its current Recents entry.
@@ -529,6 +549,7 @@ class Editor:
             slot = existing.index
             if str(q.read_current_preset().hash) != state["identity"]:
                 raise ValueError("저장 전에 프리셋이 변경되었습니다.")
+            self.clear_edit_history()
             q.save_current_preset(folder, slot, existing.name, instrument=existing.instrument)
             saved = {x.index: x.name for x in q.list_presets(folder)}
             if folder.rstrip("/") == api.Setlist.USER.rstrip("/"):
@@ -537,8 +558,25 @@ class Editor:
             if saved.get(slot) != existing.name:
                 raise ValueError("저장 슬롯에서 프리셋을 확인하지 못했습니다.")
         else:
+            try:
+                before_frames = self.read_history_frames()
+            except TimeoutError:
+                before_frames = None
             self.edit(state, action, d)
         result = self.snapshot()
+        if action in ("undo", "redo"):
+            stack = self.edit_history[action]
+            expected = stack[-1][0 if action == "undo" else 1] if stack else None
+            deadline = monotonic() + .8
+            while (expected and result["rev"] != expected and result["identity"] == state["identity"]
+                   and monotonic() < deadline):
+                sleep(.04)
+                result = self.snapshot()
+            if not expected or result["rev"] != expected:
+                self.clear_edit_history()
+                raise ValueError("편집 기록이 변경되어 현재 프리셋 상태를 다시 읽었습니다.")
+            self.edit_history["redo" if action=="undo" else "undo"].append(stack.pop())
+            self.history_frames = self.read_history_frames()
         if action == "recall" and result["name"] != d["name"]:
             raise ValueError("요청한 프리셋과 본체 응답이 다릅니다.")
         if action in (
@@ -557,6 +595,24 @@ class Editor:
             "split",
         ):
             verify_edit(action, d, state, result)
+            try:
+                after_frames = self.read_history_frames()
+            except TimeoutError:
+                after_frames = None
+            if self.history_frames != before_frames or (self.edit_history["undo"] and
+                    self.edit_history["undo"][-1][1] != state["rev"]):
+                self.clear_edit_history()
+            if state["rev"] != result["rev"]:
+                # A full native stack can have the same type codes before and after
+                # a parameter write. Only accept that case for a known grid edit.
+                if (before_frames is None or not after_frames or not after_frames[0] or
+                        (before_frames == after_frames and (len(after_frames[0]) < 20 or after_frames[0][-1] != 0))):
+                    self.clear_edit_history()
+                else:
+                    self.edit_history["undo"].append((state["rev"],result["rev"]))
+                    self.edit_history["undo"] = self.edit_history["undo"][-len(after_frames[0]):]
+                    self.edit_history["redo"].clear()
+                    self.history_frames = after_frames
         if action == "save":
             if saved[slot] != result["name"] or result["dirty"]:
                 raise ValueError(

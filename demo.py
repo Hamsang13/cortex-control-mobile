@@ -211,6 +211,8 @@ class Demo:
                 self.scene = 0
                 self.dirty = False
             elif a == "save":
+                self.undo.clear()
+                self.redo.clear()
                 slot = next(i for i,v in self.saved.items() if v["identity"] == g["identity"])
                 self.saved[slot] = deepcopy(g)
                 self.dirty = False
