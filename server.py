@@ -180,6 +180,12 @@ def preload_preset():
 
 
 def operate(action, data):
+    if action == "presets" and not DEMO and not browse_only:
+        current = editor
+        if current is not None:
+            entries = current.cached_presets()
+            if entries is not None:
+                return entries
     snapshots = cache_dir / "controller-plugins"
     if action == "plugin-import":
         return save_snapshot(data,snapshots)

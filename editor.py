@@ -5,6 +5,7 @@ from utilities import tempo_values, utility_request
 import hashlib
 import json
 import math
+from time import monotonic as clock_seconds
 import xml.etree.ElementTree as ET
 
 
@@ -290,6 +291,7 @@ class Editor:
         }
         self.grid = None
         self.slots = {}
+        self.slots_valid_until = 0
         self.capture_entries = {}
         self.device_name = None
         self.device_key = None
@@ -305,6 +307,11 @@ class Editor:
             scene=int(self.qc.active_scene()),
             dirty=self.qc.preset_dirty(),
         )
+
+    def cached_presets(self):
+        if clock_seconds() < self.slots_valid_until:
+            return [dict(slot=i, name=n) for i, n in self.slots.items()]
+        return None
 
     def captures(self):
         entries = self.qc.captures()
@@ -452,10 +459,16 @@ class Editor:
                     folders[key] = dict(key=key,name=group,entries=entries,local=factory or key.startswith("/media/p4/Presets/"))
             if not any(f["name"]=="My Presets" for f in folders.values()):
                 raise ValueError("본체 세트리스트 응답이 지연되었습니다. 다시 열어 주세요.")
+            user_folder = folders.get(str(api.Setlist.USER).rstrip("/"))
+            if user_folder:
+                self.slots = {p["slot"]: p["name"] for p in user_folder["entries"]}
+                self.slots_valid_until = clock_seconds() + 60
             self.directory_folders = folders
             return list(folders.values())
         if action == "presets":
-            self.slots = {x.index: x.name for x in q.list_presets()}
+            if clock_seconds() >= self.slots_valid_until:
+                self.slots = {x.index: x.name for x in q.list_presets()}
+                self.slots_valid_until = clock_seconds() + 60
             return [dict(slot=i, name=n) for i, n in self.slots.items()]
         if action == "scene":
             target = integer(d, "target", 0, 7)
@@ -520,6 +533,7 @@ class Editor:
             saved = {x.index: x.name for x in q.list_presets(folder)}
             if folder.rstrip("/") == api.Setlist.USER.rstrip("/"):
                 self.slots = saved
+                self.slots_valid_until = clock_seconds() + 60
             if saved.get(slot) != existing.name:
                 raise ValueError("저장 슬롯에서 프리셋을 확인하지 못했습니다.")
         else:

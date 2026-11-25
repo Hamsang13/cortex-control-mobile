@@ -1412,7 +1412,7 @@ function App() {
   const loadingStep = !previewChecked ? 1 : !liveState ? 2 : libraryPending ? 3 : 4;
   return (
     <div className="shell">
-      {(loadingPresets || (!liveState && !usbPaused && !msg) || (usbPaused && busy)) && (
+      {((loadingPresets && modal?.kind==="presets" && !visibleSlots.length) || (!liveState && !usbPaused && !msg) || (usbPaused && busy)) && (
         <div className="preset-loading" role="status">
           <div className="splash-chain" aria-hidden="true">
             {["pitch","overdrive","amp","cab","reverb"].map((key,i)=><div key={key} className="splash-block" style={{"--fill":(i<loadingStep?100:i>loadingStep?0:25+75*(i===4?presetFraction:0))+"%"}}>
