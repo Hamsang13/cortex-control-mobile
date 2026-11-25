@@ -719,13 +719,18 @@ function App() {
     }
   }
   const pluginUnavailable=model=>Boolean(model.plugin) && !lib.owned?.includes(String(model.plugin));
+  const [previewChecked,setPreviewChecked]=useState(false);
+  const [libraryPending,setLibraryPending]=useState(false);
   async function loadLibrary() {
+    setLibraryPending(true);
     const request = ++libraryRequest.current;
     try {
       const library = await api("library");
       if (request === libraryRequest.current) L(library);
     } catch (e) {
       if (request === libraryRequest.current) T(e.message);
+    } finally {
+      if (request === libraryRequest.current) setLibraryPending(false);
     }
   }
   async function refresh(force = false) {
@@ -796,7 +801,7 @@ function App() {
       if (mode.current || latest.current) return;
       if (cached.preview) setPreview(cached.preview);
       if (cached.library) L(cached.library);
-    }).catch(() => {});
+    }).catch(() => {}).finally(()=>{if(mounted)setPreviewChecked(true)});
     refresh(true);
     const timer = setInterval(() => refresh(), 850),
       wake = () => refresh(true);
@@ -1319,12 +1324,14 @@ function App() {
       />
     </>
   );
+  // The app bundle is ready. The remaining lights follow actual request boundaries.
+  const loadingStep = !previewChecked ? 1 : !liveState ? 2 : libraryPending ? 3 : 4;
   return (
     <div className="shell">
       {(loadingPresets || (!liveState && !usbPaused && !msg) || (usbPaused && busy)) && (
         <div className="preset-loading" role="status">
           <div className="splash-chain" aria-hidden="true">
-            {["pitch","overdrive","amp","cab","reverb"].map(key=><img key={key} src={icons[key]} alt=""/>)}
+            {["pitch","overdrive","amp","cab","reverb"].map((key,i)=><img key={key} src={icons[key]} alt="" data-stage={i<loadingStep?"done":i===loadingStep?"active":"waiting"}/>)}
           </div>
           <span>Loading Preset...</span>
         </div>
