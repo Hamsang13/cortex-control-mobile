@@ -982,6 +982,16 @@ function App() {
       done?.(result);
     });
   }
+  function placeModel(model, target) {
+    if (target?.col == null) return;
+    const {row,col} = target;
+    return remember("place", {row,col,...placement(model)}, () => {
+      P({row,col});
+      reveal(model);
+      G(0);
+      if (window.matchMedia("(orientation: portrait)").matches) setLibraryOpen(false);
+    });
+  }
   function travel(action) {
     const h = history.current,
       source = h[action],
@@ -1045,7 +1055,7 @@ function App() {
         const cell = target(ev);
         if (!cell) return;
         const [row, col] = cell.dataset.cell.split(":").map(Number);
-        if (src.row == null) remember("place", { row, col, ...placement(src) }, ()=>setLibraryOpen(false));
+        if (src.row == null) placeModel(src,{row,col});
         else if (src.row !== row || src.col !== col)
           remember(
             "move",
@@ -1057,12 +1067,7 @@ function App() {
             },
           );
       } else if (src.row != null) select(src.row, src.col);
-      else if (picked)
-        remember("place", { ...picked, ...placement(src) }, () => {
-          setLibraryOpen(false);
-          reveal(src);
-          G(0);
-        });
+      else placeModel(src,picked);
     }
     el.addEventListener("pointermove", move);
     el.addEventListener("pointerup", stop);
@@ -1141,8 +1146,7 @@ function App() {
       }
       onPointerDown={(e) => gesture(e, m)}
       onClick={(e) => {
-        if (e.detail === 0 && picked)
-          remember("place", { ...picked, ...placement(m) },()=>setLibraryOpen(false));
+        if (e.detail === 0) placeModel(m,picked);
       }}
     >
       {m.capture ? (
