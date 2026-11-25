@@ -10,6 +10,13 @@ function branch(x, edge, y) {
   return `M${x} ${y}v40q0 10 ${10*dir} 10H${edge-10*dir}q${10*dir} 0 ${10*dir} 10v40`;
 }
 
+export function displayedInput(lanes,row) {
+  const input=lanes[row].input;
+  if (input || row<2) return input;
+  const routed=lanes.slice(0,2).some(lane=>lane.output===18 || lane.output===16+(row-2));
+  return routed ? 7 : input;
+}
+
 export function portLabel(name) {
   if (!name || name === "EMPTY") return "+";
   const names = {MULTIPLE:"Multi Out", PREV_ROW:"Prev. row", NEXT_ROW_3_4:"Row 3/4",
@@ -115,7 +122,7 @@ export function GridRouting({state,disabled,commit,open,selection,pair}) {
         const left=lower && p.start>=0 ? gapX(0) : 35;
         const right=lower && p.end>=0 ? gapX(8) : 965;
         return <g key={row} fill="none" stroke="#bdbdbd" strokeWidth="1.35">
-          {(lane.input || lane.output || p.start>=0 || p.end>=0 || state.blocks.some(b=>b.row===row)) ?
+          {(displayedInput(state.lanes,row) || lane.output || p.start>=0 || p.end>=0 || state.blocks.some(b=>b.row===row)) ?
             <><path d={`M${left} ${y}H${right}`} vectorEffect="non-scaling-stroke"/>
               <path data-wire-row={row} className="wire-hit" stroke="transparent" strokeWidth="18"
                 tabIndex={0} role="button" aria-label={`${row+1}행 배선 편집`}

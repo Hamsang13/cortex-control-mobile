@@ -2,7 +2,7 @@ import IOSettings from "./IOSettings";
 import CabinetPanel from "./CabinetPanel";
 import {meterReading, MeterTrack} from "./SignalTrack";
 import DeviceToolbar from "./DeviceToolbar";
-import {GridRouting, Port, portLabel} from "./GridRouting";
+import {GridRouting, Port, portLabel, displayedInput} from "./GridRouting";
 import ChoiceParameter, {SceneMark} from "./ChoiceParameter";
 import FooterTools from "./FooterTools";
 import icons from "./cortex-icons.json";
@@ -1387,7 +1387,7 @@ function App() {
                 ))}
               </div>
             {route && ["input","output"].includes(route.part) ?
-              <PortList route={route} lane={s.lanes[route.row]} lib={lib} disabled={busy || paused}
+              <PortList route={route} lane={{...s.lanes[route.row],input:displayedInput(s.lanes,route.row)}} lib={lib} disabled={busy || paused}
                 back={()=>P(null)} choose={value=>remember(route.part,{row:route.row,value},()=>setLibraryOpen(false))}/> :
             <div className="models">
               {category ? (
@@ -1499,7 +1499,7 @@ function App() {
                     commit={points=>remember("split",points)} />}
                   {s?.lanes.map((lane, row) => (pair == null || (row & ~1) === pair) && (
                     <React.Fragment key={row}>
-                      <Port signalChannels={signalChannels} side="input" selected={route?.row===row && route.part==="input"} row={row} value={lane.input} name={lib.inputs[lane.input]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
+                      <Port signalChannels={signalChannels} side="input" selected={route?.row===row && route.part==="input"} row={row} value={displayedInput(s.lanes,row)} name={lib.inputs[displayedInput(s.lanes,row)]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
                         branched={s.splits.some(v=>row===v.row+1 && v.start>=0)}
                         open={()=>openRoute(row,"input")} />
                       {Array.from({ length: 8 }, (_, col) => {
