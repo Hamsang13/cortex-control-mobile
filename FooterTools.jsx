@@ -10,10 +10,11 @@ const sceneLetters = [..."ABCDEFGH"];
 
 export default function FooterTools({report,api,s,paused,busy,run,refresh,cpu,setCpu,overlay,setOverlay}) {
   const [panel,open] = useState(""), [globalTempo,setGlobal] = useState(null),
-    [tuner,setTuner] = useState({}), [hz,pitch] = useState(null), [channel,channelTo] = useState(0),
+    [tuner,setTuner] = useState({}), [hz,pitch] = useState(null),
     [reference,calibrate] = useState(null), [cents,showCents] = useState(true),
     [mini,showMini] = useState(()=>localStorage.getItem("qc-live-tuner")==="1"),
     [pending,wait] = useState(false);
+  const tunerOwner = useRef(null);
   const taps = useRef([]), writing = useRef(false);
   const preset = s?.tempo?.map(v => v[s.scene] ?? v[0]) || [];
   const [scope,setScope] = useState(null);
@@ -38,19 +39,47 @@ export default function FooterTools({report,api,s,paused,busy,run,refresh,cpu,se
     if(s && (panel==="tuner" || mini)) api("tuner").then(v=>{if(valid)setTuner(v)}).catch(e=>{if(valid)report(e.message)});
     return ()=>{valid=false};
   },[panel,mini,paused,s?.identity]);
+  const tunerMode = panel==="tuner" ? "panel" : mini ? "footer" : null;
   useEffect(()=>{
-    let valid=true,timer;
     pitch(null);
+    if (!tunerMode || paused || !s) return;
+    const owner = Array.from(crypto.getRandomValues(new Uint32Array(4))).join("-");
+    tunerOwner.current = owner;
+    let valid=true, timer, reading=false;
+    const stop = () => api("tuner-stop",{owner}).catch(()=>{});
     async function read(){
-      if(!document.hidden) try{
-        const v=await api("pitch",{channel});
-        if(valid){pitch(v.hz ?? null);if(v.errorMessage)report(v.errorMessage)}
-      } catch(e){if(valid){pitch(null);report(e.message)}}
-      if(valid)timer=setTimeout(read,100);
+      if (!valid || reading || document.hidden) return;
+      reading=true;
+      try {
+        const result=await api("pitch",{owner,mode:tunerMode});
+        if(valid && !document.hidden) pitch(result.hz ?? null);
+      } catch(e) { if(valid){pitch(null); report(e.message)} }
+      finally {
+        reading=false;
+        if(!valid || document.hidden) stop();
+        else timer=setTimeout(read,45);
+      }
     }
-    if(!paused && s && (panel==="tuner" || mini))read();
-    return ()=>{valid=false;clearTimeout(timer)};
-  },[panel,mini,channel,paused,!!s]);
+    function visibility(){
+      clearTimeout(timer);
+      if(document.hidden){pitch(null);stop()} else read();
+    }
+    read();
+    document.addEventListener("visibilitychange",visibility);
+    return ()=>{
+      valid=false; clearTimeout(timer); tunerOwner.current=null;
+      document.removeEventListener("visibilitychange",visibility);
+      stop();
+    };
+  },[tunerMode,paused,!!s]);
+  async function selectTunerInput(e){
+    const owner=tunerOwner.current;
+    if(!owner)return;
+    try{
+      const state=await api("tuner-input",{owner,input:Number(e.target.value)});
+      if(owner===tunerOwner.current)setTuner(state);
+    } catch(err){report(err.message)}
+  }
   useEffect(()=>{
     const close=e=>{if(e.key==="Escape")open("")};
     if(panel)window.addEventListener("keydown",close);
@@ -102,7 +131,10 @@ export default function FooterTools({report,api,s,paused,busy,run,refresh,cpu,se
     {panel && <div className="shade utility-shade" onClick={()=>open("")}><section className="utility" role="dialog" aria-modal="true" aria-label={panel} onClick={e=>e.stopPropagation()}>
       <header><strong>{panel==="tempo"?"Tempo":"Tuner"}</strong>
       {panel==="tempo" ? <button disabled={locked} aria-pressed={values[2]>=.5} onClick={()=>write(2,values[2]>=.5?0:1)}>Tempo LED</button> :
-      <><select aria-label="튜너 USB 입력" value={channel} onChange={e=>channelTo(Number(e.target.value))}>{Array.from({length:8},(_,i)=><option key={i} value={i}>USB {i+1}</option>)}</select><button aria-pressed={cents} onClick={()=>showCents(!cents)}>Cents</button><span title="본체 튜너 설정">Mute {tuner.mute==null?"—":tuner.mute?"On":"Off"}</span></>}
+      <><select aria-label="본체 튜너 입력" value={tuner.input ?? ""} disabled={paused || !s || tuner.input==null} onChange={selectTunerInput}>
+        <option value="" disabled>Input</option>
+        {[[1,"Input 1"],[2,"Input 2"],[3,"Input 1/2"],[4,"Return 1"],[5,"Return 2"],[8,"USB 5"],[9,"USB 6"]].map(([id,label])=><option key={id} value={id}>{label}</option>)}
+      </select><button aria-pressed={cents} onClick={()=>showCents(!cents)}>Cents</button><span title="본체 튜너 설정">Mute {tuner.mute==null?"—":tuner.mute?"On":"Off"}</span></>}
       <button aria-label="닫기" onClick={()=>open("")}>×</button></header>
       {panel==="tempo" ? <>
         <div className="util-tabs">{["Global","Preset"].map((v,i)=><button key={v} aria-pressed={global===(i===0)} onClick={()=>setScope(i===0)}>{v}</button>)}</div>

@@ -21,5 +21,4 @@ Windows: 기존 qc-test 가상환경에서 python.exe로 server.py 실행, 출�
 
 하단 TEMPO에서 프리셋 BPM과 메트로놈을 조정합니다. Global 탭은 조회용입니다.
 CPU의 ≈ 표시는 본체 모델별 DSP 비용으로 계산한 추정값입니다.
-TUNER는 Quad Cortex의 USB 녹음 채널을 분석합니다. 소리가 들어오는 채널을 선택하세요. Reference는 웹 튜너에 적용되며 Mute는 본체의 설정값을 표시합니다.
-Windows에서 USB 음정 측정을 사용하려면 서버 가상환경에 sounddevice와 numpy를 설치합니다.
+TUNER는 본체에서 USB HID로 보내는 음정을 표시합니다. 본체 입력을 선택할 수 있고 Reference는 웹 튜너 표시에 적용됩니다.

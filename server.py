@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent
 TOKEN = os.environ.get("QC_WEB_KEY") or secrets.token_urlsafe(18)
 USB = ThreadPoolExecutor(max_workers=1)
 connection = None
+tuner_meter = None
 DEMO = "--demo" in sys.argv
 from editor import Editor
 from demo import Demo
@@ -48,14 +49,19 @@ def setup():
 
 
 def disconnect():
-    global connection, editor
+    global connection, editor, tuner_meter
     if connection is not None:
         client, connection, editor = connection, None, None
-        client.close()
+        meter, tuner_meter = tuner_meter, None
+        try:
+            if meter is not None:
+                meter.close()
+        finally:
+            client.close()
 
 
 def device_request(action, data):
-    global connection, editor, browse_only
+    global connection, editor, browse_only, tuner_meter
     try:
         if action == "release":
             if DEMO:
@@ -98,6 +104,8 @@ def device_request(action, data):
         if editor is None:
             connection = api.connect()
             editor = Editor(api, connection)
+            from pitch import TunerMeter
+            tuner_meter = TunerMeter(connection)
         try:
             result = editor.request(action, data)
         except TimeoutError as exc:
@@ -149,11 +157,19 @@ def operate(action, data):
             return {"beat": msg.metronome_status.current_beat}
         except TimeoutError:
             return {}
-    if action == "pitch":
-        if browse_only or DEMO or connection is None:
+    if action in ("pitch", "tuner-stop", "tuner-input"):
+        meter = tuner_meter
+        if meter is None or browse_only or DEMO:
             return {}
-        import pitch
-        return pitch.read(data.get("channel", 0))
+        owner = data.get("owner")
+        if not isinstance(owner, str) or not 1 <= len(owner) <= 80:
+            raise ValueError("Invalid tuner session")
+        if action == "pitch":
+            return meter.read(owner, data.get("mode"))
+        if action == "tuner-input":
+            return meter.select_input(owner, data.get("input"))
+        meter.stop(owner)
+        return {}
     return USB.submit(device_request, action, data).result()
 
 
