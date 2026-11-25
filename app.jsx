@@ -1261,16 +1261,6 @@ function App() {
         >
           {paused ? "USB 연결" : "USB 해제"}
         </button>
-        <button
-          aria-label="본체 다시 읽기"
-          onClick={() => {
-            Q([]);
-            setCaptures(null);
-            refresh(true);
-          }}
-        >
-          ↻
-        </button>
       </header>
       <div className={"workspace"+(libraryOpen?" library-open":"")}>
         <button ref={libraryToggle} className="library-toggle" aria-controls="block-library"
