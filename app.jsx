@@ -81,7 +81,7 @@ function placement(model) {
     ...(model.capture ? { capture: model.capture } : {}),
   };
 }
-async function api(action, body = {}) {
+async function api(action, body = {}, onProgress) {
   const response = await fetch("/api/" + action, {
     method: "POST",
     headers: {
@@ -92,7 +92,20 @@ async function api(action, body = {}) {
   });
   if (response.status === 403)
     throw Error("설치 시 표시된 키 포함 주소로 여세요.");
-  const data = await response.json();
+  let data;
+  const total = Number(response.headers.get("Content-Length"));
+  if (onProgress && response.ok && total > 0 && response.body) {
+    const reader=response.body.getReader(), decoder=new TextDecoder();
+    let received=0, text="";
+    while (true) {
+      const {done,value}=await reader.read();
+      if (done) break;
+      received+=value.byteLength;
+      text+=decoder.decode(value,{stream:true});
+      onProgress(Math.min(1,received/total));
+    }
+    data=JSON.parse(text+decoder.decode());
+  } else data=await response.json();
   if (!response.ok) {
     if (["connect", "live"].includes(action) && /no RecallPresetMessage broadcast within/i.test(data.error)) {
       throw Error("본체에서 현재 프리셋 응답이 없습니다. Cortex Control이 열려 있으면 종료한 뒤 USB 연결을 누르세요. 이미 닫았다면 USB 케이블을 확인하세요.");
@@ -970,10 +983,12 @@ function App() {
     return queue.writing;
   }
   const presetRequest = useRef(null);
+  const [presetFraction,setPresetFraction]=useState(0);
   const [loadingPresets, setLoadingPresets] = useState(false);
   function readPresets() {
     if (presetRequest.current) return presetRequest.current;
-    const request = api("presets").then(entries => {
+    setPresetFraction(0);
+    const request = api("presets",{},fraction=>{if(presetRequest.current===request)setPresetFraction(fraction)}).then(entries => {
       if (presetRequest.current === request) {
         Q(entries);
         setCachedSlots(entries);
@@ -1331,7 +1346,9 @@ function App() {
       {(loadingPresets || (!liveState && !usbPaused && !msg) || (usbPaused && busy)) && (
         <div className="preset-loading" role="status">
           <div className="splash-chain" aria-hidden="true">
-            {["pitch","overdrive","amp","cab","reverb"].map((key,i)=><img key={key} src={icons[key]} alt="" data-stage={i<loadingStep?"done":i===loadingStep?"active":"waiting"}/>)}
+            {["pitch","overdrive","amp","cab","reverb"].map((key,i)=><div key={key} className="splash-block" style={{"--fill":(i<loadingStep?100:i>loadingStep?0:25+75*(i===4?presetFraction:0))+"%"}}>
+              <img src={icons[key]} alt=""/><img className="splash-color" src={icons[key]} alt=""/>
+            </div>)}
           </div>
           <span>Loading Preset...</span>
         </div>

@@ -931,11 +931,11 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
 .preset-loading{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:#000;color:#ddd;font:16px/1.4 Arial,sans-serif}
 .splash-chain{position:relative;display:flex;align-items:center;gap:clamp(8px,2.2vw,26px)}
 .splash-chain:before{content:"";position:absolute;inset:50% 0 auto;height:1px;background:#666}
-.splash-chain img{position:relative;width:clamp(36px,5.4vw,56px);height:auto;background:#000}
-.splash-chain img[data-stage=waiting]{filter:grayscale(1) brightness(.42)}
-.splash-chain img[data-stage=active]{animation:splash-pending 1s ease-in-out infinite alternate}
-@keyframes splash-pending{from{filter:grayscale(.8) brightness(.48)}to{filter:none}}
-@media(prefers-reduced-motion:reduce){.splash-chain img[data-stage=active]{animation:none;opacity:.75}}
+.splash-block{position:relative;width:clamp(36px,5.4vw,56px);background:#000}
+.splash-block img{display:block;width:100%;height:auto;filter:grayscale(1) brightness(.42)}
+.splash-block img.splash-color{position:absolute;inset:0;filter:none;clip-path:inset(0 calc(100% - var(--fill)) 0 0);transition:clip-path .45s ease-out}
+@starting-style{.splash-block img.splash-color{clip-path:inset(0 100% 0 0)}}
+@media(prefers-reduced-motion:reduce){.splash-block img.splash-color{transition:none}}
 .preset-loading>span{position:absolute;top:62%;left:0;right:0;text-align:center}
 
 </style>
