@@ -1,8 +1,8 @@
-import React, {useEffect, useRef, useState} from "react";
+import React, {useEffect, useLayoutEffect, useRef, useState} from "react";
 
 import {meterReading, MeterTrack} from "./SignalTrack";
 
-const gapX = gap => 70 + gap * 107.5;
+
 
 function branch(x, edge, y) {
   if (x === edge) return `M${x} ${y}v100`;
@@ -46,6 +46,16 @@ export function GridRouting({state,disabled,commit,open,selection,pair}) {
   const [drag,setDrag] = useState(null);
   const pointer = useRef(null);
   const wire = useRef(null);
+  const [layout,setLayout]=useState({width:470,port:48});
+  useLayoutEffect(()=>{
+    const board=wire.current.closest(".board");
+    const measure=()=>setLayout({width:board.clientWidth,port:parseFloat(getComputedStyle(board).getPropertyValue("--port-width"))});
+    measure();
+    const observer=new ResizeObserver(measure);observer.observe(board);
+    return ()=>observer.disconnect();
+  },[]);
+  const {width,port}=layout, step=(width-2*port)/8;
+  const gapX=gap=>port+gap*step;
   const first = pair ?? 0, count = pair == null ? 4 : 2;
   useEffect(()=>{
     const board=wire.current.closest(".board");
@@ -91,11 +101,11 @@ export function GridRouting({state,disabled,commit,open,selection,pair}) {
     g.moved=true;
     const bounds=e.currentTarget.closest(".board").getBoundingClientRect();
     const y=(e.clientY-bounds.top)/bounds.height*count+first;
-    const x=(e.clientX-bounds.left)/bounds.width*1000;
-    const gap=Math.round((x-70)/107.5);
+    const x=(e.clientX-bounds.left)/bounds.width*width;
+    const gap=Math.round((x-port)/step);
     const split=g.part==="start";
-    const parked=y>=g.row+1 && (split ? x<145 : x>855);
-    const valid=y>=g.row && y<=g.row+1 && x>=25 && x<=975;
+    const parked=y>=g.row+1 && (split ? x<gapX(.7) : x>gapX(7.3));
+    const valid=y>=g.row && y<=g.row+1 && x>=port/3 && x<=width-port/3;
     const v=parked ? -1 : split ? gap : gap-1;
     g.candidate=null;
     if ((parked || valid) && (parked || (v>=0 && v<=7))) {
@@ -114,13 +124,13 @@ export function GridRouting({state,disabled,commit,open,selection,pair}) {
     else if(g.candidate && g.candidate[g.part]!==g.original[g.part]){open(g.row,g.part);commit(g.candidate);}
   }
   return <>
-    <svg ref={wire} className="wires" viewBox={`0 ${first*100} 1000 ${count*100}`} preserveAspectRatio="none" >
+    <svg ref={wire} className="wires" viewBox={`0 ${first*100} ${width} ${count*100}`} preserveAspectRatio="none" >
       {state.lanes.map((lane,row)=>{
         if (row<first || row>=first+count) return null;
         const y=row*100+50, lower=row%2===1;
         const p=points(lower?row-1:row);
-        const left=lower && p.start>=0 ? gapX(0) : 35;
-        const right=lower && p.end>=0 ? gapX(8) : 965;
+        const left=lower && p.start>=0 ? gapX(0) : port/2;
+        const right=lower && p.end>=0 ? gapX(8) : width-port/2;
         return <g key={row} fill="none" stroke="#bdbdbd" strokeWidth="1.35">
           {(displayedInput(state.lanes,row) || lane.output || p.start>=0 || p.end>=0 || state.blocks.some(b=>b.row===row)) ?
             <><path d={`M${left} ${y}H${right}`} vectorEffect="non-scaling-stroke"/>
@@ -137,10 +147,10 @@ export function GridRouting({state,disabled,commit,open,selection,pair}) {
     {[0,2].filter(row=>selection?.row===row && ["start","end"].includes(selection.part)).map(row=>{
       const p=points(row);
       return ["start","end"].map((part,i)=>{
-        const parked=p[part]<0, x=parked?(i?944:56):gapX(p[part]+i);
+        const parked=p[part]<0, x=parked?(i?width-port:port):gapX(p[part]+i);
         const y=(row-first+(parked?1:0)+.5)*100/count;
         return <button key={row+part} className={"route-node "+part+(parked?" parked":"")}
-          style={{left:x/10+"%",top:y+"%"}} aria-label={`${i?"Mixer":"Splitter"} ${row+1}/${row+2}`}
+          style={{left:x/width*100+"%",top:y+"%"}} aria-label={`${i?"Mixer":"Splitter"} ${row+1}/${row+2}`}
           onKeyDown={e=>{if(e.key==="Escape"){pointer.current=null;setDrag(null)}}}
           onClick={e=>{if(e.detail===0)open(row,part)}}
           onPointerDown={e=>{

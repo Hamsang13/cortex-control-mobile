@@ -210,8 +210,8 @@
         position: relative;
         min-width: 470px;
         display: grid;
-        grid-template-columns: 7% repeat(8, 10.75%) 7%;
-        grid-template-rows: repeat(4, clamp(61px, 10vh, 98px));
+        grid-template-columns: var(--port-width) repeat(8,minmax(0,1fr)) var(--port-width);
+        --port-width:48px; grid-template-rows:repeat(4,80px);
         align-items: center;
         justify-items: center;
       }
@@ -227,10 +227,10 @@
         z-index: 1;
       }
       .port {
-        box-sizing:border-box; width:81%; height:81%; min-height:0; padding:2px;
+        box-sizing:border-box; width:var(--port-width); height:68px; min-height:0; padding:2px;
         border-radius:12px; display:flex; flex-direction:column; align-items:center;
         justify-content:center; gap:5px; color:#ddd; background:#131314;
-        font-size:clamp(10px,1.3vw,15px); line-height:1.35;
+        font-size:13px; line-height:1.35;
       }
       .port {position:relative}
       .port[aria-pressed=true] {box-shadow:inset 0 0 0 2px #45ec66}
@@ -856,7 +856,7 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
         .workspace main > .gig-panel {flex:0 0 clamp(145px,28dvh,265px);min-height:0}
         .workspace main > .panel:not(.cabinet) .param {height:clamp(76px,11dvh,99px)}
       }
-      .board[data-pair] {grid-template-rows:repeat(2,clamp(61px,10vh,98px))}
+      .board[data-pair] {grid-template-rows:repeat(2,80px)}
       .cabinet {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.78fr) minmax(0,1fr);gap:1px;background:#050505}
       .cabinet > div {min-width:0;background:#202021}
       .cabinet :is(.cab-title,.cab-mic-head) {display:flex;align-items:center;background:#151515;min-height:36px}
