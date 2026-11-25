@@ -1075,7 +1075,6 @@ function App() {
       });
       if (a === "scene") accept({ ...before, scene: result.scene });
       else accept(result);
-      if (a === "save") { presetRequest.current = null; readPresets().catch(e=>T(e.message)); }
       T(result.savedName ? "저장됨 · " + result.savedName : "");
       done?.(result);
       return true;

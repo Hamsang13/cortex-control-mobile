@@ -550,7 +550,14 @@ class Editor:
             if str(q.read_current_preset().hash) != state["identity"]:
                 raise ValueError("저장 전에 프리셋이 변경되었습니다.")
             self.clear_edit_history()
-            q.save_current_preset(folder, slot, existing.name, instrument=existing.instrument)
+            # File CREATE may never get a direct reply. The slot readback below
+            # and the device's dirty flag confirm completion independently.
+            from pyquadcortex.client import pa
+            write = pa.FileMessage(type=0)
+            write.folder.key = folder
+            write.folder.is_factory = False
+            write.folder.files.add(index=slot, name=existing.name, instrument=existing.instrument)
+            q._file_operation(write, timeout=.15)
             saved = {x.index: x.name for x in q.list_presets(folder)}
             if folder.rstrip("/") == api.Setlist.USER.rstrip("/"):
                 self.slots = saved
@@ -614,6 +621,12 @@ class Editor:
                     self.edit_history["redo"].clear()
                     self.history_frames = after_frames
         if action == "save":
+            if result["dirty"] and result["name"] == saved[slot]:
+                from time import sleep
+                deadline = clock_seconds() + 4
+                while clock_seconds() < deadline and q.preset_dirty():
+                    sleep(.1)
+                result = self.snapshot()
             if saved[slot] != result["name"] or result["dirty"]:
                 raise ValueError(
                     "저장 후 슬롯과 현재 프리셋이 일치하지 않습니다. 목록에서 확인하세요."
