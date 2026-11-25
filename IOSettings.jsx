@@ -80,8 +80,8 @@ function EqCurve({values,point,bypassed}){
 
 let lastPort="in_port.1";
 
-export default function IOSettings({api,readOnly,close}){
-  const [v,set]=useState({}),[meter,setMeter]=useState({}),[port,pick]=useState(lastPort);
+export default function IOSettings({meterFrame,api,readOnly,close}){
+  const [v,set]=useState({}),[port,pick]=useState(lastPort);
   const [usbPage,setUsbPage]=useState(1);
   const [eq,showEQ]=useState(false),[band,selectBand]=useState(0),[busy,wait]=useState(false),[error,report]=useState("");
   const [point,previewPoint]=useState(null),pending=useRef(false),dialog=useRef(null);
@@ -99,10 +99,7 @@ export default function IOSettings({api,readOnly,close}){
     }
     document.addEventListener("keydown",key);
     api("io-settings").then(data=>{if(live)set(data)}).catch(e=>{if(live)report(e.message)});
-    let timer;
-    async function poll(){try{const data=await api("io-meter");if(live)setMeter(data)}catch{}finally{if(live)timer=setTimeout(poll,140)}}
-    if(!readOnly)poll();
-    return ()=>{live=false;clearTimeout(timer);document.removeEventListener("keydown",key);initial?.focus()};
+    return ()=>{live=false;document.removeEventListener("keydown",key);initial?.focus()};
   },[api,readOnly]);
   async function change(entries){
     if(readOnly||pending.current)return;
@@ -122,6 +119,11 @@ export default function IOSettings({api,readOnly,close}){
     disabled={locked||off} write={n=>write(key,n)}/>;
   const toggle=(key,label,over={})=><Toggle key={label} label={label} on={!!v[key]} disabled={locked||v[key]==null}
     write={n=>write(key,+n)} {...over}/>;
+  const meter={...meterFrame.io};
+  (meterFrame.channels??[]).forEach((reading,i)=>{
+    const key="usb_output_"+(1+Math.floor(i/2))+(i%2?"r":"l");
+    if(meter[key]==null && reading)meter[key]=clamp(1+reading.db/40);
+  });
   const linked12=v.xlr1_2_linked,linked34=v.out3_4_linked;
   const selected=groups.flat().find(p=>p[0]===port);
   const num=Number(port.split(".")[1]);

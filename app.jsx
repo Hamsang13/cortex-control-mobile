@@ -1,7 +1,7 @@
 import IOSettings from "./IOSettings";
 import BlockMenu from "./BlockMenu";
 import CabinetPanel from "./CabinetPanel";
-import {meterReading, MeterTrack} from "./SignalTrack";
+import {meterReading, MeterTrack, outputReadings} from "./SignalTrack";
 import DeviceToolbar from "./DeviceToolbar";
 import {GridRouting, Port, portLabel, displayedInput} from "./GridRouting";
 import ChoiceParameter, {SceneMark} from "./ChoiceParameter";
@@ -140,13 +140,13 @@ function SignalMeters({ active, publish }) {
   useEffect(() => {
     let current = true, timer;
     function update(values) {
-      setChannels(values);
+      setChannels(values.channels ?? []);
       publish(values);
     }
     async function refresh() {
-      let values = [];
+      let values = {};
       try {
-        if (!document.hidden) values = (await api("meters")).channels ?? [];
+        if (!document.hidden) values = await api("meters");
       } catch {
         // Clear stale readings while USB or the network is unavailable.
       }
@@ -155,7 +155,7 @@ function SignalMeters({ active, publish }) {
       timer = setTimeout(refresh, document.hidden ? 500 : 100);
     }
     if (active) refresh();
-    else update([]);
+    else update({});
     return () => {
       current = false;
       clearTimeout(timer);
@@ -720,7 +720,8 @@ function App() {
       document.removeEventListener("click",outside,true);
     };
   },[libraryOpen]);
-  const [signalChannels, setSignalChannels] = useState([]);
+  const [meterFrame, setMeterFrame] = useState({});
+  const signalChannels = meterFrame.channels ?? [];
   const [ioOpen,setIOOpen]=useState(false);
   const [liveState, S] = useState(null),
     [preview, setPreview] = useState(null),
@@ -1441,7 +1442,7 @@ function App() {
             GIG VIEW
           </button>
         </nav>
-        <SignalMeters active={!!liveState && !paused} publish={setSignalChannels} />
+        <SignalMeters active={!!liveState && !paused} publish={setMeterFrame} />
         <DeviceToolbar api={api} online={!!liveState && !paused} busy={busy} revision={s?.rev} travel={travel} report={T}/>
         <button className="io-launch" title="I/O Settings" aria-label="I/O Settings" onClick={()=>setIOOpen(true)}>I/O</button>
         <button
@@ -1585,7 +1586,7 @@ function App() {
                     commit={points=>remember("split",points)} />}
                   {s?.lanes.map((lane, row) => (pair == null || (row & ~1) === pair) && (
                     <React.Fragment key={row}>
-                      <Port signalChannels={signalChannels} side="input" selected={route?.row===row && route.part==="input"} row={row} value={displayedInput(s.lanes,row)} name={lib.inputs[displayedInput(s.lanes,row)]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
+                      <Port reduction={meterFrame.gates?.[row]} signalChannels={signalChannels} side="input" selected={route?.row===row && route.part==="input"} row={row} value={displayedInput(s.lanes,row)} name={lib.inputs[displayedInput(s.lanes,row)]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
                         branched={s.splits.some(v=>row===v.row+1 && v.start>=0)}
                         open={()=>openRoute(row,"input")} />
                       {Array.from({ length: 8 }, (_, col) => {
@@ -1667,7 +1668,7 @@ function App() {
                   {overlay && s && <GridCpuTotals cpu={cpu} blocks={s.blocks} pair={pair}/>}
                 </div>
               </div>
-              {route && (!gig || paramsOpen) && <RoutePanel key={route.row+route.part} route={route} state={s}
+              {route && (!gig || paramsOpen) && <RoutePanel meterFrame={meterFrame} key={route.row+route.part} route={route} state={s}
                 open={openRoute} busy={busy} paused={paused} commit={writeKnob}
                 setPoints={points=>remember("split",points)}
                 assign={p=>remember("route-assign",{...route,index:p.index,rev:s.rev,scene:s.scene})}/>}
@@ -1785,7 +1786,7 @@ function App() {
           <Icon category={drag.category} />
         </div>
       )}
-      {ioOpen && <IOSettings api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
+      {ioOpen && <IOSettings meterFrame={meterFrame} api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
       {modal && (
         <DirectoryFrame close={close}>
           <aside><small>PRESETS</small>{directoryNames.map(name=><button key={name} aria-pressed={folderName===name} onClick={()=>{setFolderName(name);K(0);F("")}}>{name}</button>)}</aside>
@@ -1823,20 +1824,7 @@ function PortList({route,lane,lib,disabled,back,choose}){
     </details>)}</div>;
 }
 
-function GateMeter({row,online}){
-  const [value,setValue]=useState(null);
-  useEffect(()=>{
-    let valid=true,timer;
-    async function poll(){
-      let next=null;
-      if(!document.hidden){
-        try{next=(await api("gate-meter",{row})).value ?? null}catch{}
-      }
-      if(valid){setValue(next);timer=setTimeout(poll,document.hidden?500:80)}
-    }
-    if(online)poll();else setValue(null);
-    return ()=>{valid=false;clearTimeout(timer)};
-  },[row,online]);
+function GateMeter({value}){
   const db=value==null?null:(value-1)*40;
   return <div className="param gate-meter">
     <small>GAIN REDUCTION</small>
@@ -1856,8 +1844,9 @@ const quickSplits = [
   ["병합만",-1,7,"M4 16h36q4 0 4-4V4",44,4,4,16],
 ];
 
-function RoutePanel({route,state,open,busy,paused,commit,assign,setPoints}){
+function RoutePanel({meterFrame,route,state,open,busy,paused,commit,assign,setPoints}){
   const {part,row}=route, params=state.lanes[row].controls?.[part] || [];
+  const outputLevels=part==="output"?outputReadings(state.lanes[row].output,meterFrame):[];
   const pair=part==="start" || part==="end";
   const current=p=>p?.values[p.assigned?state.scene:0];
   const type=Math.round((current(params.find(p=>p.name==="TYPE"))??0)*2);
@@ -1883,11 +1872,16 @@ function RoutePanel({route,state,open,busy,paused,commit,assign,setPoints}){
       {gate && <button disabled={busy||paused} aria-label="Input gate" aria-pressed={current(gate)<.5} onClick={()=>commit(gate,current(gate)<.5?1:0)}>⏻</button>}
     </div>
     <div className="params">{params.filter(p=>p!==gate).map(p=><React.Fragment key={p.index+"-"+state.scene}>
-      {part==="input" && p.name==="INPUT GAIN" && gate && current(gate)<.5 && <GateMeter row={row} online={!paused}/>}
+      {part==="input" && p.name==="INPUT GAIN" && gate && current(gate)<.5 && <GateMeter value={meterFrame.gates?.[row]}/>}
       <BlockParameter
       p={p} pressButton={part==="output" && ["MUTE","SOLO"].includes(p.name)}
       scene={state.scene} readOnly={paused} busy={busy} disabled={paused||inactive(p)}
-      commit={value=>commit(p,value)} assign={()=>assign(p)}/></React.Fragment>)}</div>
+      commit={value=>commit(p,value)} assign={()=>assign(p)}/></React.Fragment>)}
+      {outputLevels.length>0 && <div className="param route-output-meter">
+        <small>{state.lanes[row].output===19?"MULTI OUT · USB 3/4":"OUTPUT LEVEL"}</small>
+        <div>{outputLevels.map((reading,i)=><MeterTrack key={i} reading={reading}/>)}</div>
+        <output>{meterReading(...outputLevels)?.db > -60 ? meterReading(...outputLevels).db.toFixed(1)+" dBFS" : "—"}</output>
+      </div>}</div>
   </section>;
 }
 createRoot(document.getElementById("root")).render(<App />);

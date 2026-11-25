@@ -12,6 +12,8 @@ def subscribe_gate_meters(client, enabled):
     from pyquadcortex.client import pa
 
     transport = client._t
+    transport.send(pa.IOMeterMessage(request_id=transport.next_request_id(),
+        **({} if enabled else {"action":pa.MessageAction.DELETE})))
     if enabled:
         for row in range(4):
             transport.send(pa.GridModelMeterMessage(
@@ -21,30 +23,60 @@ def subscribe_gate_meters(client, enabled):
             request_id=transport.next_request_id(), row=-1, column=-1))
 
 
-def read_gate_meter(client, row):
-    from pyquadcortex.client import pa
+class LiveMeterFrames:
+    """Keep the latest timestamped meter values without blocking USB edit requests."""
+    def __init__(self, client):
+        from pyquadcortex.client import pa
+        self.transport = client._t
+        self.lock = Lock()
+        self.last_subscription = monotonic()
+        self.gates = {}
+        self.io = {}
+        self.entries = [(pa.GridMessage, lambda m: m.HasField("update_type") and
+                         m.update_type == pa.GridMessage.METER_UPDATE, self),
+                        (pa.IOMeterMessage, None, self)]
+        with self.transport._lock:
+            self.transport._collectors.extend(self.entries)
 
-    if type(row) is not int or not 0 <= row < 4:
-        raise ValueError("Invalid input gate row")
-    def reading(message):
-        if not message.HasField("update_type") or message.update_type != pa.GridMessage.METER_UPDATE:
-            return None
-        for chain in message.preset.chains:
-            if chain.row == row:
-                for model in chain.input_control:
-                    for param in model.params:
-                        if param.index == 2 and param.param_values:
-                            value = param.param_values[0]
-                            if value.HasField("float_value") and 0 <= value.float_value <= 1:
-                                return value.float_value
-        return None
+    def append(self, msg):
+        from pyquadcortex.client import pa
+        stamp = monotonic()
+        with self.lock:
+            if isinstance(msg, pa.IOMeterMessage):
+                for field, value in msg.ListFields():
+                    if field.name not in ("action", "request_id"):
+                        self.io[field.name] = (stamp, value)
+            else:
+                for chain in msg.preset.chains:
+                    for model in chain.input_control:
+                        for param in model.params:
+                            if param.index == 2 and param.param_values:
+                                value = param.param_values[0]
+                                if value.HasField("float_value") and 0 <= value.float_value <= 1:
+                                    self.gates[chain.row] = (stamp, value.float_value)
 
-    try:
-        msg = client._t.await_broadcast(pa.GridMessage, lambda: None, timeout=.24,
-                                       match=lambda m: reading(m) is not None)
-        return {"value": reading(msg)}
-    except TimeoutError:
-        return {"value": None}
+    def needs_subscription(self):
+        now = monotonic()
+        with self.lock:
+            if now - self.last_subscription < 4:
+                return False
+            last_gate = max((stamp for stamp, value in self.gates.values()), default=0)
+            last_io = max((stamp for stamp, value in self.io.values()), default=0)
+            if min(last_gate, last_io) >= now - 3:
+                return False
+            self.last_subscription = now
+            return True
+
+    def snapshot(self):
+        cutoff = monotonic() - .5
+        with self.lock:
+            return {name: {k:v for k,(stamp,v) in source.items() if name == "io" or stamp >= cutoff}
+                    for name, source in (("gates", self.gates), ("io", self.io))}
+
+    def close(self):
+        with self.transport._lock:
+            for entry in self.entries:
+                self.transport._collectors.remove(entry)
 
 
 class TunerMeter:
@@ -196,7 +228,7 @@ def listen():
     try:
         import sounddevice as sd
         with ExitStack() as streams:
-            for i, device, channels in endpoints(sd, set(range(4))):
+            for i, device, channels in endpoints(sd, set(range(8))):
                 rate = int(device["default_samplerate"])
                 try:
                     streams.enter_context(sd.InputStream(device=i, samplerate=rate,
@@ -223,5 +255,5 @@ def read_meters():
         return {"channels": [
             {"db": round(db, 1), "clip": clip > now}
             if now - updated < .35 else None
-            for db, clip, updated in (levels.get(i, (-60, 0, -math.inf)) for i in range(4))
+            for db, clip, updated in (levels.get(i, (-60, 0, -math.inf)) for i in range(8))
         ]}

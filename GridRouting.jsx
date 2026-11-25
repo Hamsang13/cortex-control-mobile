@@ -27,13 +27,13 @@ export function portLabel(name) {
     numbers.join("/")].filter(Boolean).join(" ");
 }
 
-export function Port({side, row, value, name, branched, indicator, open, signalChannels, selected}) {
+export function Port({side, row, value, name, branched, indicator, reduction, open, signalChannels, selected}) {
   const label = portLabel(name ?? (value || "EMPTY"));
   const usbChannel = side==="input" ? {INPUT_1:0, INPUT_2:1}[name] : undefined;
   const wet = side==="output" && name==="MULTIPLE";
   return <button className={"port port-"+side} aria-label={`${row+1}행 ${side==="input"?"입력":"출력"} · ${label}`}
     aria-pressed={selected} disabled={branched} onClick={open}>
-    {indicator && side==="input" && <i className="port-status" aria-label={side==="input"?"Noise gate On":"Mute On"}/>}
+    {indicator && side==="input" && <i className="port-status" role="meter" aria-label="Gate gain reduction" aria-valuemin={0} aria-valuemax={40} aria-valuenow={reduction==null?undefined:(1-reduction)*40}><i style={{width:(reduction==null?0:(1-reduction)*100)+"%"}}/></i>}
     {label.split(" ").map((part,i)=><span key={i}>{part}</span>)}
     {side==="output" && indicator ? <span className="port-signal port-signal-muted" role="img" aria-label="Mute On" title="MUTE"/> :
       (usbChannel!=null || wet) && <span className="port-signal" title={wet?"USB 3/4 Wet":"USB "+(usbChannel+1)+" DI"}>

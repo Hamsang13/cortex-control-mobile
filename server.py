@@ -13,6 +13,7 @@ TOKEN = os.environ.get("QC_WEB_KEY") or secrets.token_urlsafe(18)
 USB = ThreadPoolExecutor(max_workers=1)
 connection = None
 tuner_meter = None
+live_meters = None
 DEMO = "--demo" in sys.argv
 from plugin_sync import GUIDE, load_snapshot, read_controller, save_snapshot
 from editor import Editor
@@ -52,9 +53,12 @@ def setup():
 
 
 def disconnect():
-    global connection, editor, tuner_meter
+    global connection, editor, tuner_meter, live_meters
     if connection is not None:
         client, connection, editor = connection, None, None
+        frames, live_meters = live_meters, None
+        if frames:
+            frames.close()
         meter, tuner_meter = tuner_meter, None
         try:
             if meter is not None:
@@ -68,7 +72,7 @@ def disconnect():
 
 
 def device_request(action, data):
-    global connection, editor, browse_only, tuner_meter, warm_snapshot, preview_stamp
+    global connection, editor, browse_only, tuner_meter, live_meters, warm_snapshot, preview_stamp
     if warm_snapshot is not None:
         stamp, snapshot = warm_snapshot
         warm_snapshot = None
@@ -121,6 +125,8 @@ def device_request(action, data):
             connection = api.connect()
             editor = Editor(api, connection)
             from pitch import TunerMeter, subscribe_gate_meters
+            from pitch import LiveMeterFrames
+            live_meters = LiveMeterFrames(connection)
             tuner_meter = TunerMeter(connection)
             subscribe_gate_meters(connection, True)
         try:
@@ -179,6 +185,12 @@ def preload_preset():
         print(f"Initial preset read: {exc}", flush=True)
 
 
+def renew_meters(frames):
+    if live_meters is frames and connection is not None and not browse_only:
+        from pitch import subscribe_gate_meters
+        subscribe_gate_meters(connection, True)
+
+
 def operate(action, data):
     if action == "presets" and not DEMO and not browse_only:
         current = editor
@@ -207,14 +219,8 @@ def operate(action, data):
                     pass
         return cached
     if action == "io-meter":
-        if browse_only or DEMO or connection is None:
-            return {}
-        from pyquadcortex.client import pa
-        try:
-            meter = connection._t.await_broadcast(pa.IOMeterMessage, lambda: None, timeout=.2)
-            return {f.name:v for f,v in meter.ListFields() if f.name not in ("action","request_id")}
-        except TimeoutError:
-            return {}
+        frames = live_meters
+        return frames.snapshot()["io"] if frames and not browse_only else {}
     if action == "beat":
         client = connection
         if client is None or browse_only or DEMO:
@@ -229,16 +235,19 @@ def operate(action, data):
         except TimeoutError:
             return {}
     if action == "gate-meter":
-        client = connection
-        if client is None or DEMO or browse_only:
-            return {"value": None}
-        from pitch import read_gate_meter
-        return read_gate_meter(client, data.get("row"))
+        row = data.get("row")
+        if type(row) is not int or not 0 <= row < 4:
+            raise ValueError("Invalid input gate row")
+        frames = live_meters
+        return {"value": frames.snapshot()["gates"].get(row) if frames and not browse_only else None}
     if action == "meters":
         if browse_only or DEMO or connection is None:
             return {}
         import pitch
-        return pitch.read_meters()
+        frames = live_meters
+        if frames and frames.needs_subscription():
+            USB.submit(renew_meters, frames)
+        return {**pitch.read_meters(), **(frames.snapshot() if frames else {})}
     if action in ("pitch", "tuner-stop", "tuner-input", "tuner-mute"):
         meter = tuner_meter
         if DEMO and action == "tuner-mute":

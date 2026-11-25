@@ -235,7 +235,7 @@
       .port {position:relative}
       .port[aria-pressed=true] {box-shadow:inset 0 0 0 2px #45ec66}
       .port-status {position:absolute;left:22%;right:22%;height:4px;border-radius:4px}
-      .port-input .port-status {top:9%;background:#ffc928}
+      .port-input .port-status {top:9%;background:#272727;overflow:hidden}.port-status>i {display:block;height:100%;background:#ffc928;transition:width 90ms linear}
       .port-output .port-status {bottom:9%;background:#ff3046}
       .port-input {justify-self:start}
       .port-output {justify-self:end}
@@ -971,6 +971,9 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
   .workspace main:has(.board[data-pair]) > .panel:has(.block-power) ~ .gig-panel {flex-shrink:1;min-height:120px}
   .workspace main:has(.board[data-pair]) > .panel:not(.cabinet) .param {height:clamp(65px,10.5dvh,99px)}
 }
+.route-output-meter>div {position:absolute;bottom:7px;left:8px;right:8px;display:grid;gap:2px}
+.route-output-meter .signal-track {width:100%;height:4px}
+.route-output-meter output {bottom:22px}
 </style>
   </head>
   <body>
