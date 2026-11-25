@@ -1259,10 +1259,11 @@ function App() {
                     key={c}
                     title={c}
                     aria-label={c}
-                    className={family(category) === c ? "chosen" : ""}
+                    aria-pressed={family(category) === c}
                     onClick={() => {if(route)P(null); C(c); setLibraryOpen(true)}}
                   >
-                    <Icon category={c} rail />
+                    <Icon category={c} rail={family(category) !== c} />
+                    <span className="category-label">{c}</span>
                   </button>
                 ))}
               </div>

@@ -541,11 +541,11 @@
         height: 28px;
         color: #888;
       }
-      .rail .chosen {
-        border-left: 2px solid #45ec66;
-      }
-      .rail .chosen .icon {
-        color: #fff;
+      .rail .category-label {display:none}
+      .rail button[aria-pressed=true] {
+        color:#abf3b6;
+        background:#233c29;
+        box-shadow:inset 3px 0 #45ec66;
       }
       .models .entry.model {
         font-size: 12px;
@@ -816,6 +816,18 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
         .shell:has(.library-open) > :is(header,footer), .library-open main {visibility:hidden}
         .workspace:not(.library-open) #block-library {pointer-events:none}
         .workspace .entry.model {touch-action:pan-y}
+      }
+      @media (min-width:600px) and (any-pointer:coarse) {
+        .library-open #block-library.expanded .rail button {
+          display:flex;align-items:center;gap:8px;padding-inline:8px;text-align:left;
+        }
+        .library-open #block-library.expanded .category-label {display:block;font-size:12px;line-height:1.2}
+      }
+      @media (min-width:600px) and (any-pointer:coarse) and (orientation:landscape) {
+        .workspace.library-open:has(#block-library.expanded) {--rail-width:clamp(126px,15vw,160px);--list-width:min(230px,25vw)}
+      }
+      @media (min-width:600px) and (any-pointer:coarse) and (orientation:portrait) {
+        .library-open #block-library.expanded {grid-template-columns:clamp(138px,24vw,196px) minmax(0,1fr)}
       }
       @media (prefers-reduced-motion:reduce) {.workspace,#block-library,.workspace .library-toggle {transition:none}}
 </style>
