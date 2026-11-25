@@ -356,6 +356,24 @@ function categoryRank(category) {
   return index < 0 ? nativeOrder.length : index;
 }
 
+function EffectGroups({rows, render, listKey, depth=0}) {
+  if (depth===2) return <PagedRows rows={rows} render={render} listKey={listKey}/>;
+  const groups=new Map();
+  for (const model of rows) {
+    const instrument=model.category.match(/\b(guitar|bass)\b/i)?.[1]?.toUpperCase();
+    const suffix=(model.name.match(/\((M|ST|S\/C)\)$/i) || model.category.match(/\((M|ST)\)$/i))?.[1]?.toUpperCase();
+    const label=(depth===0 ? instrument : {M:"MONO",ST:"STEREO","S/C":"SIDECHAIN"}[suffix]) || "";
+    if (!groups.has(label)) groups.set(label,[]);
+    groups.get(label).push(model);
+  }
+  const order=depth===0?["GUITAR","BASS",""]:["MONO","STEREO","SIDECHAIN",""];
+  return order.filter(label=>groups.has(label)).map(label=>{
+    const branch=<EffectGroups rows={groups.get(label)} render={render} depth={depth+1} listKey={listKey+"|"+label}/>;
+    return label?<details open className="effect-group" key={label}><summary>{label}</summary>{branch}</details>:
+      <React.Fragment key="unclassified">{branch}</React.Fragment>;
+  });
+}
+
 function PagedRows({ rows, render, listKey }) {
   return <ScrollPage key={listKey} rows={rows} render={render} />;
 }
@@ -1323,11 +1341,9 @@ function App() {
         ))}
       {((category === "Neural Capture" && captures) ||
         (category === "Plugins" && product)) && <small>{items.length}개</small>}
-      <PagedRows
-        rows={items}
-        render={modelRow}
-        listKey={[category, product, filter].join("|")}
-      />
+      {category==="Plugins" || category==="Neural Capture"
+        ? <PagedRows rows={items} render={modelRow} listKey={[category,product,filter].join("|")}/>
+        : <EffectGroups key={category+"|"+filter} rows={items} render={modelRow} listKey={category+"|"+filter}/>}
     </>
   );
   // The app bundle is ready. The remaining lights follow actual request boundaries.
