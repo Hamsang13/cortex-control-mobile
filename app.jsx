@@ -734,7 +734,9 @@ function App() {
       });
       if (version !== epoch.current) return;
       if (reply.paused) {
-        if (reply.preview) setPreview(reply.preview);
+        if (reply.preview) setPreview(previous =>
+          previous?.rev === reply.preview.rev && previous.scene === reply.preview.scene &&
+          previous.dirty === reply.preview.dirty ? previous : reply.preview);
         if (mode.current !== "browse") {
           loadLibrary();
           setCaptures(null);
@@ -896,6 +898,18 @@ function App() {
         run("scene", { target: next.target });
       else J(null);
     }
+  }
+  function previewMic(p, value) {
+    if (mode.current !== "browse") return;
+    setPreview(previous => {
+      if (previous?.identity !== s.identity || previous.scene !== s.scene) return previous;
+      return {...previous, blocks:previous.blocks.map(b => {
+        if (b.row !== active.row || b.col !== active.col || b.model !== active.model) return b;
+        return {...b, params:b.params.map(param => param.index !== p.index ? param : {
+          ...param, values:param.values.map((v,i)=>i===(param.assigned?s.scene:0)?value:v)
+        })};
+      })};
+    });
   }
   async function writeKnob(p, value) {
     const queue = stream.current;
@@ -1529,8 +1543,8 @@ function App() {
                 setPoints={points=>remember("split",points)}
                 assign={p=>remember("route-assign",{...route,index:p.index,rev:s.rev,scene:s.scene})}/>}
               {active && (!gig || paramsOpen) && (active.params.some(p=>p.index===1 && p.textOptions) && active.params.some(p=>p.index===9 && p.textOptions) ?
-                <CabinetPanel key={[s.identity,active.row,active.col,active.model,s.scene].join("-")} block={active} scene={s.scene}
-                  busy={busy} readOnly={paused} commit={writeKnob} Parameter={BlockParameter}
+                <CabinetPanel key={[s.identity,active.row,active.col,active.model,s.scene,usbPaused].join("-")} block={active} scene={s.scene}
+                  busy={busy} readOnly={paused} previewMic={usbPaused ? previewMic : null} commit={writeKnob} Parameter={BlockParameter}
                   assign={p=>blockAction("assign",{index:p.index,rev:s.rev,scene:s.scene})}
                   bypass={()=>blockAction("bypass")}/> : (
                 <section

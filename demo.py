@@ -8,7 +8,33 @@ MODELS = [
     (2, "Studio Amp", "Amp"),
     (3, "Tape Echo", "Delay"),
     (4, "Room Reverb", "Reverb"),
+    (5, "2×12 Demo Cab", "Cabsim Guitar (M)"),
 ]
+
+
+def cabinet_params():
+    params = []
+
+    def add(name, value, kind="float", minimum=0, maximum=10, unit="", **extra):
+        params.append(dict(index=len(params), name=name, type=kind, min=minimum, max=maximum,
+                           unit=unit, normalized=False, assigned=False, values=[value]*8,
+                           options=[], steps=2 if kind=="switch" else None) | extra)
+
+    mics = ["Ribbon 160", "Ribbon 10", "Dynamic 57", "Dynamic 421", "Condenser 414", "Condenser 184"]
+    for mic in range(2):
+        prefix = f"MIC {mic+1}"
+        add(prefix+" · BYPASS", 0, "switch")
+        add(prefix, .4 if mic==0 else 0, "comboBox", options=mics, textOptions=mics, steps=len(mics))
+        add(prefix+" · LEVEL", .5, minimum=-40, maximum=6, unit="dB", exponent=1/4.9594844)
+        add(prefix+" · PAN", .5)
+        add(prefix+" · DISTANCE", 0)
+        add(prefix+" · POSITION", .4)
+        add(prefix+" · PHI", 0, "switch")
+        add(prefix+" · GRID MODE", 1, "switch")
+    add("HPF", 0, minimum=20, maximum=500, unit="Hz", exponent=10/3)
+    add("LPF", 1, minimum=500, maximum=20000, unit="Hz", exponent=10/3)
+    add("OUTPUT VOLUME", .5595, minimum=-96, maximum=12, unit="dB", exponent=.20284)
+    return params
 
 
 def block(row, col, model):
@@ -18,6 +44,7 @@ def block(row, col, model):
         2: ["GAIN", "BASS", "MID", "TREBLE"],
         3: ["MIX", "FEEDBACK"],
         4: ["MIX"],
+        5: [],
     }[model]
     return dict(
         row=row,
@@ -26,7 +53,7 @@ def block(row, col, model):
         name=name,
         category=category,
         bypass=[False] * 8,
-        params=[
+        params=cabinet_params() if model == 5 else [
             dict(
                 name=n,
                 index=i,
@@ -73,7 +100,7 @@ class Demo:
             name="Demo · Clean",
             identity="demo-0",
             lanes=[dict(input=1, output=19, mute=[False], controls=demo_route_controls(row)) for row in range(4)],
-            blocks=[block(0, 0, 1), block(0, 2, 2), block(0, 4, 3)],
+            blocks=[block(0, 0, 1), block(0, 2, 2), block(0, 4, 3), block(0, 6, 5)],
             splits=[],
         )
         self.saved = {
