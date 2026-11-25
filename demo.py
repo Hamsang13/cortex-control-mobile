@@ -150,8 +150,8 @@ class Demo:
                 self.scene = 0
                 self.dirty = False
             elif a == "save":
-                g["name"] = d["name"]
-                self.saved[d["slot"]] = deepcopy(g)
+                slot = next(i for i,v in self.saved.items() if v["identity"] == g["identity"])
+                self.saved[slot] = deepcopy(g)
                 self.dirty = False
             else:
                 self.undo.append((deepcopy(g), self.dirty))

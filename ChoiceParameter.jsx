@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 
 export function SceneMark({scene}) {
   const description="씬 할당 · "+"ABCDEFGH"[scene];
-  return <span className="scene-mark" role="img" aria-label={description} title={description}>A B<br/>C D</span>;
+  return <span className="scene-mark" role="img" aria-label={description} title={description}><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1v18M1 10h18" stroke="currentColor" fill="none"/>{["A","B","C","D"].map((v,i)=><text key={v} x={i%2?15:5} y={i<2?8:18} textAnchor="middle" fill="currentColor" fontSize="8">{v}</text>)}</svg></span>;
 }
 
 export default function ChoiceParameter({p, scene, disabled, busy, readOnly, commit, assign, pressButton=false}) {
@@ -91,9 +91,9 @@ export default function ChoiceParameter({p, scene, disabled, busy, readOnly, com
           choose(target?Number(target.dataset.choice):(index+1)%count);
         } else show();
       }}>
-      {!pressButton && <small>{p.name}{p.assigned && <SceneMark scene={scene}/>}</small>}
+      {!pressButton && <small>{p.name}</small>}
+      {p.assigned && <SceneMark scene={scene}/>}
       {pressButton ? <span className="param-push">
-        {p.assigned && <SceneMark scene={scene}/>}
         {index===1 && p.name==="MUTE"?"MUTED":p.name}
       </span> : vertical ? <span className="param-switch" style={{gridTemplateRows:"repeat("+count+",22px)"}}>
         <i aria-hidden="true" style={{gridRow:"span "+count,height:(count*22-1)+"px","--switch-position":(3+index*22)+"px"}}/>

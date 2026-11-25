@@ -29,9 +29,54 @@ def lane_flags(models, model_id, index, invert=False):
     return flags if param.scene_mode else flags[:1]
 
 
+def expand_cabinet_models(root):
+    from copy import deepcopy
+    models = {m.get("id"): m for m in root.findall("Category/Model")}
+    for model in models.values():
+        base = models.get(model.get("clones"))
+        if base is None or not any(p.get("name") == "ir selector" for p in base.findall("Parameter")):
+            continue
+        controls = [deepcopy(p) for p in base.findall("Parameter")]
+        for control in controls:
+            if control.get("name") == "ir selector":
+                control.set("cabBase", base.get("id"))
+        for override in model.findall("Parameter"):
+            index = override.get("replaces")
+            if index is None:
+                controls.append(override)
+            else:
+                controls[int(index)].attrib.update(override.attrib)
+            model.remove(override)
+        model.extend(controls)
+
+
 def model_params(block, model, metadata):
     params = []
     for spec in model.parameters if model else ():
+        if spec.name == "ir selector" and spec.index < len(block.params):
+            mic = block.params[spec.index]
+            raw = [v.string_value for v in mic.param_values]
+            if raw and raw[0]:
+                spec_ui = metadata.get((model.id, spec.index), {})
+                prefix = (spec_ui.get("defaultValue") or raw[0]).rpartition("_")[0]
+                choices = list(mic.dynamic_steps)
+                if not choices and prefix and spec_ui.get("cabBase") in ("12000", "32000"):
+                    choices = [prefix + "_" + name for name in (
+                        "Ribbon 160", "Ribbon 10", "Dynamic 57", "Dynamic 421", "Condenser 414", "Condenser 184"
+                    )]
+                if not choices:
+                    for index in (1, 9):
+                        default = metadata.get((model.id, index), {}).get("defaultValue")
+                        if default:
+                            choices.append(default)
+                        if index < len(block.params):
+                            choices.extend(v.string_value for v in block.params[index].param_values if v.string_value)
+                choices = list(dict.fromkeys(choices + [v for v in raw if v]))
+                params.append(dict(index=spec.index, pos=spec.index, name="MIC "+str(1 if spec.index==1 else 2),
+                    type="comboBox", options=[v.rsplit("_",1)[-1] for v in choices], textOptions=choices,
+                    values=[choices.index(v)/max(1,len(choices)-1) if v in choices else None for v in raw],
+                    assigned=mic.scene_mode, steps=len(choices)))
+            continue
         if spec.type not in (
             "float",
             "switch",
@@ -63,7 +108,8 @@ def model_params(block, model, metadata):
         params.append(
             dict(
                 index=spec.index,
-                name=spec.name,
+                name=(("MIC 1 · " if spec.index < 8 else "MIC 2 · ") + spec.name.upper()
+                      if model.category_id in (12, 21, 32, 33) and spec.index < 16 else spec.name),
                 type=spec.type,
                 values=values,
                 assigned=param.scene_mode,
@@ -80,6 +126,8 @@ def model_params(block, model, metadata):
                 steps=len(options) or spec.option_count,
             )
         )
+    if model and model.category_id in (12, 21, 32, 33):
+        return sorted(params, key=lambda p: p["index"])
     return sorted(params, key=lambda p: p["pos"])
 
 
@@ -220,8 +268,9 @@ class Editor:
         # The public catalog omits the display curve, option labels and visibility.
         # Read the unit's repository once for both the UI and the library.
         payload = qc._fetch_model_repo()
-        qc._catalog = parse_model_repo(payload)
         root = ET.fromstring(_extract_xml(payload))
+        expand_cabinet_models(root)
+        qc._catalog = parse_model_repo(ET.tostring(root, encoding="utf-8"))
         self.metadata = {
             (int(m.get("id")), i): p.attrib
             for m in root.findall("Category/Model")
@@ -410,21 +459,23 @@ class Editor:
                 raise ValueError("Unsaved changes")
             q.recall_preset(api.Setlist.USER, slot)
         elif action == "save":
-            slot = integer(d, "slot", 0, 255)
-            name = d.get("name")
-            if not isinstance(name, str) or not name.strip() or len(name) > 64:
-                raise ValueError("Invalid name")
-            existing = next((x for x in q.list_presets() if x.index == slot), None)
-            if (existing.name if existing else "") != d.get("previous"):
-                raise ValueError("Save destination changed")
-            q.save_current_preset(
-                api.Setlist.USER,
-                slot,
-                name,
-                instrument=existing.instrument if existing else 0,
-            )
-            self.slots = {x.index: x.name for x in q.list_presets()}
-            if slot not in self.slots:
+            # The device records the containing folder in its current Recents entry.
+            recent = next(iter(q.recents().items), None)
+            if recent is None or recent.name != state["name"] or recent.is_factory or not recent.folder_key.startswith("/media/p4/Presets/"):
+                raise ValueError("현재 프리셋의 쓰기 가능한 저장 위치를 확인할 수 없습니다.")
+            folder = recent.folder_key
+            matches = [x for x in q.list_presets(folder) if x.name == state["name"]]
+            if len(matches) != 1 or matches[0].is_readonly:
+                raise ValueError("현재 프리셋의 저장 슬롯을 확인할 수 없습니다.")
+            existing = matches[0]
+            slot = existing.index
+            if str(q.read_current_preset().hash) != state["identity"]:
+                raise ValueError("저장 전에 프리셋이 변경되었습니다.")
+            q.save_current_preset(folder, slot, existing.name, instrument=existing.instrument)
+            saved = {x.index: x.name for x in q.list_presets(folder)}
+            if folder.rstrip("/") == api.Setlist.USER.rstrip("/"):
+                self.slots = saved
+            if saved.get(slot) != existing.name:
                 raise ValueError("저장 슬롯에서 프리셋을 확인하지 못했습니다.")
         else:
             self.edit(state, action, d)
@@ -447,11 +498,11 @@ class Editor:
         ):
             verify_edit(action, d, state, result)
         if action == "save":
-            if self.slots[slot] != result["name"] or result["dirty"]:
+            if saved[slot] != result["name"] or result["dirty"]:
                 raise ValueError(
                     "저장 후 슬롯과 현재 프리셋이 일치하지 않습니다. 목록에서 확인하세요."
                 )
-            result["savedName"] = self.slots[slot]
+            result["savedName"] = saved[slot]
         return result
 
     def edit(self, state, action, d):
@@ -538,7 +589,11 @@ class Editor:
                 value = d.get("value")
                 if type(value) not in (int, float) or not 0 <= value <= 1:
                     raise ValueError("Invalid value")
-                q.set_param(row, col, param_index=param["index"], value=value)
+                if "textOptions" in param:
+                    options = param["textOptions"]
+                    q.set_param(row, col, param_index=param["index"], text=options[round(value*(len(options)-1))])
+                else:
+                    q.set_param(row, col, param_index=param["index"], value=value)
         else:
             raise ValueError("Unknown action")
 
@@ -597,6 +652,11 @@ def verify_edit(action, data, before, after):
             success = param["assigned"] != old["assigned"]
         else:
             value = param["values"][after["scene"] if param["assigned"] else 0]
-            success = value is not None and abs(value - data["value"]) < 0.002
+            if param.get("textOptions") and value is not None:
+                old = next(p for p in previous["params"] if p["index"] == data["index"])
+                wanted = old["textOptions"][round(data["value"]*(len(old["textOptions"])-1))]
+                success = param["textOptions"][round(value*(len(param["textOptions"])-1))] == wanted
+            else:
+                success = value is not None and abs(value - data["value"]) < 0.002
     if not success:
         raise ValueError("편집 요청과 본체에서 다시 읽은 결과가 다릅니다.")

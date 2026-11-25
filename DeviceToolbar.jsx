@@ -75,8 +75,11 @@ export default function DeviceToolbar({api,online,busy,revision,travel,report}) 
   }
   function end(){dial.current=null;if(!sending.current)setPreview(null)}
   return <div className="device-tools">
-    {[["undo","실행 취소","↶"],["redo","다시 실행","↷"]].map(([action,label,icon])=>
-      <button key={action} title={label} aria-label={label} disabled={!online || busy || !status?.[action]} onClick={()=>travel(action)}>{icon}</button>)}
+    {[["undo","실행 취소"],["redo","다시 실행"]].map(([action,label])=>
+      <button key={action} title={label} aria-label={label} disabled={!online || busy || !status?.[action]} onClick={()=>travel(action)} className="history-button">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <g transform={action==="redo"?"translate(24 0) scale(-1 1)":undefined}><path d="M9 4 4 9l5 5M5 9h8a7 7 0 0 1 0 14" transform="translate(0 -1)"/></g>
+        </svg></button>)}
     <button className={"master-dial"+(master?.engaged===false?" pickup":"")} role="slider" aria-label="Master Volume" aria-valuemin={0} aria-valuemax={100}
       aria-valuenow={value ?? undefined} title={"Master Volume · "+(value ?? "—")} disabled={locked || !online || value==null}
       onPointerDown={e=>{if(lockRef.current || !e.isPrimary || e.button!==0)return;e.currentTarget.setPointerCapture(e.pointerId);dial.current={id:e.pointerId,y:e.clientY,value,last:value}}}

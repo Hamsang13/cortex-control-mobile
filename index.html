@@ -344,9 +344,10 @@
       .port-panel .route-title b {font-weight:400;color:#eee;margin-left:4px}
       .port-panel .param-push {left:10%;width:80%;bottom:32%;height:30%;padding:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:400;color:#aaa;background:#121212}
       .port-panel [aria-label="MUTE"][aria-pressed="true"] .param-push {background:#ff292c;color:#111}
-      .scene-mark {display:inline-block;font:600 7px/1 monospace;white-space:nowrap;vertical-align:middle;color:inherit}
-      .param small .scene-mark {margin-left:5px}
-      .param-push .scene-mark {position:absolute;left:5%}
+      .scene-mark {position:absolute;left:10px;top:50%;transform:translateY(-50%);color:white;line-height:0;pointer-events:none}
+      .param:has(.scene-mark) .dial {border-color:white}
+      .choice-param:has(.scene-mark) :is(.param-switch,.param-select,.param-push) {margin-left:24px; max-width:calc(90% - 24px)}
+
       .port-panel .gate-track {bottom:6px}
       .port-panel .gate-meter output {bottom:19px}
       .port-panel .dial {width:clamp(30px,4vw,54px);height:auto;aspect-ratio:1;bottom:4px;right:6px;border:5px solid #111;box-shadow:inset 0 0 0 2px #080808}
@@ -835,6 +836,26 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
         .library-open #block-library.expanded {grid-template-columns:clamp(138px,24vw,196px) minmax(0,1fr)}
       }
       @media (prefers-reduced-motion:reduce) {.workspace,#block-library,.workspace .library-toggle {transition:none}}
+      .quick-splits {display:flex;gap:2px;margin-left:auto}
+      .quick-splits button {display:grid;place-items:center;padding:2px;min-width:0}
+      .quick-splits button[aria-pressed=true] {background:#444}
+      .branch-panel .panelhead {flex-wrap:wrap}
+      .device-tools .history-button {display:grid;place-items:center;flex:none;width:32px;height:36px;padding:0}
+      @media (min-width:600px) and (max-width:1440px) and (min-height:480px) {
+        .shell {height:100dvh;box-sizing:border-box;display:flex;flex-direction:column;padding-bottom:0}
+        .shell > header,.shell > footer {flex:none}
+        .workspace {flex:1;min-height:0}
+        .workspace #block-library {box-sizing:border-box}
+        @media (orientation:landscape) { .workspace #block-library {height:100%;min-height:0} }
+        .workspace main {height:100%;min-height:0;overflow:hidden}
+        .workspace main > .bar {flex:none}
+        .workspace main > .scroll {flex:none}
+        .workspace main:has(.panel) .board {grid-template-rows:repeat(4,clamp(44px,7dvh,76px))}
+        .workspace main > .panel {min-height:0;overflow:auto;overscroll-behavior:contain}
+        .panelhead {position:sticky;top:0;z-index:2;background:#161616}
+        .workspace main > .gig-panel {flex:0 0 clamp(92px,18dvh,200px);min-height:0}
+        .workspace main:has(.panel) .param {height:clamp(76px,11dvh,99px)}
+      }
 </style>
   </head>
   <body>

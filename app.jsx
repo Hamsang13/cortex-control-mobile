@@ -278,8 +278,9 @@ function Knob({ p, scene, commit, assign, busy, disabled, readOnly }) {
       }}
     >
       <small>
-        {p.name}{p.assigned && <SceneMark scene={scene}/>}
+        {p.name}
       </small>
+      {p.assigned && <SceneMark scene={scene}/>}
       <i className="dial" style={{ "--angle": value * 270 - 135 + "deg" }} />
       <output>{current == null ? "—" : formatted}</output>
     </button>
@@ -1218,19 +1219,6 @@ function App() {
       />
     </>
   );
-  function save(ev) {
-    ev.preventDefault();
-    const f = new FormData(ev.target),
-      slot = Number(f.get("slot")) - 1,
-      name = f.get("name").trim(),
-      previous = slots.find((x) => x.slot === slot)?.name || "";
-    if (
-      previous &&
-      !confirm(slotName(slot) + " " + previous + "에 덮어쓸까요?")
-    )
-      return;
-    run("save", { slot, name, previous }, close);
-  }
   return (
     <div className="shell">
       <header>
@@ -1379,9 +1367,9 @@ function App() {
               {s?.dirty ? "*" : ""}
             </button>
             <button
-              disabled={!s || busy}
-              aria-label="My Presets에 저장"
-              onClick={() => directory("save")}
+              disabled={!s || paused || busy || !s.dirty}
+              aria-label="현재 프리셋 저장" title="현재 프리셋 저장"
+              onClick={() => run("save")}
             >
               ▣
             </button>
@@ -1480,6 +1468,7 @@ function App() {
               </div>
               {route && (!gig || paramsOpen) && <RoutePanel key={route.row+route.part} route={route} state={s}
                 open={openRoute} busy={busy} paused={paused} commit={writeKnob}
+                setPoints={points=>remember("split",points)}
                 assign={p=>remember("route-assign",{...route,index:p.index,rev:s.rev,scene:s.scene})}/>}
               {active && (!gig || paramsOpen) && (
                 <section
@@ -1599,12 +1588,7 @@ function App() {
       )}
       {modal && (
         <Modal
-          title={
-            {
-              presets: "My Presets",
-              save: "My Presets에 저장",
-            }[modal.kind]
-          }
+          title="My Presets"
           close={close}
         >
           {modal.loading && <p role="status">프리셋 목록을 읽는 중…</p>}
@@ -1659,30 +1643,6 @@ function App() {
               </div>
             </>
           )}
-          {!modal.loading && modal.kind === "save" && (
-            <form onSubmit={save}>
-              <label>
-                이름
-                <input name="name" required defaultValue={s?.name} />
-              </label>
-              <label>
-                저장 슬롯
-                <select
-                  name="slot"
-                  defaultValue={
-                    (slots.find((x) => x.name === s?.name)?.slot ?? 0) + 1
-                  }
-                >
-                  {Array.from({ length: 256 }, (_, i) => (
-                    <option value={i + 1} key={i}>
-                      {slotName(i)}　{slots.find((x) => x.slot === i)?.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button disabled={busy}>저장</button>
-            </form>
-          )}
         </Modal>
       )}
     </div>
@@ -1727,7 +1687,15 @@ function GateMeter({row,online}){
   </div>;
 }
 
-function RoutePanel({route,state,open,busy,paused,commit,assign}){
+const quickSplits = [
+  ["분기 해제",-1,-1,"M19 4l10 12m0-12L19 16",44,16,4,16],
+  ["분기만",0,-1,"M4 4v8q0 4 4 4h36",4,4,44,16],
+  ["전체 병렬",0,7,"M4 4v8q0 4 4 4h32q4 0 4-4V4",4,4,44,4],
+  ["중앙 병렬",3,4,"M20 4v3q0 3-3 3H6q-3 0-3 3t3 3h36q3 0 3-3t-3-3H31q-3 0-3-3V4",20,4,28,4],
+  ["병합만",-1,7,"M4 16h36q4 0 4-4V4",44,4,4,16],
+];
+
+function RoutePanel({route,state,open,busy,paused,commit,assign,setPoints}){
   const {part,row}=route, params=state.lanes[row].controls?.[part] || [];
   const pair=part==="start" || part==="end";
   const current=p=>p?.values[p.assigned?state.scene:0];
@@ -1741,6 +1709,16 @@ function RoutePanel({route,state,open,busy,paused,commit,assign}){
     <div className="panelhead">{pair?["start","end"].map(k=>
       <button key={k} aria-pressed={part===k} onClick={()=>open(row,k)}>{k==="start"?"Splitter":"Mixer"} {(row+1)+"/"+(row+2)}</button>):
       <span className="grow route-title">{part==="input"?"Input gate control":"Lane output control"} <b>Path {row+1}</b></span>}
+      {pair && <div className="quick-splits" aria-label="Quick Splits">
+        {quickSplits.map(([label,start,end,path,sx,sy,mx,my])=>{
+          const selected=(split?.start??-1)===start && (split?.end??-1)===end;
+          return <button key={label} title={label} aria-label={label} aria-pressed={selected} disabled={paused||busy}
+            onClick={()=>{if(!selected)setPoints({row,start,end})}}>
+            <svg viewBox="0 0 48 20" width="42" height="20" aria-hidden="true"><path d={path} fill="none" stroke="currentColor"/>
+              <circle cx={sx} cy={sy} r="2.5" fill="#168bea"/><circle cx={mx} cy={my} r="2.5" fill="#eb1e9d"/>
+            </svg></button>;
+        })}
+      </div>}
       {gate && <button disabled={busy||paused} aria-label="Input gate" aria-pressed={current(gate)<.5} onClick={()=>commit(gate,current(gate)<.5?1:0)}>⏻</button>}
     </div>
     <div className="params">{params.filter(p=>p!==gate).map(p=><React.Fragment key={p.index+"-"+state.scene}>
