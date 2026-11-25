@@ -11,7 +11,7 @@ from time import perf_counter
 ROOT = Path(__file__).resolve().parent
 from pi_settings import address, boot_proof, pi_request, read_config
 PI_PATH = Path(os.environ["QC_PI_CONFIG"]) if os.getenv("QC_PI_CONFIG") else None
-PI_CONFIG = read_config(PI_PATH) if PI_PATH else {}
+PI_CONFIG = json.loads(os.environ["QC_RUNNING_CONFIG"]) if "QC_RUNNING_CONFIG" in os.environ else (read_config(PI_PATH) if PI_PATH else {})
 PORT = address(PI_CONFIG["url"])[1] if PI_CONFIG else 8765
 TOKEN = PI_CONFIG.get("key") or os.environ.get("QC_WEB_KEY") or secrets.token_urlsafe(18)
 USB = ThreadPoolExecutor(max_workers=1)
@@ -29,7 +29,7 @@ DLL_HANDLE = None
 browse_only = "--browse" in sys.argv
 warm_snapshot = None
 preview_stamp = None
-cache_dir = ROOT / ".device-library"
+cache_dir = Path(os.environ.get("QC_DATA_DIR", ROOT)) / ".device-library"
 
 
 def store_library(action, entries):
@@ -234,6 +234,12 @@ def directory_data(action, data):
 
 
 def operate(action, data):
+    if action == "update-status":
+        if not os.environ.get("QC_HEALTH_ID"):
+            return {"available": False}
+        from updater import state
+        current = state()
+        return {"available": True, "status": current["status"], "ticket": current.get("ticket")}
     if action in ("pi-settings", "pi-set"):
         return pi_request(PI_PATH, data, action == "pi-set")
     if action in ("directory-index", "directory-group"):
@@ -329,6 +335,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(content)
 
     def do_GET(self):
+        if self.path == "/app-health" and os.environ.get("QC_HEALTH_ID") and self.client_address[0] == "127.0.0.1":
+            return self.send(200, os.environ["QC_HEALTH_ID"].encode(), "text/plain")
         if self.path == "/pi-ready" and PI_CONFIG:
             self.send_response(200)
             data = boot_proof(PI_CONFIG).encode("ascii")
@@ -350,6 +358,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_error(403)
         try:
             length = int(self.headers.get("Content-Length", "0"))
+            if self.path == "/api/update-zip":
+                if not os.environ.get("QC_HEALTH_ID"):
+                    raise ValueError("업데이트 설치 환경이 필요합니다.")
+                from updater import upload
+                self.connection.settimeout(30)
+                result = upload(self.rfile, length)
+                return self.send(202, json.dumps(result).encode(), "application/json")
             if not 0 < length <= 1024:
                 raise ValueError("잘못된 요청 크기입니다.")
             data = json.loads(self.rfile.read(length))
@@ -370,7 +385,10 @@ if __name__ == "__main__":
     if not DEMO:
         api = setup()
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    ips = set(socket.gethostbyname_ex(socket.gethostname())[2]) | {"127.0.0.1"}
+    try:
+        ips = set(socket.gethostbyname_ex(socket.gethostname())[2]) | {"127.0.0.1"}
+    except OSError:
+        ips = {"127.0.0.1"}
     for ip in sorted(ips):
         print(f"http://{ip}:{PORT}/" + ("" if PI_CONFIG else f"#{TOKEN}"), flush=True)
     if not DEMO and not browse_only:

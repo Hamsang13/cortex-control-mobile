@@ -1,0 +1,53 @@
+#!/bin/bash
+# Install service definitions into a real Pi or the image build chroot.
+set -euo pipefail
+account=$1
+app=$2
+mode=$3
+cd "$(dirname "$0")/.."
+runtime=/usr/local/lib/qc-desk
+install -d -m 0755 "$runtime"
+install -m 0644 pi_settings.py release/{firstboot.py,package.py,updater.py,update-public.pem} "$runtime/"
+install -m 0755 release/hotspot.sh "$runtime/"
+install -d -o "$account" -g "$(id -gn "$account")" "$app"
+install -m 0644 server.py editor.py demo.py device_settings.py pi_settings.py io_settings.py plugin_sync.py plugin-names.json utilities.py pitch.py index.html app.js "$app/"
+usermod -aG plugdev,audio "$account"
+echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="152a", ATTRS{idProduct}=="880a", GROUP="plugdev", MODE="0660"' > /etc/udev/rules.d/75-qc-desk.rules
+cat > /etc/systemd/system/qc-desk-hotspot.service <<EOF
+[Unit]
+Description=Configure Cortex Remote hotspot
+After=NetworkManager.service
+Requires=NetworkManager.service
+[Service]
+Type=oneshot
+TimeoutStartSec=infinity
+ExecStart=/usr/local/lib/qc-desk/hotspot.sh "$account" "$app"
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=4
+[Install]
+WantedBy=multi-user.target
+EOF
+cat > /etc/systemd/system/qc-desk.service <<EOF
+[Unit]
+Description=Cortex Remote
+Requires=qc-desk-hotspot.service
+After=qc-desk-hotspot.service
+[Service]
+User=$account
+SupplementaryGroups=plugdev audio
+Environment="QC_PI_CONFIG=$app/pi-settings.json"
+Environment="QC_DATA_DIR=$app"
+ExecStart="$app/venv/bin/python" /usr/local/lib/qc-desk/updater.py
+Restart=on-failure
+RestartSec=2
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl enable qc-desk-hotspot qc-desk
+if [[ $mode == live ]]; then
+    udevadm control --reload-rules
+    udevadm trigger --subsystem-match=hidraw --action=add
+    systemctl daemon-reload
+    systemctl restart qc-desk
+fi

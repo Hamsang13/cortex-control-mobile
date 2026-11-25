@@ -1897,6 +1897,13 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
+        <span className="foot-version">Cortec Remote v1.0.0</span>
+        <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
+          const el=e.currentTarget;
+          el.getAnimations().forEach(a=>a.cancel());
+          el.animate([{opacity:0},{opacity:1,offset:.18},{opacity:1,offset:.60},{opacity:0}],
+                     {duration:2000});
+        }}>With respect to Neural DSP</button>
       </footer>
       {drag && (
         <div className="ghost" style={{ left: drag.x, top: drag.y }}>

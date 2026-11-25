@@ -5,3 +5,4 @@ qc-test/
 .env
 node_modules/
 .device-library/
+dist/

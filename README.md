@@ -2,70 +2,31 @@
 
 코텍스 리모트(Cortex Remote)는 iPad·iPhone의 브라우저에서 Neural DSP Quad Cortex의 프리셋과 씬을 편집하는 비공식 웹 앱입니다. Windows PC 또는 Raspberry Pi가 USB로 본체와 통신하고, Safari는 로컬 네트워크를 통해 편집 화면을 표시합니다.
 
-## Raspberry Pi 초기 설정
+## 처음 설치 · microSD 이미지
 
-아래 절차는 **Raspberry Pi Zero 2 W/WH + Raspberry Pi OS Lite (64-bit)** 기준입니다. 최초 설치에는 인터넷이 필요합니다. 설치 후에는 Pi가 Wi-Fi 핫스팟을 열고 Cortex Remote가 부팅할 때마다 자동으로 실행됩니다.
+**Raspberry Pi Zero 2 W/WH**, 8GB 이상 microSD, 안정적인 5V 전원, USB OTG 어댑터와 Quad Cortex용 USB 데이터 케이블을 준비하세요. Mac과 Windows는 같은 이미지를 사용합니다.
 
-### 1. microSD와 네트워크 준비
+1. 배포 파일 `cortex-remote-v1.0.0-pi-zero2w-arm64.img.xz`를 받습니다. `SHA256SUMS`와 대조할 때는 Mac에서 `shasum -a 256 파일명`, Windows PowerShell에서 `Get-FileHash 파일명 -Algorithm SHA256`을 사용하세요.
+2. 컴퓨터의 카드 슬롯 또는 USB 카드 리더기에 microSD를 연결합니다. **기록하면 선택한 카드의 기존 데이터가 모두 지워집니다.** Raspberry Pi Imager에서 Zero 2 W → 운영체제 **사용자 이미지(Use custom)** → 다운로드한 `.img.xz` → 대상 카드를 선택하세요. OS 사용자 설정은 건너뛰고 기록과 검증이 끝날 때까지 기다립니다. XZ 압축 이미지를 지원하는 다른 SD 기록 도구도 사용할 수 있습니다. [Raspberry Pi Imager 공식 안내](https://www.raspberrypi.com/documentation/computers/imager.html)
+3. 무선 국가 기본값은 한국(`KR`)입니다. 다른 국가에서 사용할 때는 기록된 카드의 **bootfs → cortex-country.txt**에 해당 두 자리 국가 코드를 저장합니다. 카드를 안전하게 꺼내 Pi에 넣습니다.
+4. Quad Cortex에는 자체 전원을, Pi에는 **PWR IN**으로 5V를 공급합니다. Pi의 **USB** 데이터 단자와 Quad Cortex의 **USB-B**를 OTG 어댑터와 데이터 케이블로 연결하세요.
+5. iPad의 Wi-Fi 목록에서 **Cortex-Remote-Setup**에 연결합니다. 최초 설정 전용 비밀번호는 **CortexSetup1**입니다. 가까이 있는 사용자가 먼저 등록할 수 있으므로 개인 공간에서 한 대씩 설정하세요. 인터넷이 없는 네트워크에 계속 연결한 상태로 Safari에서 **http://10.42.0.1:8765/** 를 엽니다.
+6. 개인 핫스팟 이름, 비밀번호, 웹 접속 키가 제안됩니다. 그대로 사용하거나 직접 변경한 뒤 **저장하기 전에 세 값을 보관**하세요. 저장하면 설치용 Wi-Fi가 닫히고 개인 핫스팟이 올라옵니다. iPad에서 새 Wi-Fi에 연결한 뒤 설정 완료 화면의 **Cortex Remote 열기**를 누르고 즐겨찾기에 추가합니다. 직접 입력할 주소는 `http://10.42.0.1:8765/#접속키`입니다.
 
-1. PC에서 Raspberry Pi Imager를 열고 기종으로 Zero 2 W, 운영체제로 Raspberry Pi OS Lite (64-bit)를 선택합니다. 설치 스크립트는 NetworkManager와 Python 3.11 이상을 사용하는 Bookworm 이상 버전을 대상으로 합니다.
-2. Imager의 사용자 설정에서 호스트 이름, 사용자 이름, 비밀번호를 지정합니다. 아래 명령은 각각 `qc-pi`, `qcuser`를 예로 사용합니다.
-3. 처음 설치할 장소의 **2.4GHz Wi-Fi**와 국가를 설정하고 SSH를 켭니다. microSD에 기록한 뒤 Pi에 꽂아 부팅합니다.
-4. PC를 같은 네트워크에 연결하고 터미널에서 접속합니다. 이름으로 찾을 수 없으면 공유기에 표시된 Pi의 IP 주소를 사용하세요.
+이미지에는 OS, 앱과 ARM64 USB 의존성이 들어 있습니다. 첫 부팅은 인터넷·SSH·터미널 없이 진행되며, 이후에는 개인 Wi-Fi와 앱이 자동으로 시작됩니다. 설치용 비밀번호는 공개값이고 개인 Wi-Fi 비밀번호와 접속 키는 각 카드의 최초 등록 때 결정됩니다. 이미지의 SSH 로그인은 꺼져 있습니다.
 
-```sh
-ssh qcuser@qc-pi.local
-```
+## 설치 후 · Wi-Fi로 업데이트
 
-Imager 설정 화면은 [Raspberry Pi 공식 초기 설정 안내](https://www.raspberrypi.com/documentation/computers/getting-started.html)를 참고하세요.
+1. 인터넷에 연결된 PC 또는 iPad에 `cortex-remote-v1.0.0-update.zip`을 미리 저장합니다. iPad에서는 파일 앱의 **나의 iPad** 등에 실제 다운로드를 완료하세요.
+2. 해당 기기를 Pi의 개인 Wi-Fi에 연결하고 기존 즐겨찾기로 리모트를 엽니다.
+3. 기기명 옆 **⚙ → Raspberry Pi → 오프라인 앱 업데이트**에서 받은 ZIP을 그대로 선택해 **업데이트 적용**을 누르세요. 적용 중에는 Pi 전원을 유지합니다.
+4. 서명과 파일 해시가 맞으면 앱을 다시 시작하고 기동 확인 후 브라우저가 새로고침됩니다. 손상된 ZIP은 설치 전에 거부합니다. 후보 앱이 시작되지 않거나 기동 점검을 통과하지 못하면 직전 앱으로 복귀합니다. **Wi-Fi, 접속 키, 사용자 설정과 캐시는 유지**됩니다. 일반 앱 업데이트에는 Pi 재부팅이나 SD 카드 교체가 필요 없습니다.
 
-### 2. Pi에 Cortex Remote 설치
+Pi 자체의 Wi-Fi 이름·비밀번호·접속 URL·키를 변경할 때는 같은 설정 화면에서 저장 후 Pi를 재부팅하세요. 저장한 탭이 새 서버를 확인하면 이동합니다. Wi-Fi 정보가 바뀌면 iPad의 Wi-Fi 설정에서 새 네트워크에 먼저 연결하세요.
 
-SSH로 접속한 **Pi 터미널**에서 일반 사용자로 실행합니다. 저장소에 웹 앱 번들 `app.js`가 포함되어 있으므로 Pi에서는 Node.js 설치나 프런트엔드 빌드가 필요 없습니다.
+### ZIP 업로드 메뉴가 없는 기존 Pi
 
-```sh
-sudo apt-get update
-sudo apt-get install -y git
-git clone --branch main --single-branch https://github.com/Hamsang13/cortex-control-mobile.git
-cd cortex-control-mobile
-bash install-pi.sh
-```
-
-스크립트가 USB HID 라이브러리, Python 가상환경, USB 접근 권한, `qc-desk.service`와 Wi-Fi 프로필 `QC-Pedalboard`를 구성합니다. 마지막에 출력되는 **Wi-Fi 비밀번호와 `#` 뒤의 접속 키까지 포함한 Safari 주소**를 기록한 뒤 재부팅합니다.
-
-```sh
-sudo reboot
-```
-
-### 3. Quad Cortex와 iPad 연결
-
-1. Quad Cortex에 자체 전원을 공급합니다. Pi Zero 2 W/WH에는 **PWR IN**으로 5V 전원을 공급합니다.
-2. Pi의 **USB** 데이터 단자에 Micro USB OTG 호스트 어댑터를 꽂고, USB 데이터 케이블로 Quad Cortex의 **USB-B** 단자와 연결합니다.
-3. iPad 또는 iPhone의 Wi-Fi 설정에서 **QC-Pedalboard**를 선택하고 설치 시 출력된 Wi-Fi 비밀번호를 입력합니다. 인터넷 연결이 없는 로컬 Wi-Fi로 표시될 수 있습니다.
-4. Safari에 설치 시 출력된 `http://10.42.0.1:8765/#접속키` 주소를 열고 즐겨찾기에 저장합니다. 상단에 본체 이름과 **USB 연결됨**이 표시되면 연결된 상태입니다.
-
-### 접속 정보와 문제 확인
-
-핫스팟에 연결한 PC에서는 `ssh qcuser@10.42.0.1`로 Pi에 접속할 수 있습니다. 다음 명령은 **설치한 사용자 계정의 Pi 터미널**에서 실행합니다.
-
-```sh
-# Wi-Fi 비밀번호와 Safari 접속 주소 다시 보기
-python3 ~/.local/share/qc-desk/pi_settings.py show ~/.local/share/qc-desk/pi-settings.json
-
-# 핫스팟, 서버, Quad Cortex USB 인식 확인
-nmcli connection show --active
-systemctl status qc-desk --no-pager
-lsusb -d 152a:880a
-journalctl -u qc-desk -b -n 40 --no-pager
-```
-
-`lsusb` 결과가 비어 있으면 Pi의 데이터 단자, OTG 어댑터, 케이블, Quad Cortex 전원을 확인합니다. Safari에서 페이지가 열리지만 접근이 거부되면 주소 끝의 `#접속키`까지 복사했는지 확인하세요. 접속 주소와 서비스 로그에는 키가 포함될 수 있습니다.
-
-기기 이름 옆 톱니바퀴의 **Raspberry Pi** 항목에서 핫스팟 이름과 비밀번호, HTTP 접속 주소(사설 IPv4와 1024~65535 포트), 접속 키를 저장할 수 있습니다. 암호와 키를 비워 두면 기존 값을 유지합니다. 저장한 탭을 열어 두면 Pi 재부팅 후 새 설정으로 실행된 리모트를 확인하고 새 주소와 키로 자동 이동합니다. Wi-Fi 이름이나 비밀번호가 바뀌면 먼저 iPad의 Wi-Fi 설정에서 다시 연결하세요. 탭을 닫았거나 자동 이동이 차단된 경우 새 Wi-Fi에서 `http://주소:포트/#접속키`로 직접 접속합니다. 기존 설치는 아래 업데이트 절차를 한 번 진행하세요.
-
-### 최신 main으로 업데이트
-
-Pi를 인터넷에 연결한 뒤 기존 소스 디렉터리에서 다음을 실행합니다. 설치 스크립트를 다시 실행해도 기존 Wi-Fi 비밀번호와 Safari 접속 키는 유지됩니다.
+기존 설치 계정으로 Pi를 인터넷에 연결하고 아래 절차를 **한 번만** 실행합니다. 기존 접속 정보를 유지하면서 업로드 기능과 복구용 실행기를 설치합니다. 이후부터 ZIP을 사용하세요.
 
 ```sh
 cd ~/cortex-control-mobile
@@ -73,7 +34,9 @@ git pull --ff-only origin main
 bash install-pi.sh
 ```
 
-Zero 2 W의 Wi-Fi를 핫스팟에서 설치 때 사용한 공유기로 잠시 전환하려면 Pi에서 `nmcli connection show`로 집 Wi-Fi 프로필 이름을 확인하고 `sudo nmcli connection up "집 Wi-Fi 프로필 이름"`을 실행합니다. 핫스팟의 SSH 연결이 끊기면 PC도 집 Wi-Fi에 연결하고 `ssh qcuser@qc-pi.local`로 다시 접속합니다. 업데이트 후 `sudo reboot`하면 핫스팟이 자동으로 시작됩니다.
+## 배포자 · 패키지 재생성
+
+[배포 빌드와 검증 절차](release/README.md)에 고정된 OS 원본, 서명 키 관리, ZIP 생성, 이미지 빌드, 가상 부팅 시험과 GitHub Releases 첨부 파일 목록이 있습니다.
 
 ## 사용 라이브러리
 

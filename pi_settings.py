@@ -92,21 +92,15 @@ def apply_network(config):
     ip, _ = address(config["url"])
     run = lambda args, **kw: subprocess.run(["/usr/bin/nmcli", *args], check=True,
                                             stderr=subprocess.DEVNULL, **kw)
-    fields = {"wifi.ssid": config["ssid"], "wifi-sec.psk": config["wifi"],
-              "ipv4.addresses": ip + "/24"}
-    changed = False
-    for field, value in fields.items():
-        current = run(["-e", "no", "-g", field, "--show-secrets", "connection", "show", PROFILE],
-                      stdout=subprocess.PIPE, text=True).stdout.rstrip("\n")
-        changed |= current != value
-    if changed:
-        args = [item for pair in fields.items() for item in pair]
-        run(["connection", "modify", PROFILE, *args], stdout=subprocess.DEVNULL)
-    # A profile may already have auto-activated with the old SSID at boot.
+    run(["connection", "modify", PROFILE,
+         "802-11-wireless.ssid", config["ssid"],
+         "802-11-wireless-security.psk", config["wifi"],
+         "ipv4.addresses", ip + "/24"], stdout=subprocess.DEVNULL)
+    # Re-activate on boot so NetworkManager uses the stored credentials.
+    # A live upgrade over a different Wi-Fi connection can finish in place.
     active = run(["-g", "GENERAL.CONNECTION", "device", "show", "wlan0"],
                  stdout=subprocess.PIPE, text=True).stdout.strip()
-    if active in ("", "--") or (changed and active == PROFILE):
-        # Activate fresh credentials if NetworkManager started the old profile first.
+    if active in ("", "--", PROFILE):
         run(["connection", "up", PROFILE], stdout=subprocess.DEVNULL)
 
 
