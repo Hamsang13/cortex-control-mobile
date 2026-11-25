@@ -7,7 +7,7 @@ sudo apt-get update
 sudo apt-get install -y python3-venv libhidapi-hidraw0 libportaudio2 network-manager dnsmasq-base usbutils
 app="$HOME/.local/share/qc-desk"
 mkdir -p "$app"
-install -m644 server.py editor.py demo.py io_settings.py plugin_sync.py plugin-names.json utilities.py pitch.py index.html app.js "$app/"
+install -m644 server.py editor.py demo.py device_settings.py pi_settings.py io_settings.py plugin_sync.py plugin-names.json utilities.py pitch.py index.html app.js "$app/"
 if [[ -d .device-library ]]; then
     mkdir -p "$app/.device-library"
     for cached in .device-library/*.json; do
@@ -18,8 +18,6 @@ fi
 python3 -m venv "$app/venv"
 "$app/venv/bin/pip" install 'pyquadcortex==0.40.0' sounddevice numpy
 "$app/venv/bin/python" -c 'import hid, pyquadcortex, numpy, sounddevice'
-if [[ ! -f "$app/key" ]]; then (umask 077; python3 -c 'import secrets;print(secrets.token_urlsafe(18))' > "$app/key"); fi
-key=$(cat "$app/key")
 sudo usermod -aG plugdev "$(id -un)"
 echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="152a", ATTRS{idProduct}=="880a", GROUP="plugdev", MODE="0660"' | sudo tee /etc/udev/rules.d/75-qc-desk.rules >/dev/null
 sudo udevadm control --reload-rules
@@ -27,26 +25,38 @@ sudo udevadm trigger --subsystem-match=hidraw --action=add
 sudo tee /etc/systemd/system/qc-desk.service >/dev/null <<EOF
 [Unit]
 Description=Cortex Remote USB editor
-After=network.target
+After=network.target qc-desk-hotspot.service
 [Service]
 User=$(id -un)
 SupplementaryGroups=plugdev audio
-Environment=QC_WEB_KEY=$key
+Environment="QC_PI_CONFIG=$app/pi-settings.json"
 ExecStart="$app/venv/bin/python" "$app/server.py"
 Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 EOF
 sudo chmod 600 /etc/systemd/system/qc-desk.service
-sudo systemctl daemon-reload
-sudo systemctl enable qc-desk
-sudo systemctl restart qc-desk
+python3 "$app/pi_settings.py" init "$app/pi-settings.json"
 profile=QC-Pedalboard
 if ! sudo nmcli connection show "$profile" >/dev/null 2>&1; then
     sudo nmcli connection add type wifi ifname wlan0 con-name "$profile" ssid "$profile" connection.autoconnect no
 fi
-if [[ ! -f "$app/wifi" ]]; then (umask 077; python3 -c 'import secrets;print(secrets.token_hex(8))' > "$app/wifi"); fi
-wifi=$(cat "$app/wifi")
-sudo nmcli connection modify "$profile" 802-11-wireless.mode ap 802-11-wireless.band bg wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$wifi" ipv4.method shared ipv4.addresses 10.42.0.1/24 ipv6.method disabled connection.autoconnect-priority 999 connection.autoconnect yes
-printf '\nWi-Fi: %s\nPassword: %s\niPad Safari: http://10.42.0.1:8765/#%s\n' "$profile" "$wifi" "$key"
+sudo nmcli connection modify "$profile" wifi.mode ap wifi.band bg wifi-sec.key-mgmt wpa-psk ipv4.method shared ipv6.method disabled connection.autoconnect-priority 999 connection.autoconnect yes
+sudo install -D -o root -g root -m 0644 pi_settings.py /usr/local/lib/qc-desk/pi_settings.py
+sudo tee /etc/systemd/system/qc-desk-hotspot.service >/dev/null <<EOF
+[Unit]
+Description=Apply Cortex Remote hotspot settings
+After=NetworkManager.service
+Requires=NetworkManager.service
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /usr/local/lib/qc-desk/pi_settings.py apply "$app/pi-settings.json"
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable qc-desk-hotspot qc-desk
+sudo systemctl restart qc-desk
+python3 "$app/pi_settings.py" show "$app/pi-settings.json"
 echo 'Save the password and URL, then run: sudo reboot'

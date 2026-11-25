@@ -1,3 +1,4 @@
+import DeviceSettings from "./DeviceSettings";
 import IOSettings from "./IOSettings";
 import BlockMenu from "./BlockMenu";
 import CabinetPanel from "./CabinetPanel";
@@ -810,6 +811,7 @@ function App() {
   },[libraryOpen]);
   const [meterFrame, setMeterFrame] = useState({});
   const signalChannels = meterFrame.channels ?? [];
+  const [settingsOpen,setSettingsOpen]=useState(false);
   const [ioOpen,setIOOpen]=useState(false);
   const [liveState, S] = useState(null),
     [preview, setPreview] = useState(null),
@@ -1534,9 +1536,12 @@ function App() {
       )}
       <header>
         <div className="desk-heading">
-          <strong className="device-name" title={lib.deviceName || "Quad Cortex"}>
+          <div className="device-heading-row"><strong className="device-name" title={lib.deviceName || "Quad Cortex"}>
             <img src={icons.neuralLogo} alt="" /><span>{lib.deviceName || "Quad Cortex"}</span>
-          </strong>
+          </strong><button className="settings-launch" aria-label="Device Settings" title="Device Settings" onClick={()=>setSettingsOpen(true)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+              <path d="m9.8 3 .6-2h3.2l.6 2 2 .9 2-.7 2.2 2.2-.8 2 .9 2 2.1.6v3.2l-2.1.6-.9 2 .8 2-2.2 2.2-2-.7-2 .9-.6 2h-3.2l-.6-2-2-.9-2 .7-2.2-2.2.8-2-.9-2-2.1-.6V10l2.1-.6.9-2-.8-2 2.2-2.2 2 .7z"/><circle cx="12" cy="11.6" r="3.2"/>
+            </svg></button></div>
           <span className="desk-status" role="status">
             <span data-connected={!!liveState}>{usbPaused ? "USB 대기 · 읽기 전용" : liveState ? "USB 연결됨" : msg ? "USB 연결 확인 필요" : preview ? "USB 동기화 중 · 읽기 전용" : "USB 연결 중…"}</span>
             {busy ? " · 처리 중…" : msg && " · " + msg}
@@ -1895,6 +1900,7 @@ function App() {
         </div>
       )}
       {refreshPrompt && <RefreshPrompt preset={refreshPrompt} choose={chooseRefresh}/>}
+      {settingsOpen && <DeviceSettings api={api} online={!!liveState && !paused} close={()=>setSettingsOpen(false)}/>}
       {ioOpen && <IOSettings meterFrame={meterFrame} api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
       {modal && (
         <DirectoryFrame close={close}>

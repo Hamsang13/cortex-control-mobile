@@ -141,6 +141,14 @@ class Demo:
 
     def request(self, a, d):
         g = self.grid
+        if a in ("device-settings", "device-set"):
+            from device_settings import demo_settings, validate_edit
+            if not hasattr(self, "device_settings"):
+                self.device_settings = demo_settings()
+            if a == "device-set":
+                key, value = validate_edit(self.device_settings, d)
+                self.device_settings[key] = value
+            return self.device_settings.copy()
         if a == "io-settings":
             return self.io.copy()
         if a == "io-set":

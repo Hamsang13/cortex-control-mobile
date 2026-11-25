@@ -421,6 +421,9 @@ class Editor:
 
     def request(self, action, d):
         q, api = self.qc, self.api
+        if action in ("device-settings", "device-set"):
+            from device_settings import device_settings
+            return device_settings(q, action, d)
         if action in ("io-settings", "io-set"):
             from io_settings import io_request
             return io_request(q, action, d)

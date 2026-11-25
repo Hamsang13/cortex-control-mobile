@@ -9,7 +9,11 @@ from concurrent.futures import ThreadPoolExecutor
 from time import perf_counter
 
 ROOT = Path(__file__).resolve().parent
-TOKEN = os.environ.get("QC_WEB_KEY") or secrets.token_urlsafe(18)
+from pi_settings import address, pi_request, read_config
+PI_PATH = Path(os.environ["QC_PI_CONFIG"]) if os.getenv("QC_PI_CONFIG") else None
+PI_CONFIG = read_config(PI_PATH) if PI_PATH else {}
+PORT = address(PI_CONFIG["url"])[1] if PI_CONFIG else 8765
+TOKEN = PI_CONFIG.get("key") or os.environ.get("QC_WEB_KEY") or secrets.token_urlsafe(18)
 USB = ThreadPoolExecutor(max_workers=1)
 DIRECTORY = ThreadPoolExecutor(max_workers=1)
 connection = None
@@ -135,7 +139,7 @@ def device_request(action, data):
             if action == "live" and not DEMO and not hasattr(editor, "directory_read"):
                 start_directory_read(editor)
         except TimeoutError as exc:
-            if action in ("io-settings","io-set","cpu", "tuner", "global-tempo", "set-tempo", "master-volume", "master-state", "toolbar", "undo", "redo"):
+            if action in ("device-settings","device-set","io-settings","io-set","cpu", "tuner", "global-tempo", "set-tempo", "master-volume", "master-state", "toolbar", "undo", "redo"):
                 raise ValueError("본체에서 유틸리티 응답이 지연되었습니다.") from exc
             raise
         if not DEMO and isinstance(result, dict) and "rev" in result and "blocks" in result:
@@ -230,6 +234,8 @@ def directory_data(action, data):
 
 
 def operate(action, data):
+    if action in ("pi-settings", "pi-set"):
+        return pi_request(PI_PATH, data, action == "pi-set")
     if action in ("directory-index", "directory-group"):
         return directory_data(action, data)
     if action == "presets" and not DEMO and not browse_only:
@@ -354,10 +360,10 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     if not DEMO:
         api = setup()
-    server = ThreadingHTTPServer(("0.0.0.0", 8765), Handler)
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     ips = set(socket.gethostbyname_ex(socket.gethostname())[2]) | {"127.0.0.1"}
     for ip in sorted(ips):
-        print(f"http://{ip}:8765/#{TOKEN}", flush=True)
+        print(f"http://{ip}:{PORT}/" + ("" if PI_CONFIG else f"#{TOKEN}"), flush=True)
     if not DEMO and not browse_only:
         USB.submit(preload_preset)
     try:
