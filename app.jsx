@@ -132,7 +132,7 @@ function SignalMeters({ active, publish }) {
         <span>{label}</span>
         <MeterTrack reading={reading} />
         <span className={reading?.clip ? "signal-clip" : ""}>
-          {reading?.clip ? "CLIP" : reading ? reading.db.toFixed(1) + " dBFS" : "?"}
+          {reading?.clip ? "CLIP" : reading && reading.db > -60 ? reading.db.toFixed(1) + " dBFS" : "-"}
         </span>
       </div>
     ))}
