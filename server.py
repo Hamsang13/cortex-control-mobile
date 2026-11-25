@@ -11,6 +11,7 @@ from time import perf_counter
 ROOT = Path(__file__).resolve().parent
 TOKEN = os.environ.get("QC_WEB_KEY") or secrets.token_urlsafe(18)
 USB = ThreadPoolExecutor(max_workers=1)
+DIRECTORY = ThreadPoolExecutor(max_workers=1)
 connection = None
 tuner_meter = None
 live_meters = None
@@ -131,6 +132,8 @@ def device_request(action, data):
             subscribe_gate_meters(connection, True)
         try:
             result = editor.request(action, data)
+            if action == "live" and not DEMO and not hasattr(editor, "directory_read"):
+                start_directory_read(editor)
         except TimeoutError as exc:
             if action in ("io-settings","io-set","cpu", "tuner", "global-tempo", "set-tempo", "master-volume", "master-state", "toolbar", "undo", "redo"):
                 raise ValueError("본체에서 유틸리티 응답이 지연되었습니다.") from exc
@@ -191,7 +194,44 @@ def renew_meters(frames):
         subscribe_gate_meters(connection, True)
 
 
+def start_directory_read(current):
+    pending = getattr(current, "directory_read", None)
+    if pending is None or (pending.done() and pending.exception() is not None):
+        def scan():
+            folders = current.request("preset-directory", {})
+            if current is editor:
+                store_library("preset-directory", folders)
+            return folders
+        current.directory_read = DIRECTORY.submit(scan)
+    return current.directory_read
+
+
+def directory_data(action, data):
+    current = editor
+    if DEMO:
+        folders = current.request("preset-directory", {})
+    elif browse_only:
+        path = cache_dir / "preset-directory.json"
+        folders = json.loads(path.read_text(encoding="utf8")) if path.exists() else []
+    elif current is not None:
+        pending = getattr(current, "directory_read", None)
+        if pending is None or (pending.done() and pending.exception() is not None):
+            pending = USB.submit(start_directory_read, current).result()
+        pending.result()
+        if current is not editor:
+            raise ValueError("USB 연결이 변경되었습니다.")
+        folders = list(current.directory_folders.values())
+    else:
+        raise ValueError("USB 연결을 기다리는 중입니다.")
+    if action == "directory-group":
+        return [entry for f in folders if f["name"] == data.get("name") for entry in f["entries"]]
+    return dict(folders=[{k:f[k] for k in ("name","local","key")} for f in folders],
+                presets=[entry for f in folders if f["name"]=="My Presets" for entry in f["entries"]])
+
+
 def operate(action, data):
+    if action in ("directory-index", "directory-group"):
+        return directory_data(action, data)
     if action == "presets" and not DEMO and not browse_only:
         current = editor
         if current is not None:
@@ -328,3 +368,4 @@ if __name__ == "__main__":
         server.server_close()
         USB.submit(disconnect).result()
         USB.shutdown()
+        DIRECTORY.shutdown()

@@ -1025,7 +1025,7 @@ function App() {
       });
       if (a === "scene") accept({ ...before, scene: result.scene });
       else accept(result);
-      if (a === "save") { presetRequest.current = null; Q([]); }
+      if (a === "save") { presetRequest.current = null; readPresets().catch(e=>T(e.message)); }
       T(result.savedName ? "저장됨 · " + result.savedName : "");
       done?.(result);
       return true;
@@ -1115,8 +1115,10 @@ function App() {
   function readPresets() {
     if (presetRequest.current) return presetRequest.current;
     setPresetFraction(0);
-    const request = api("presets",{},fraction=>{if(presetRequest.current===request)setPresetFraction(fraction)}).then(entries => {
+    const request = api("directory-index",{},fraction=>{if(presetRequest.current===request)setPresetFraction(fraction)}).then(data => {
+      const entries=data.presets;
       if (presetRequest.current === request) {
+        setFolders(data.folders);
         Q(entries);
         setCachedSlots(entries);
       }
@@ -1132,40 +1134,34 @@ function App() {
     return request;
   }
   useEffect(() => {
-    if (!liveState) return;
-    readPresets().catch(error => T(error.message));
+    if (!liveState && !usbPaused) return;
+    setFolders([]);Q([]);setDirectoryError("");
+    readPresets().catch(error => setDirectoryError(error.message));
     return () => {
       presetRequest.current = null;
       setLoadingPresets(false);
     };
-  }, [Boolean(liveState)]);
+  }, [Boolean(liveState),usbPaused]);
   const [folders,setFolders]=useState([]),[folderName,setFolderName]=useState("My Presets");
-  const directoryFetch=useRef(null);
   const [directoryError,setDirectoryError]=useState("");
-  useEffect(()=>{
-    directoryFetch.current=null;setFolders([]);setDirectoryError("");
-  },[usbPaused,lib.deviceKey]);
+  const [group,setGroup]=useState(null),[groupRetry,retryGroup]=useState(0);
   const directoryNames=[...new Set(["Downloads","Cloud Presets","Factory Presets","My Presets",...folders.map(f=>f.name)])];
-  const folderRows=folders.filter(f=>f.name===folderName).flatMap(f=>f.entries);
-  const visibleSlots=folderName==="My Presets" && slots.length ? slots :
-    folderRows.length ? folderRows : folderName==="My Presets"?directorySlots:[];
+  const isDirectory=modal?.kind==="presets";
+  const visibleSlots=folderName==="My Presets" ? slots : group?.name===folderName ? group.rows : [];
+  const loadingGroup=folderName!=="My Presets" && group?.name!==folderName && !directoryError;
+  useEffect(()=>{
+    if(!isDirectory || folderName==="My Presets")return;
+    let valid=true;
+    setDirectoryError("");setGroup(null);
+    readPresets().then(()=>api("directory-group",{name:folderName})).then(rows=>{
+      if(valid)setGroup({name:folderName,rows});
+    }).catch(e=>{if(valid)setDirectoryError(e.message)});
+    return ()=>{valid=false};
+  },[isDirectory,folderName,groupRetry,usbPaused]);
   function directory() {
     setFolderName("My Presets");K(Math.floor((directorySlots.find(x=>x.name===s?.name)?.slot??0)/8));F("");
-    const cached=directoryFetch.current;
-    if(cached && (cached.pending || Date.now()-cached.time<60000)){
-      M({kind:"presets",loading:cached.pending});return;
-    }
-    const request={pending:true,time:0};directoryFetch.current=request;
-    M({kind:"presets",loading:true});setDirectoryError("");
-    api("preset-directory").then(data=>{
-      if(directoryFetch.current===request){setFolders(data);request.time=Date.now();}
-    }).catch(e=>{
-      if(directoryFetch.current===request)setDirectoryError(e.message);
-    }).finally(()=>{
-      if(directoryFetch.current!==request)return;
-      request.pending=false;
-      M(open=>open?.kind==="presets"?{...open,loading:false}:open);
-    });
+    M({kind:"presets"});
+    readPresets().catch(e=>setDirectoryError(e.message));
   }
   function recall(entry) {
     if (!s || !entry) return;
@@ -1477,14 +1473,14 @@ function App() {
   const loadingStep = !previewChecked ? 1 : !liveState ? 2 : libraryPending ? 3 : 4;
   return (
     <div className="shell">
-      {((loadingPresets && modal?.kind==="presets" && !visibleSlots.length) || (!liveState && !usbPaused && !msg) || (usbPaused && busy)) && (
+      {((loadingPresets && !usbPaused) || (!liveState && !usbPaused && !msg) || (usbPaused && busy)) && (
         <div className="preset-loading" role="status">
           <div className="splash-chain" aria-hidden="true">
             {["pitch","overdrive","amp","cab","reverb"].map((key,i)=><div key={key} className="splash-block" style={{"--fill":(i<loadingStep?100:i>loadingStep?0:25+75*(i===4?presetFraction:0))+"%"}}>
               <img src={icons[key]} alt=""/><img className="splash-color" src={icons[key]} alt=""/>
             </div>)}
           </div>
-          <span>Loading Preset...</span>
+          <span>{loadingPresets?"Loading Preset Directory...":"Loading Preset..."}</span>
         </div>
       )}
       <header>
@@ -1852,10 +1848,10 @@ function App() {
       {ioOpen && <IOSettings meterFrame={meterFrame} api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
       {modal && (
         <DirectoryFrame close={close}>
-          <aside><small>PRESETS</small>{directoryNames.map(name=><button key={name} aria-pressed={folderName===name} onClick={()=>{setFolderName(name);K(0);F("")}}>{name}</button>)}</aside>
+          <aside><small>PRESETS</small>{directoryNames.map(name=><button key={name} aria-pressed={folderName===name} onClick={()=>{setDirectoryError("");setFolderName(name);K(0);F("")}}>{name}</button>)}</aside>
           <section><div className="directory-tools"><input aria-label="프리셋 검색" placeholder="Search" value={search} onChange={e=>F(e.target.value)}/><button onClick={close} aria-label="Directory 닫기">×</button></div>
-          {directoryError && <button onClick={directory}>{directoryError} · 다시 읽기</button>}
-          {modal.loading && !visibleSlots.length && <p role="status">프리셋 목록을 읽는 중…</p>}
+          {directoryError && <button onClick={()=>{setDirectoryError("");if(folderName==="My Presets")directory();else retryGroup(n=>n+1)}}>{directoryError} · 다시 읽기</button>}
+          {(loadingPresets || loadingGroup) && !visibleSlots.length && <p role="status">프리셋 목록을 읽는 중…</p>}
           <div className="picker"><div className="banks">{!["Downloads","Cloud Presets"].includes(folderName) && Array.from({length:32},(_,i)=><button key={i} className={bank===i?"on":""} onClick={()=>{
             K(i);F("");requestAnimationFrame(()=>document.querySelector(`.preset-directory-view [data-bank="${i}"]`)?.scrollIntoView({block:"start"}));
           }}>{i+1}</button>)}</div>
@@ -1865,7 +1861,7 @@ function App() {
               if(!rows.length && (search || !visibleSlots.length))return null;
               return <section key={group??"all"} data-bank={group}>
                 {group!==null && <small>BANK {group+1}</small>}
-                {rows.map((x,i)=><button key={JSON.stringify([x.folder,x.slot,x.name,i])} disabled={paused||busy||(!slots.length && modal.loading)||folders.some(f=>f.key===x.folder&&!f.local)} onClick={()=>recall(x)}>{group!==null && <span>{slotName(x.slot)}　</span>}{x.name}<small>{x.author}</small></button>)}
+                {rows.map((x,i)=><button key={JSON.stringify([x.folder,x.slot,x.name,i])} disabled={paused||busy||folders.some(f=>f.key===x.folder&&!f.local)} onClick={()=>recall(x)}>{group!==null && <span>{slotName(x.slot)}　</span>}{x.name}<small>{x.author}</small></button>)}
               </section>;
             })}</div></div></section>
         </DirectoryFrame>

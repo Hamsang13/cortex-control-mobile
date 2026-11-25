@@ -943,7 +943,7 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
 .preset-directory-view{color:inherit;border:0;margin:0;width:auto;height:auto;max-width:none;max-height:none;padding:0}
 .preset-directory-view:not([open]){display:none}
 .preset-directory-view>aside{height:auto;min-height:0}
-.preset-directory-view.tablet-directory{position:fixed;inset:0;margin:auto;width:min(940px,94vw);height:min(700px,85dvh);border:1px solid #464646;border-radius:10px;padding:6px;box-sizing:border-box}
+.preset-directory-view.tablet-directory{position:fixed;inset:0;margin:auto;width:min(820px,82vw);height:min(620px,76dvh);border:1px solid #464646;border-radius:10px;padding:6px;box-sizing:border-box}
 .tablet-directory::backdrop{background:#000a}.tablet-directory .picker{min-height:0;grid-template-columns:clamp(65px,13vw,125px) minmax(0,1fr)}
 .preset-directory-view .directory{overflow:auto;min-height:0}.preset-directory-view .directory section>button{display:block;width:100%}.preset-directory-view .directory section>small{display:block;padding:6px;color:#aaa}
 .expression-dial {display:grid;place-items:center;font:600 12px system-ui;color:#41dc63;border-color:#111;background:#080808}
@@ -987,6 +987,11 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
   .parameter-page .param-switch {bottom:3px;left:5px;transform:scale(.78);transform-origin:bottom left}
   .parameter-page .param-select {bottom:5px;left:4px;right:4px;padding:5px}
   .panelhead:has(+.parameter-page) .grow {min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+@media (max-width:599px), (orientation:landscape) and (max-height:500px) and (pointer:coarse) {
+  .preset-directory-view.tablet-directory {inset:0;width:100%;height:100dvh;margin:0;border:0;border-radius:0;padding:4px;grid-template-columns:minmax(88px,26%) minmax(0,1fr)}
+  .tablet-directory .picker {grid-template-columns:48px minmax(0,1fr)}
+  .tablet-directory .directory-tools input {min-width:0;width:100%}
 }
 </style>
   </head>
