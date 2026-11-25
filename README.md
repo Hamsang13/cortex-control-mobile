@@ -50,8 +50,7 @@ sudo reboot
 
 ```sh
 # Wi-Fi 비밀번호와 Safari 접속 주소 다시 보기
-cat ~/.local/share/qc-desk/wifi
-printf 'http://10.42.0.1:8765/#%s\n' "$(cat ~/.local/share/qc-desk/key)"
+python3 ~/.local/share/qc-desk/pi_settings.py show ~/.local/share/qc-desk/pi-settings.json
 
 # 핫스팟, 서버, Quad Cortex USB 인식 확인
 nmcli connection show --active
@@ -61,6 +60,8 @@ journalctl -u qc-desk -b -n 40 --no-pager
 ```
 
 `lsusb` 결과가 비어 있으면 Pi의 데이터 단자, OTG 어댑터, 케이블, Quad Cortex 전원을 확인합니다. Safari에서 페이지가 열리지만 접근이 거부되면 주소 끝의 `#접속키`까지 복사했는지 확인하세요. 접속 주소와 서비스 로그에는 키가 포함될 수 있습니다.
+
+기기 이름 옆 톱니바퀴의 **Raspberry Pi** 항목에서 핫스팟 이름과 비밀번호, HTTP 접속 주소(사설 IPv4와 1024~65535 포트), 접속 키를 저장할 수 있습니다. 암호와 키를 비워 두면 기존 값을 유지합니다. 저장 후 Pi를 재부팅하고 새 Wi-Fi에서 `http://주소:포트/#접속키`로 접속합니다. 기존 설치는 아래 업데이트 절차를 한 번 진행하세요.
 
 ### 최신 main으로 업데이트
 
@@ -83,6 +84,9 @@ Zero 2 W의 Wi-Fi를 핫스팟에서 설치 때 사용한 공유기로 잠시 �
 | [sounddevice](https://github.com/spatialaudio/python-sounddevice) | Pi 설치 확인 0.5.6 | Python 서버에서 PortAudio로 Quad Cortex USB 녹음 채널을 열고, 입출력 레벨 미터에 사용할 오디오 샘플을 읽습니다. |
 | [numpy](https://github.com/numpy/numpy) | Pi 설치 확인 2.5.5 | 입력 샘플의 채널별 피크를 계산합니다. 서버는 이 값으로 dBFS 레벨과 클리핑을 표시합니다. |
 
-두 패키지는 설치 스크립트가 설치합니다. 위 버전은 Raspberry Pi에서 확인한 설치 버전입니다. 튜너의 음정(Hz)은 Quad Cortex 본체에서 측정하고 Python 서버가 USB HID로 받아 표시합니다.
+두 패키지는 설치 스크립트가 설치합니다. 위 버전은 Raspberry Pi에서 확인한 설치 버전입니다.
+
+- **USB HID**로 본체에서 측정한 튜너 음정(Hz), I/O 설정 화면의 포트 레벨, 그리드의 입력 게이트 감쇄 값을 받습니다.
+- **USB Audio**로 녹음 채널의 샘플을 받아 상단 IN·OUT 및 그리드 포트 아래의 레벨 미터 값을 계산합니다.
 
 USB 통신에서 `pyquadcortex`는 `hid`와 네이티브 HIDAPI로 장치에 접근하고, `protobuf`로 메시지를 처리합니다. HTTP 서버는 Python 표준 라이브러리의 `http.server`를 사용합니다. 프런트엔드 번들 생성 도구는 [esbuild](https://github.com/evanw/esbuild) 0.28.2입니다.
