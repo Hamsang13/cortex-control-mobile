@@ -33,20 +33,7 @@ function family(name = "") {
   if (/overdrive/i.test(name)) return "Overdrive";
   return name;
 }
-const pluginNames = {
-  1: "Fortin Nameless Suite X",
-  3: "Archetype: Plini X",
-  4: "Parallax X",
-  5: "Archetype: Nolly X",
-  9: "Archetype: Cory Wong X",
-  10: "Archetype: Gojira X",
-  11: "Soldano SLO-100 X",
-  12: "Archetype: Tim Henson X",
-  13: "Archetype: Petrucci X",
-  15: "Archetype: Rabea X",
-  20: "Archetype: Misha Mansoor X",
-  21: "Archetype: John Mayer X",
-};
+import pluginNames from "./plugin-names.json";
 function Icon({ category, name = "", plugin, rail = false, selected = false }) {
   const map = {
     plugins: "plugin",
@@ -709,7 +696,29 @@ function App() {
     latest.current = next;
     S(next);
   }
+  const [pluginNotice,setPluginNotice]=useState(""), [syncingPlugins,setSyncingPlugins]=useState(false);
   const libraryRequest = useRef(0);
+  async function refreshPlugins() {
+    const version=epoch.current;
+    setSyncingPlugins(true);
+    setPluginNotice("");
+    try {
+      const result=await api("plugin-refresh");
+      if(version!==epoch.current)return;
+      if(lib.deviceKey && result.deviceKey && lib.deviceKey!==result.deviceKey){
+        L(previous=>({...previous,owned:null}));
+        setPluginNotice("현재 라이브러리와 Cortex Control의 본체가 다릅니다. USB로 본체를 다시 연결하세요.");
+        return;
+      }
+      L(previous=>({...previous,deviceKey:result.deviceKey,owned:result.owned}));
+      setPluginNotice([result.owned && ("보유 플러그인 "+result.owned.length+"개 확인"), result.guide].filter(Boolean).join(" · "));
+    } catch(error) {
+      if(version===epoch.current)setPluginNotice(error.message);
+    } finally {
+      setSyncingPlugins(false);
+    }
+  }
+  const pluginUnavailable=model=>Boolean(model.plugin) && !lib.owned?.includes(String(model.plugin));
   async function loadLibrary() {
     const request = ++libraryRequest.current;
     try {
@@ -1077,7 +1086,7 @@ function App() {
     });
   }
   function placeModel(model, target) {
-    if (target?.col == null || model.plugin) return;
+    if (target?.col == null || pluginUnavailable(model)) return;
     const {row,col} = target;
     return remember("place", {row,col,...placement(model)}, () => {
       P({row,col});
@@ -1218,8 +1227,8 @@ function App() {
   const modelRow = (m) => (
     <button
       key={m.capture || m.model}
-      disabled={Boolean(m.plugin)}
-      title={m.plugin ? "보유 상태 미확인" : undefined}
+      disabled={pluginUnavailable(m)}
+      title={pluginUnavailable(m) ? (lib.owned ? "보유 목록에 없는 플러그인" : "보유 상태 미확인") : undefined}
       className={
         "entry model " +
         (active?.model === m.model &&
@@ -1342,6 +1351,8 @@ function App() {
                 <>
                   <button onClick={() => C("")}>‹　{family(category)}</button>
                   {category === "Plugins" ? (
+                    <><button onClick={refreshPlugins} disabled={syncingPlugins}>Refresh ↻</button>
+                    <small className="plugin-sync-note" role="status">{pluginNotice || "플러그인이 바뀌면 Cortex Control에서 목록을 갱신하세요."}</small>
                     <details className="plugin-section" open>
                       <summary>ALL PLUGINS</summary>
                         {plugins.map((id) => (
@@ -1364,7 +1375,7 @@ function App() {
                             )}
                           </section>
                         ))}
-                    </details>
+                    </details></>
                   ) : category === "Neural Capture" ? (
                     <CaptureBrowser
                       captures={captures}

@@ -7,7 +7,7 @@ sudo apt-get update
 sudo apt-get install -y python3-venv libhidapi-hidraw0 libportaudio2 network-manager dnsmasq-base
 app="$HOME/.local/share/qc-desk"
 mkdir -p "$app"
-install -m644 server.py editor.py demo.py io_settings.py utilities.py pitch.py index.html app.js "$app/"
+install -m644 server.py editor.py demo.py io_settings.py plugin_sync.py plugin-names.json utilities.py pitch.py index.html app.js "$app/"
 if [[ -d .device-library ]]; then
     mkdir -p "$app/.device-library"
     install -m600 .device-library/*.json "$app/.device-library/"

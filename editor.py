@@ -281,6 +281,7 @@ class Editor:
         self.slots = {}
         self.capture_entries = {}
         self.device_name = None
+        self.device_key = None
 
     def snapshot(self):
         self.grid = read_grid(self.api, self.qc, self.metadata)
@@ -357,11 +358,15 @@ class Editor:
     def library(self):
         if self.device_name is None:
             try:
-                self.device_name = self.qc.version(timeout=1).custom_name.strip() or "Quad Cortex"
+                from plugin_sync import device_key
+                version = self.qc.version(timeout=1)
+                self.device_name = version.custom_name.strip() or "Quad Cortex"
+                self.device_key = device_key(version.device_serial_number)
             except TimeoutError:
                 pass
         return dict(
             deviceName=self.device_name or "Quad Cortex",
+            deviceKey=self.device_key,
             models=[
                 dict(
                     model=m.id,

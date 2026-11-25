@@ -14,6 +14,7 @@ USB = ThreadPoolExecutor(max_workers=1)
 connection = None
 tuner_meter = None
 DEMO = "--demo" in sys.argv
+from plugin_sync import GUIDE, load_snapshot, read_controller, save_snapshot
 from editor import Editor
 from demo import Demo
 
@@ -101,6 +102,7 @@ def device_request(action, data):
                 entries = json.loads(target.read_text(encoding="utf8"))
                 if action == "library":
                     entries.pop("access", None)
+                    entries["owned"] = load_snapshot(entries.get("deviceKey"),cache_dir / "controller-plugins")
                 return entries
             if action == "live":
                 target = cache_dir / "preview.json"
@@ -141,6 +143,8 @@ def device_request(action, data):
             store_library(action, result)
         if action in ("io-settings", "io-set") and not DEMO:
             store_library("io-settings", result)
+        if action == "library" and not DEMO:
+            result["owned"] = load_snapshot(result.get("deviceKey"),cache_dir / "controller-plugins")
         if action == "capture-layout":
             cached = cache_dir / "capture-layout.json"
             if cached.exists():
@@ -176,6 +180,14 @@ def preload_preset():
 
 
 def operate(action, data):
+    snapshots = cache_dir / "controller-plugins"
+    if action == "plugin-import":
+        return save_snapshot(data,snapshots)
+    if action == "plugin-refresh":
+        if os.name == "nt" and not DEMO:
+            return save_snapshot(read_controller(),snapshots)
+        key = USB.submit(device_request,"library",{}).result().get("deviceKey")
+        return {"deviceKey":key,"owned":load_snapshot(key,snapshots),"guide":GUIDE + " PC에서 python plugin_sync.py를 실행해 이 Pi로 목록을 보내세요."}
     if action == "preview":
         cached = {}
         if not DEMO:
@@ -184,6 +196,7 @@ def operate(action, data):
                     cached[entry] = json.loads((cache_dir / (entry + ".json")).read_text(encoding="utf8"))
                     if entry == "library":
                         cached[entry].pop("access", None)
+                        cached[entry].pop("owned", None)
                 except (OSError, ValueError):
                     pass
         return cached
