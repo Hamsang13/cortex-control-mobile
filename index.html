@@ -77,6 +77,9 @@
         letter-spacing: 0.02em;
       }
       .desk-heading { display:grid; min-width:0; gap:3px; }
+      .device-name { display:flex; align-items:center; gap:7px; min-width:0; }
+      .device-name img { width:16px; height:21px; flex:none; }
+      .device-name span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .desk-status { font-size:11px; color:#aaa; overflow-wrap:anywhere; }
       .desk-status span::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; background:#888; }
       .desk-status [data-connected=true]::before { background:#4eec69; }

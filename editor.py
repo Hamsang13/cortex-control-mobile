@@ -231,6 +231,7 @@ class Editor:
         self.grid = None
         self.slots = {}
         self.capture_entries = {}
+        self.device_name = None
 
     def snapshot(self):
         self.grid = read_grid(self.api, self.qc, self.metadata)
@@ -305,7 +306,13 @@ class Editor:
         )
 
     def library(self):
+        if self.device_name is None:
+            try:
+                self.device_name = self.qc.version(timeout=1).custom_name.strip() or "Quad Cortex"
+            except TimeoutError:
+                pass
         return dict(
+            deviceName=self.device_name or "Quad Cortex",
             models=[
                 dict(
                     model=m.id,

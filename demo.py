@@ -121,6 +121,7 @@ class Demo:
             return g["tempo"]
         if a == "library":
             return dict(
+                deviceName="Quad Cortex (Demo)",
                 models=[dict(model=i, name=n, category=c) for i, n, c in MODELS],
                 inputs={1: "INPUT_1", 2: "INPUT_2"},
                 outputs={19: "MULTIPLE", 1: "XLR_1_2"},

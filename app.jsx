@@ -1235,7 +1235,9 @@ function App() {
     <div className="shell">
       <header>
         <div className="desk-heading">
-          <strong>⌁　Quad Desk</strong>
+          <strong className="device-name" title={lib.deviceName || "Quad Cortex"}>
+            <img src={icons.neuralLogo} alt="" /><span>{lib.deviceName || "Quad Cortex"}</span>
+          </strong>
           <span className="desk-status" role="status">
             <span data-connected={!!liveState}>{paused ? "USB 대기 · 읽기 전용" : liveState ? "USB 연결됨" : msg ? "USB 연결 확인 필요" : "USB 연결 중…"}</span>
             {busy ? " · 처리 중…" : msg && " · " + msg}
