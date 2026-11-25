@@ -475,7 +475,7 @@ class Editor:
                 if f.is_plugin or not (factory or key.startswith("/media/p4/Presets/") or f.is_downloads or f.is_cloud):
                     continue
                 group = "Factory Presets" if factory else "Downloads" if f.is_downloads else "Cloud Presets" if f.is_cloud else f.name
-                entries = [dict(slot=x.index,name=x.name,author=x.author,folder=key) for x in f.files if x.name]
+                entries = [dict(slot=x.index,name=x.name,author=x.author,instrument=x.instrument,folder=key) for x in f.files if x.name]
                 if key not in folders or len(entries)>len(folders[key]["entries"]):
                     folders[key] = dict(key=key,name=group,entries=entries,local=factory or key.startswith("/media/p4/Presets/"))
             if not any(f["name"]=="My Presets" for f in folders.values()):

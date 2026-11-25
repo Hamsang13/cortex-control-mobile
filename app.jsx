@@ -175,6 +175,21 @@ function SignalMeters({ active, publish }) {
     ))}
   </div>;
 }
+const instrumentTags = {
+  1: ["기타", "M14 9l5-6 2 2-6 6m-2-2c-2-1-4 0-4 2 0 1-1 2-3 2-3 0-4 5-1 7s7 1 7-2c0-2 1-3 2-3 2-1 2-4-1-6z M7 16l2 2"],
+  2: ["베이스", "M11 14l8-11 2 1-9 12m-2-6c-1 1 0 3-3 3-4 0-5 5-2 7s7 1 8-3c0-2 2-3 3-3-2-2-4 1-5-1 M6 17l2 1"],
+  3: ["신스", "M2 6h20v13H2z M7 12v7m5-7v7m5-7v7 M6 6v6h2V6m7 0v6h2V6"],
+  4: ["보컬", "M9 5a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0z M6 10v1a6 6 0 0 0 12 0v-1m-6 7v4m-4 0h8"],
+  5: ["기타 악기", "M9 17V6l11-3v11m-11 3c0 3-6 5-6 2 0-3 6-5 6-2zm11-3c0 3-6 5-6 2 0-3 6-5 6-2z"],
+};
+function InstrumentTag({value}) {
+  const tag=instrumentTags[value];
+  if (!tag) return null;
+  return <svg className="instrument-tag" viewBox="0 0 24 24" role="img" aria-label={tag[0]}
+    fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <title>{tag[0]}</title><path d={tag[1]}/>
+  </svg>;
+}
 function DirectoryFrame({close,children}) {
   const ref=useRef(null);
   useLayoutEffect(()=>{
@@ -1855,7 +1870,7 @@ function App() {
               if(!rows.length && (search || !visibleSlots.length))return null;
               return <section key={group??"all"} data-bank={group}>
                 {group!==null && <small>BANK {group+1}</small>}
-                {rows.map((x,i)=><button key={JSON.stringify([x.folder,x.slot,x.name,i])} disabled={paused||busy||folders.some(f=>f.key===x.folder&&!f.local)} onClick={()=>recall(x)}>{group!==null && <span className="preset-slot">{slotName(x.slot)}</span>}<span className="preset-name" title={x.name}>{x.name}</span>{x.author && <small title={x.author}>{x.author}</small>}</button>)}
+                {rows.map((x,i)=><button key={JSON.stringify([x.folder,x.slot,x.name,i])} disabled={paused||busy||folders.some(f=>f.key===x.folder&&!f.local)} onClick={()=>recall(x)}>{group!==null && <span className="preset-slot">{slotName(x.slot)}</span>}<span className="preset-name" title={x.name}><span>{x.name}</span><InstrumentTag value={x.instrument}/></span>{x.author && <small title={x.author}>{x.author}</small>}</button>)}
               </section>;
             })}</div></div></section>
         </DirectoryFrame>
