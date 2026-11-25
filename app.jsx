@@ -181,6 +181,7 @@ function Knob({ p, scene, commit, assign, busy, disabled, readOnly }) {
     e.currentTarget.setPointerCapture(e.pointerId);
     const g = {
       y: e.clientY,
+      dragThreshold: e.pointerType === "touch" ? 9 : 4,
       base: current,
       value: current,
       id: e.pointerId,
@@ -196,7 +197,7 @@ function Knob({ p, scene, commit, assign, busy, disabled, readOnly }) {
     const g = gesture.current;
     if (!g || g.held || g.id !== e.pointerId) return;
     const delta = g.y - e.clientY;
-    if (Math.abs(delta) < 4 && !g.moved) return;
+    if (Math.abs(delta) < g.dragThreshold && !g.moved) return;
     clearTimeout(g.timer);
     g.moved = true;
     g.value = Math.max(0, Math.min(1, g.base + delta / 150));
@@ -231,7 +232,7 @@ function Knob({ p, scene, commit, assign, busy, disabled, readOnly }) {
     <button
       className="param"
       style={{"--sweep":value*270+"deg"}}
-      disabled={disabled}
+      disabled={disabled || readOnly}
       aria-label={p.name + " " + formatted}
       onContextMenu={(e) => e.preventDefault()}
       onPointerDown={start}
@@ -1211,7 +1212,7 @@ function App() {
         <div className="desk-heading">
           <strong>⌁　Quad Desk</strong>
           <span className="desk-status" role="status">
-            <span data-connected={!!liveState}>{paused ? "USB 대기" : liveState ? "USB 연결됨" : msg ? "USB 연결 확인 필요" : "USB 연결 중…"}</span>
+            <span data-connected={!!liveState}>{paused ? "USB 대기 · 읽기 전용" : liveState ? "USB 연결됨" : msg ? "USB 연결 확인 필요" : "USB 연결 중…"}</span>
             {busy ? " · 처리 중…" : msg && " · " + msg}
           </span>
         </div>
