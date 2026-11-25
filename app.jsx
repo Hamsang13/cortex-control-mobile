@@ -174,6 +174,26 @@ function SignalMeters({ active, publish }) {
     ))}
   </div>;
 }
+function DirectoryFrame({close,children}) {
+  const ref=useRef(null);
+  useLayoutEffect(()=>{
+    const node=ref.current;
+    const media=window.matchMedia("(max-width:1100px), (pointer:coarse) and (max-width:1440px)");
+    function layout(){
+      if(node.open)node.close();
+      node.classList.toggle("tablet-directory",media.matches);
+      if(media.matches)node.showModal();else node.show();
+    }
+    layout();media.addEventListener("change",layout);
+    return ()=>{media.removeEventListener("change",layout);node.close()};
+  },[]);
+  return <dialog ref={ref} className="preset-directory-view" aria-label="Directory"
+    onCancel={e=>{e.preventDefault();close()}} onClick={e=>{
+      if(e.target!==ref.current || !ref.current.matches(":modal"))return;
+      const r=ref.current.getBoundingClientRect();
+      if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)close();
+    }}>{children}</dialog>;
+}
 function Modal({ title, close, children }) {
   return (
     <div className="shade" onClick={close}>
@@ -1034,19 +1054,32 @@ function App() {
     };
   }, [Boolean(liveState)]);
   const [folders,setFolders]=useState([]),[folderName,setFolderName]=useState("My Presets");
-  const directoryEpoch=useRef(0);
+  const directoryFetch=useRef(null);
+  const [directoryError,setDirectoryError]=useState("");
+  useEffect(()=>{
+    directoryFetch.current=null;setFolders([]);setDirectoryError("");
+  },[usbPaused,lib.deviceKey]);
   const directoryNames=[...new Set(["Downloads","Cloud Presets","Factory Presets","My Presets",...folders.map(f=>f.name)])];
-  const visibleSlots=folders.some(f=>f.name===folderName)
-    ? folders.filter(f=>f.name===folderName).flatMap(f=>f.entries)
-    : folderName==="My Presets"?directorySlots:[];
-  async function directory(mode) {
-    const epoch=++directoryEpoch.current;
-    setFolders([]);setFolderName("My Presets");K(0);F("");M({kind:"presets",loading:true});
-    try {
-      const data=await api("preset-directory");
-      if(epoch===directoryEpoch.current)setFolders(data);
-    } catch(e){if(epoch===directoryEpoch.current)T(e.message);}
-    finally{if(epoch===directoryEpoch.current)M(open=>open?.kind==="presets"?{...open,loading:false}:open);}
+  const folderRows=folders.filter(f=>f.name===folderName).flatMap(f=>f.entries);
+  const visibleSlots=folderName==="My Presets" && slots.length ? slots :
+    folderRows.length ? folderRows : folderName==="My Presets"?directorySlots:[];
+  function directory() {
+    setFolderName("My Presets");K(Math.floor((directorySlots.find(x=>x.name===s?.name)?.slot??0)/8));F("");
+    const cached=directoryFetch.current;
+    if(cached && (cached.pending || Date.now()-cached.time<60000)){
+      M({kind:"presets",loading:cached.pending});return;
+    }
+    const request={pending:true,time:0};directoryFetch.current=request;
+    M({kind:"presets",loading:true});setDirectoryError("");
+    api("preset-directory").then(data=>{
+      if(directoryFetch.current===request){setFolders(data);request.time=Date.now();}
+    }).catch(e=>{
+      if(directoryFetch.current===request)setDirectoryError(e.message);
+    }).finally(()=>{
+      if(directoryFetch.current!==request)return;
+      request.pending=false;
+      M(open=>open?.kind==="presets"?{...open,loading:false}:open);
+    });
   }
   function recall(entry) {
     if (!s || !entry) return;
@@ -1734,13 +1767,24 @@ function App() {
       )}
       {ioOpen && <IOSettings api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
       {modal && (
-        <section className="preset-directory-view" aria-label="Directory">
+        <DirectoryFrame close={close}>
           <aside><small>PRESETS</small>{directoryNames.map(name=><button key={name} aria-pressed={folderName===name} onClick={()=>{setFolderName(name);K(0);F("")}}>{name}</button>)}</aside>
           <section><div className="directory-tools"><input aria-label="프리셋 검색" placeholder="Search" value={search} onChange={e=>F(e.target.value)}/><button onClick={close} aria-label="Directory 닫기">×</button></div>
-          {modal.loading && <p role="status">프리셋 목록을 읽는 중…</p>}
-          <div className="picker"><div className="banks">{Array.from({length:32},(_,i)=><button key={i} className={bank===i?"on":""} onClick={()=>{K(i);F("")}}>{i+1}</button>)}</div>
-          <div className="directory">{visibleSlots.filter(x=>search?x.name.toLowerCase().includes(search.toLowerCase()):Math.floor(x.slot/8)===bank).map(x=><button key={(x.folder||"")+x.slot} disabled={paused||busy||modal.loading||folders.some(f=>f.key===x.folder&&!f.local)} onClick={()=>recall(x)}><span>{slotName(x.slot)}</span>　{x.name}<small>{x.author}</small></button>)}</div></div></section>
-        </section>
+          {directoryError && <button onClick={directory}>{directoryError} · 다시 읽기</button>}
+          {modal.loading && !visibleSlots.length && <p role="status">프리셋 목록을 읽는 중…</p>}
+          <div className="picker"><div className="banks">{!["Downloads","Cloud Presets"].includes(folderName) && Array.from({length:32},(_,i)=><button key={i} className={bank===i?"on":""} onClick={()=>{
+            K(i);F("");requestAnimationFrame(()=>document.querySelector(`.preset-directory-view [data-bank="${i}"]`)?.scrollIntoView({block:"start"}));
+          }}>{i+1}</button>)}</div>
+          <div className="directory" key={folderName}>
+            {(["Downloads","Cloud Presets"].includes(folderName)?[null]:Array.from({length:32},(_,i)=>i)).map(group=>{
+              const rows=visibleSlots.filter(x=>(group===null||Math.floor(x.slot/8)===group)&&x.name.toLowerCase().includes(search.toLowerCase()));
+              if(!rows.length && (search || !visibleSlots.length))return null;
+              return <section key={group??"all"} data-bank={group}>
+                {group!==null && <small>BANK {group+1}</small>}
+                {rows.map((x,i)=><button key={JSON.stringify([x.folder,x.slot,x.name,i])} disabled={paused||busy||(!slots.length && modal.loading)||folders.some(f=>f.key===x.folder&&!f.local)} onClick={()=>recall(x)}>{group!==null && <span>{slotName(x.slot)}　</span>}{x.name}<small>{x.author}</small></button>)}
+              </section>;
+            })}</div></div></section>
+        </DirectoryFrame>
       )}
     </div>
   );
