@@ -289,11 +289,10 @@ def operate(action, data):
     if action == "meters":
         if browse_only or DEMO or connection is None:
             return {}
-        import pitch
         frames = live_meters
         if frames and frames.needs_subscription():
             USB.submit(renew_meters, frames)
-        return {**pitch.read_meters(), **(frames.snapshot() if frames else {})}
+        return frames.snapshot() if frames else {}
     if action in ("pitch", "tuner-stop", "tuner-input", "tuner-mute"):
         meter = tuner_meter
         if DEMO and action == "tuner-mute":

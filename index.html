@@ -86,22 +86,23 @@
       .shell > header { height:auto; min-height:54px; }
       .signal-meters {
         display: grid;
-        gap: 3px;
-        width: clamp(117px, 15vw, 210px);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+        width: clamp(190px, 28vw, 310px);
         padding: 4px 6px;
         border: 1px solid #333;
         border-radius: 6px;
         background: #141414;
       }
+      .signal-group { display: grid; gap: 3px; }
       .signal-line {
         display: grid;
-        grid-template-columns: 2.3em minmax(0, 1fr) 6em;
+        grid-template-columns: auto minmax(0, 1fr);
         align-items: center;
         gap: 4px;
         font: 600 10px/1.2 system-ui, sans-serif;
-        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
       }
-      .signal-line > :last-child { text-align: right; color: #bbb; white-space: nowrap; }
       .signal-line .signal-clip { color: #ff6468; }
       .signal-track {
         position: relative;
@@ -127,7 +128,8 @@
 
       @media (max-width:540px) {
         .shell > header { flex-wrap:wrap; padding:5px 0; }
-        .shell > header nav { order:1; width:100%; }
+        .shell > header nav { order:2; width:100%; }
+        .signal-meters { order:1; width:100%; }
         .desk-heading { flex:1; }
       }
       nav {

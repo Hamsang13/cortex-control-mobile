@@ -1,9 +1,5 @@
 """Read the Quad Cortex tuner meter over the existing HID connection."""
 import math
-from contextlib import ExitStack
-import re
-import threading
-import time
 from threading import Lock, Timer
 from time import monotonic
 
@@ -178,82 +174,3 @@ class TunerMeter:
             return {"hz": None}
         hz = msg.meter
         return {"hz": hz if math.isfinite(hz) and hz > 0 else None}
-
-
-lock = Lock()
-worker = None
-meter_until = 0
-levels = {}
-
-
-def endpoints(sd, channels):
-    devices = [(i, d) for i, d in enumerate(sd.query_devices())
-               if "quad cortex" in d["name"].lower() and d["max_input_channels"] > 0]
-    multichannel = next(((i, d) for i, d in devices if d["max_input_channels"] >= 8), None)
-    if multichannel:
-        i, device = multichannel
-        return [(i, device, range(8))]
-    result = []
-    for start in range(0, 8, 2):
-        if not channels.intersection((start, start + 1)):
-            continue
-        pair = rf"\(\s*{start + 1}\s*\+\s*{start + 2}\s*\)"
-        match = next(((i, d) for i, d in devices if d["max_input_channels"] >= 2
-                      and re.search(pair, d["name"])), None)
-        if match:
-            i, device = match
-            result.append((i, device, range(start, start + 2)))
-    return result
-
-
-def capture(channels):
-    import numpy as np
-
-    def callback(frames, count, timing, status):
-        now = time.monotonic()
-        peaks = np.max(np.abs(frames), axis=0)
-        with lock:
-            for channel, peak in zip(channels, peaks):
-                peak = float(peak)
-                db = max(-60, min(0, 20 * math.log10(max(peak, .001))))
-                previous, clipped, updated = levels.get(channel, (-60, 0, now))
-                levels[channel] = (max(db, previous - 75 * (now - updated)),
-                                   now + .8 if peak >= .9999 else clipped, now)
-
-    return callback
-
-
-def listen():
-    global worker
-    try:
-        import sounddevice as sd
-        with ExitStack() as streams:
-            for i, device, channels in endpoints(sd, set(range(8))):
-                rate = int(device["default_samplerate"])
-                try:
-                    streams.enter_context(sd.InputStream(device=i, samplerate=rate,
-                        channels=len(channels), dtype="float32", blocksize=1024,
-                        callback=capture(channels)))
-                except sd.PortAudioError:
-                    continue
-            while time.monotonic() < meter_until:
-                time.sleep(.1)
-    finally:
-        with lock:
-            levels.clear()
-            worker = None
-
-
-def read_meters():
-    global meter_until, worker
-    with lock:
-        now = time.monotonic()
-        meter_until = now + .75
-        if worker is None:
-            worker = threading.Thread(target=listen, daemon=True)
-            worker.start()
-        return {"channels": [
-            {"db": round(db, 1), "clip": clip > now}
-            if now - updated < .35 else None
-            for db, clip, updated in (levels.get(i, (-60, 0, -math.inf)) for i in range(8))
-        ]}
