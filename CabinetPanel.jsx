@@ -53,8 +53,7 @@ export default function CabinetPanel({block,scene,busy,readOnly,previewCabinet,c
       p.values.map((v,i)=>i===(p.assigned?scene:0)?moving[p.index]:v)}} assign={()=>{if(!readOnly)assign(p)}} commit={v=>(previewCabinet && previewable(p)?previewCabinet:commit)(p,v)}/>;
   const high=params.find(p=>p.name==="HPF"), low=params.find(p=>p.name==="LPF");
   const output=params.find(p=>p.name==="OUTPUT VOLUME");
-  const extra=params.filter(p=>(p.index>=16 && ![high,low,output].includes(p)) || [7,15].includes(p.index));
-  const tabs=["마이크 위치","캐비넷 필터",...(extra.length?["추가 파라미터"]:[])];
+  const tabs=["마이크 위치","캐비넷 필터"];
   function micHeader(n){
     return <div className="cab-mic-head">
       {control(at(n+1),"MIC "+(n/8+1))}
@@ -79,7 +78,7 @@ export default function CabinetPanel({block,scene,busy,readOnly,previewCabinet,c
   return <section className="panel cabinet" aria-label={block.name}>
     {micHeader(0)}
     <div className="cab-title"><strong title={block.name}>{block.name}</strong>
-      {tabs.map((label,i)=><button key={label} aria-label={label} aria-pressed={page===i} onClick={()=>setPage(i)}>{i===2?"⋯":i+1}</button>)}
+      {tabs.map((label,i)=><button key={label} aria-label={label} aria-pressed={page===i} onClick={()=>setPage(i)}>{i+1}</button>)}
       <button aria-label="캐비넷 바이패스" aria-pressed={block.bypass[scene]} disabled={busy||readOnly} onClick={bypass}>⏻</button>
     </div>
     {micHeader(8)}
@@ -98,7 +97,7 @@ export default function CabinetPanel({block,scene,busy,readOnly,previewCabinet,c
               onDrop={async(x,y)=>{const write=previewCabinet??commit;await write(pos,position(x));await write(dist,y)}}/>
           </div>;
         })}
-      </div> : page===1 ? <>
+      </div> : <>
         {high && low && <div className="cab-filter"><div className="cab-hz" aria-hidden="true">{["Hz","100","1k","10k"].map((tick,i)=><span key={tick} style={{left:[0,23,57,90][i]+"%"}}>{tick}</span>)}</div><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <path d={response+" V100 H0 Z"} fill="#ffffff19"/>
           <path d={response} fill="none" stroke="#ddd" vectorEffect="non-scaling-stroke"/></svg>
@@ -108,7 +107,7 @@ export default function CabinetPanel({block,scene,busy,readOnly,previewCabinet,c
             onDrop={x=>(previewCabinet??commit)(p,cutoff(p,x))}>{i?"L":"H"}</DragPoint>)}
         </div>}
         <div className="cab-filter-knobs">{[high,output,low].map(p=>control(p,p?.name,p===high?{offAt:0}:p===low?{offAt:1}:{}))}</div>
-      </> : <div className="cab-extra">{extra.map(p=>control(p,p.name))}</div>}
+      </>}
     </div>
     {side(8)}
   </section>;
