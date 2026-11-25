@@ -1,5 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
 
+import {meterReading, MeterTrack} from "./SignalTrack";
+
 const gapX = gap => 70 + gap * 107.5;
 
 function branch(x, edge, y) {
@@ -18,12 +20,18 @@ export function portLabel(name) {
     numbers.join("/")].filter(Boolean).join(" ");
 }
 
-export function Port({side, row, value, name, branched, indicator, open}) {
+export function Port({side, row, value, name, branched, indicator, open, signalChannels}) {
   const label = portLabel(name ?? (value || "EMPTY"));
+  const usbChannel = side==="input" ? {INPUT_1:0, INPUT_2:1}[name] : undefined;
+  const wet = side==="output" && name==="MULTIPLE";
   return <button className={"port port-"+side} aria-label={`${row+1}행 ${side==="input"?"입력":"출력"} · ${label}`}
     disabled={branched} onClick={open}>
-    {indicator && <i className="port-status" aria-label={side==="input"?"Noise gate On":"Mute On"}/>}
+    {indicator && side==="input" && <i className="port-status" aria-label={side==="input"?"Noise gate On":"Mute On"}/>}
     {label.split(" ").map((part,i)=><span key={i}>{part}</span>)}
+    {side==="output" && indicator ? <span className="port-signal port-signal-muted" role="img" aria-label="Mute On" title="MUTE"/> :
+      (usbChannel!=null || wet) && <span className="port-signal" title={wet?"USB 3/4 Wet":"USB "+(usbChannel+1)+" DI"}>
+        <MeterTrack reading={wet?meterReading(signalChannels[2],signalChannels[3]):signalChannels[usbChannel]}/>
+      </span>}
   </button>;
 }
 

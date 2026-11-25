@@ -1,3 +1,4 @@
+import {meterReading, MeterTrack} from "./SignalTrack";
 import DeviceToolbar from "./DeviceToolbar";
 import {GridRouting, Port, portLabel} from "./GridRouting";
 import ChoiceParameter from "./ChoiceParameter";
@@ -96,6 +97,46 @@ async function api(action, body = {}) {
   const data = await response.json();
   if (!response.ok) throw Error(data.error);
   return data;
+}
+function SignalMeters({ active, publish }) {
+  const [channels, setChannels] = useState([]);
+  useEffect(() => {
+    let current = true, timer;
+    function update(values) {
+      setChannels(values);
+      publish(values);
+    }
+    async function refresh() {
+      let values = [];
+      try {
+        if (!document.hidden) values = (await api("meters")).channels ?? [];
+      } catch {
+        // Clear stale readings while USB or the network is unavailable.
+      }
+      if (!current) return;
+      update(values);
+      timer = setTimeout(refresh, document.hidden ? 500 : 100);
+    }
+    if (active) refresh();
+    else update([]);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [active, publish]);
+
+  return <div className="signal-meters" aria-label="Quad Cortex USB signal levels">
+    {[["IN", meterReading(channels[0], channels[1]), "USB 1/2 DI"],
+      ["OUT", meterReading(channels[2], channels[3]), "USB 3/4 Wet"]].map(([label, reading, source]) => (
+      <div className="signal-line" key={label} title={source}>
+        <span>{label}</span>
+        <MeterTrack reading={reading} />
+        <span className={reading?.clip ? "signal-clip" : ""}>
+          {reading?.clip ? "CLIP" : reading ? reading.db.toFixed(1) + " dBFS" : "?"}
+        </span>
+      </div>
+    ))}
+  </div>;
 }
 function Modal({ title, close, children }) {
   return (
@@ -552,6 +593,7 @@ function CaptureBrowser({ captures, error, retry, render }) {
 }
 
 function App() {
+  const [signalChannels, setSignalChannels] = useState([]);
   const [liveState, S] = useState(null),
     [preview, setPreview] = useState(null),
     [paramsOpen, setParamsOpen] = useState(false),
@@ -1124,6 +1166,7 @@ function App() {
             GIG VIEW
           </button>
         </nav>
+        <SignalMeters active={!!liveState && !paused} publish={setSignalChannels} />
         <DeviceToolbar api={api} online={!!liveState && !paused} busy={busy} revision={s?.rev} travel={travel} report={T}/>
         <button
           disabled={busy}
@@ -1266,7 +1309,7 @@ function App() {
                     commit={points=>remember("split",points)} />}
                   {s?.lanes.map((lane, row) => (
                     <React.Fragment key={row}>
-                      <Port side="input" row={row} value={lane.input} name={lib.inputs[lane.input]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
+                      <Port signalChannels={signalChannels} side="input" row={row} value={lane.input} name={lib.inputs[lane.input]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
                         branched={s.splits.some(v=>row===v.row+1 && v.start>=0)}
                         open={()=>openRoute(row,"input")} />
                       {Array.from({ length: 8 }, (_, col) => {
@@ -1336,7 +1379,7 @@ function App() {
                           </div>
                         );
                       })}
-                      <Port side="output" row={row} value={lane.output} name={lib.outputs[lane.output]} indicator={lane.output!==0 && (lane.mute?.[s.scene] ?? lane.mute?.[0])}
+                      <Port signalChannels={signalChannels} side="output" row={row} value={lane.output} name={lib.outputs[lane.output]} indicator={lane.output!==0 && (lane.mute?.[s.scene] ?? lane.mute?.[0])}
                         branched={s.splits.some(v=>row===v.row+1 && v.end>=0)}
                         open={()=>openRoute(row,"output")} />
                     </React.Fragment>

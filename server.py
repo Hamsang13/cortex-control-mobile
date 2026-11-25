@@ -157,6 +157,11 @@ def operate(action, data):
             return {"beat": msg.metronome_status.current_beat}
         except TimeoutError:
             return {}
+    if action == "meters":
+        if browse_only or DEMO or connection is None:
+            return {}
+        import pitch
+        return pitch.read_meters()
     if action in ("pitch", "tuner-stop", "tuner-input", "tuner-mute"):
         meter = tuner_meter
         if DEMO and action == "tuner-mute":
@@ -180,6 +185,10 @@ def operate(action, data):
 
 
 class Handler(BaseHTTPRequestHandler):
+    def log_request(self, code="-", size="-"):
+        if self.path != "/api/meters" or code != 200:
+            super().log_request(code, size)
+
     def send(self, status, content, mime):
         self.send_response(status)
         self.send_header("Content-Type", mime)
@@ -207,7 +216,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("잘못된 요청입니다.")
             started = perf_counter()
             result = operate(self.path.removeprefix("/api/"), data)
-            print(f"{self.path} {perf_counter() - started:.2f}s", flush=True)
+            if self.path != "/api/meters":
+                print(f"{self.path} {perf_counter() - started:.2f}s", flush=True)
             status = 200
         except Exception as exc:
             status = 400 if isinstance(exc, ValueError) else 503
