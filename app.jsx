@@ -1321,7 +1321,14 @@ function App() {
   );
   return (
     <div className="shell">
-      {loadingPresets && <div className="preset-loading" role="status">My Presets 불러오는 중…</div>}
+      {(loadingPresets || (!liveState && !usbPaused && !msg) || (usbPaused && busy)) && (
+        <div className="preset-loading" role="status">
+          <div className="splash-chain" aria-hidden="true">
+            {["pitch","overdrive","amp","cab","reverb"].map(key=><img key={key} src={icons[key]} alt=""/>)}
+          </div>
+          <span>Loading Preset...</span>
+        </div>
+      )}
       <header>
         <div className="desk-heading">
           <strong className="device-name" title={lib.deviceName || "Quad Cortex"}>

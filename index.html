@@ -928,7 +928,12 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
 .io-layers{flex:none;box-sizing:border-box;width:32px;height:32px;padding:6px;color:#999;background:#151515;border-radius:5px}.io-heading>span:first-of-type{font-size:18px}
 .plugin-children .entry.model:disabled{opacity:.45;cursor:default}
 .plugin-sync-note{display:block;padding:6px 8px;color:#aaa;line-height:1.4}
-.preset-loading{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:#080808;color:#ddd;font-size:16px}
+.preset-loading{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:#000;color:#ddd;font:16px/1.4 Arial,sans-serif}
+.splash-chain{position:relative;display:flex;align-items:center;gap:clamp(8px,2.2vw,26px)}
+.splash-chain:before{content:"";position:absolute;inset:50% 0 auto;height:1px;background:#666}
+.splash-chain img{position:relative;width:clamp(36px,5.4vw,56px);height:auto;background:#000}
+.preset-loading>span{position:absolute;top:62%;left:0;right:0;text-align:center}
+
 </style>
   </head>
   <body>
