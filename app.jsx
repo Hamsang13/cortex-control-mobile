@@ -179,16 +179,10 @@ function DirectoryFrame({close,children}) {
   const ref=useRef(null);
   useLayoutEffect(()=>{
     const node=ref.current;
-    const media=window.matchMedia("(max-width:1100px), (pointer:coarse) and (max-width:1440px)");
-    function layout(){
-      if(node.open)node.close();
-      node.classList.toggle("tablet-directory",media.matches);
-      if(media.matches)node.showModal();else node.show();
-    }
-    layout();media.addEventListener("change",layout);
-    return ()=>{media.removeEventListener("change",layout);node.close()};
+    node.showModal();
+    return ()=>node.close();
   },[]);
-  return <dialog ref={ref} className="preset-directory-view" aria-label="Directory"
+  return <dialog ref={ref} className="preset-directory-view tablet-directory" aria-label="Directory"
     onCancel={e=>{e.preventDefault();close()}} onClick={e=>{
       if(e.target!==ref.current || !ref.current.matches(":modal"))return;
       const r=ref.current.getBoundingClientRect();
