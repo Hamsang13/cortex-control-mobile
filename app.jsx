@@ -899,7 +899,7 @@ function App() {
       else J(null);
     }
   }
-  function previewMic(p, value) {
+  function previewCabinet(p, value) {
     if (mode.current !== "browse") return;
     setPreview(previous => {
       if (previous?.identity !== s.identity || previous.scene !== s.scene) return previous;
@@ -1544,7 +1544,7 @@ function App() {
                 assign={p=>remember("route-assign",{...route,index:p.index,rev:s.rev,scene:s.scene})}/>}
               {active && (!gig || paramsOpen) && (active.params.some(p=>p.index===1 && p.textOptions) && active.params.some(p=>p.index===9 && p.textOptions) ?
                 <CabinetPanel key={[s.identity,active.row,active.col,active.model,s.scene,usbPaused].join("-")} block={active} scene={s.scene}
-                  busy={busy} readOnly={paused} previewMic={usbPaused ? previewMic : null} commit={writeKnob} Parameter={BlockParameter}
+                  busy={busy} readOnly={paused} previewCabinet={usbPaused ? previewCabinet : null} commit={writeKnob} Parameter={BlockParameter}
                   assign={p=>blockAction("assign",{index:p.index,rev:s.rev,scene:s.scene})}
                   bypass={()=>blockAction("bypass")}/> : (
                 <section

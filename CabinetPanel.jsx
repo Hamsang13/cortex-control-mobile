@@ -3,14 +3,14 @@ import React, {useRef, useState} from "react";
 const clamp = v => Math.max(0,Math.min(1,v));
 const colors = ["#7153ff","#ffcf32"];
 
-function DragPoint({x,y,label,color,disabled,onDrop,onPreview,originX,children}) {
+function DragPoint({x,y,label,color,disabled,onDrop,onPreview,originX,bounds=[0,1],children}) {
   const [preview,setPreview]=useState(null);
   const drag=useRef(null);
   function move(e) {
     const g=drag.current;
     if (!g || e.pointerId!==g.id) return;
     const rect=e.currentTarget.parentElement.getBoundingClientRect();
-    g.point=[clamp(g.startX+(e.clientX-g.x)/rect.width),clamp(g.startY+(e.clientY-g.y)/rect.height)];
+    g.point=[Math.max(bounds[0],Math.min(bounds[1],g.startX+(e.clientX-g.x)/rect.width)),clamp(g.startY+(e.clientY-g.y)/rect.height)];
     setPreview(g.point);
     onPreview?.(g.point);
   }
@@ -42,15 +42,15 @@ function DragPoint({x,y,label,color,disabled,onDrop,onPreview,originX,children})
     }}>{children}</button></>;
 }
 
-export default function CabinetPanel({block,scene,busy,readOnly,previewMic,commit,assign,bypass,Parameter}){
+export default function CabinetPanel({block,scene,busy,readOnly,previewCabinet,commit,assign,bypass,Parameter}){
   const [page,setPage]=useState(0);
   const [moving,setMoving]=useState(null);
   const params=block.params, at=index=>params.find(p=>p.index===index);
   const value=p=>p?.values[p.assigned?scene:0]??0;
-  const micAxis=p=>[4,5,12,13].includes(p.index);
-  const control=(p,label,overrides={})=>p && <Parameter key={p.index} scene={scene} readOnly={readOnly && !(previewMic && micAxis(p))}
+  const previewable=p=>[4,5,12,13].includes(p.index) || ["HPF","LPF","OUTPUT VOLUME"].includes(p.name);
+  const control=(p,label,overrides={})=>p && <Parameter key={p.index} scene={scene} readOnly={readOnly && !(previewCabinet && previewable(p))}
     busy={busy} p={{...p,name:label,...overrides,values:moving?.[p.index]==null ? p.values :
-      p.values.map((v,i)=>i===(p.assigned?scene:0)?moving[p.index]:v)}} assign={()=>{if(!readOnly)assign(p)}} commit={v=>(previewMic && micAxis(p)?previewMic:commit)(p,v)}/>;
+      p.values.map((v,i)=>i===(p.assigned?scene:0)?moving[p.index]:v)}} assign={()=>{if(!readOnly)assign(p)}} commit={v=>(previewCabinet && previewable(p)?previewCabinet:commit)(p,v)}/>;
   const high=params.find(p=>p.name==="HPF"), low=params.find(p=>p.name==="LPF");
   const output=params.find(p=>p.name==="OUTPUT VOLUME");
   const extra=params.filter(p=>(p.index>=16 && ![high,low,output].includes(p)) || [7,15].includes(p.index));
@@ -69,8 +69,13 @@ export default function CabinetPanel({block,scene,busy,readOnly,previewMic,commi
       <div className="cab-phase">{control(at(n+6),"Phase",{options:["Ø","Ø"]})}</div>
     </div>;
   }
-  const hz=p=>p.min+(p.max-p.min)*value(p)**(p.exponent??1);
+  const hz=p=>p.min+(p.max-p.min)*(moving?.[p.index]??value(p))**(p.exponent??1);
   const logX=p=>clamp(Math.log(hz(p)/20)/Math.log(1000));
+  function cutoff(p,x) {
+    const frequency=20*1000**x;
+    return clamp((frequency-p.min)/(p.max-p.min))**(1/(p.exponent??1));
+  }
+  const response=high && low ? `M0 ${logX(high)>.001?93:50} L${logX(high)*100} 50 H${logX(low)*100} L100 ${logX(low)<.999?93:50}` : "";
   return <section className="panel cabinet" aria-label={block.name}>
     {micHeader(0)}
     <div className="cab-title"><strong title={block.name}>{block.name}</strong>
@@ -87,17 +92,20 @@ export default function CabinetPanel({block,scene,busy,readOnly,previewMic,commi
           const originX=n?0:1;
           const position=x=>n?x:1-x;
           return <div className="cab-cone" key={n} style={{"--origin":originX*100+"%"}}>
-            <DragPoint label={"MIC "+(n/8+1)+" 위치와 거리"} color={colors[n/8]} disabled={busy||(readOnly&&!previewMic)}
+            <DragPoint label={"MIC "+(n/8+1)+" 위치와 거리"} color={colors[n/8]} disabled={busy||(readOnly&&!previewCabinet)}
               originX={originX} x={position(value(pos))} y={value(dist)}
               onPreview={point=>setMoving(point?{[pos.index]:position(point[0]),[dist.index]:point[1]}:null)}
-              onDrop={async(x,y)=>{const write=previewMic??commit;await write(pos,position(x));await write(dist,y)}}/>
+              onDrop={async(x,y)=>{const write=previewCabinet??commit;await write(pos,position(x));await write(dist,y)}}/>
           </div>;
         })}
       </div> : page===1 ? <>
         {high && low && <div className="cab-filter"><div className="cab-hz" aria-hidden="true">{["Hz","100","1k","10k"].map((tick,i)=><span key={tick} style={{left:[0,23,57,90][i]+"%"}}>{tick}</span>)}</div><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          <path d={`M0 ${logX(high)>.001?93:50} L${logX(high)*100} 50 H${logX(low)*100} L100 ${logX(low)<.999?93:50}`} fill="none" stroke="white" vectorEffect="non-scaling-stroke"/></svg>
-          {[high,low].map((p,i)=><DragPoint key={p.index} label={p.name} color="#eee" disabled={busy||readOnly} x={logX(p)} y={.5}
-            onDrop={x=>commit(p,clamp((20*1000**x-p.min)/(p.max-p.min))**(1/(p.exponent??1)))}>{i?"L":"H"}</DragPoint>)}
+          <path d={response+" V100 H0 Z"} fill="#ffffff19"/>
+          <path d={response} fill="none" stroke="#ddd" vectorEffect="non-scaling-stroke"/></svg>
+          {[high,low].map((p,i)=><DragPoint key={p.index} label={p.name} color="#eee" disabled={busy||(readOnly&&!previewCabinet)} x={logX(p)} y={.5}
+            bounds={[Math.log(p.min/20)/Math.log(1000),Math.log(p.max/20)/Math.log(1000)]}
+            onPreview={point=>setMoving(point?{[p.index]:cutoff(p,point[0])}:null)}
+            onDrop={x=>(previewCabinet??commit)(p,cutoff(p,x))}>{i?"L":"H"}</DragPoint>)}
         </div>}
         <div className="cab-filter-knobs">{[high,output,low].map(p=>control(p,p?.name,p===high?{offAt:0}:p===low?{offAt:1}:{}))}</div>
       </> : <div className="cab-extra">{extra.map(p=>control(p,p.name))}</div>}
