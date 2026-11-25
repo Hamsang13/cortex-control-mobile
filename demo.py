@@ -92,8 +92,31 @@ def demo_route_controls(row):
     return controls
 
 
+def demo_io():
+    v = {"xlr1_2_linked":True,"out3_4_linked":True,"hp_port.level":40/52,"hp_feed.19.level":46/52,
+         "usb_port.dry_wet":0,"usb_port.level":1,"usb_port.hp_select":1,"midi_port.midi_thru":0,"eq.bypassed":True}
+    for i in (1,2,4,5):
+        prefix=f"in_port.{i}."
+        v.update({prefix+"level":1/6,prefix+"ground_lift":0,prefix+"plugged":i==1})
+        if i in (1,2):
+            v.update({prefix+"input_type":0,prefix+"input_zmode":7/8})
+    for i in (1,2,4,5,6,7,8,9):
+        prefix=f"out_port.{i}."
+        v[prefix+"level"]=40/52
+        if i<8: v[prefix+"mute"]=False
+        if i in (1,4,5): v[prefix+"ground_lift"]=0
+    for i in (1,2):
+        v.update({f"exp_port.{i}.level":0,f"exp_port.{i}.calibrating":False})
+    for i, freq in enumerate((50,125,1000,4000,7000)):
+        for j,val in enumerate((.5,((freq-20)/19980)**.3,.0613,(1,0,0,0,.75)[i],1)):
+            v[f"eq.{5*i+j}"]=val
+    v.update({"eq.25":.5,"eq.26":0,"eq.27":0})
+    return v
+
+
 class Demo:
     def __init__(self):
+        self.io = demo_io()
         self.global_tempo = [0.4,0,1,.613137,0,.5,.1,0,0,0]
         self.grid = dict(
             tempo=[[v] for v in self.global_tempo],
@@ -117,6 +140,14 @@ class Demo:
 
     def request(self, a, d):
         g = self.grid
+        if a == "io-settings":
+            return self.io.copy()
+        if a == "io-set":
+            key = d["key"]
+            if self.io[key] != d["previous"]:
+                raise ValueError("I/O setting changed")
+            self.io[key] = d["value"]
+            return self.io.copy()
         if a == "toolbar":
             return dict(volume=self.volume,engaged=self.volume==self.knob_volume,undo=bool(self.undo),redo=bool(self.redo))
         if a == "master-state":

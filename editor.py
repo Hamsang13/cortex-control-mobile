@@ -378,6 +378,9 @@ class Editor:
 
     def request(self, action, d):
         q, api = self.qc, self.api
+        if action in ("io-settings", "io-set"):
+            from io_settings import io_request
+            return io_request(q, action, d)
         if action in ("toolbar", "master-volume", "master-state"):
             from pyquadcortex.client import pa
             from time import monotonic, sleep

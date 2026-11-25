@@ -1,3 +1,4 @@
+import IOSettings from "./IOSettings";
 import CabinetPanel from "./CabinetPanel";
 import {meterReading, MeterTrack} from "./SignalTrack";
 import DeviceToolbar from "./DeviceToolbar";
@@ -658,6 +659,7 @@ function App() {
     };
   },[libraryOpen]);
   const [signalChannels, setSignalChannels] = useState([]);
+  const [ioOpen,setIOOpen]=useState(false);
   const [liveState, S] = useState(null),
     [preview, setPreview] = useState(null),
     [paramsOpen, setParamsOpen] = useState(false),
@@ -1314,6 +1316,7 @@ function App() {
         </nav>
         <SignalMeters active={!!liveState && !paused} publish={setSignalChannels} />
         <DeviceToolbar api={api} online={!!liveState && !paused} busy={busy} revision={s?.rev} travel={travel} report={T}/>
+        <button className="io-launch" title="I/O Settings" aria-label="I/O Settings" onClick={()=>setIOOpen(true)}>I/O</button>
         <button
           disabled={busy}
           onClick={toggleUsb}
@@ -1666,6 +1669,7 @@ function App() {
           <Icon category={drag.category} />
         </div>
       )}
+      {ioOpen && <IOSettings api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
       {modal && (
         <Modal
           title="My Presets"

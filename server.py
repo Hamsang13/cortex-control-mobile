@@ -91,7 +91,7 @@ def device_request(action, data):
                 disconnect()
                 raise
         if browse_only:
-            if action in ("cpu", "tuner", "global-tempo"):
+            if action in ("cpu", "tuner", "global-tempo", "io-settings"):
                 path = cache_dir / (action + ".json")
                 return json.loads(path.read_text(encoding="utf8")) if path.exists() else {}
             if action in ("library", "captures", "presets", "capture-layout"):
@@ -121,7 +121,7 @@ def device_request(action, data):
         try:
             result = editor.request(action, data)
         except TimeoutError as exc:
-            if action in ("cpu", "tuner", "global-tempo", "set-tempo", "master-volume", "master-state", "toolbar", "undo", "redo"):
+            if action in ("io-settings","io-set","cpu", "tuner", "global-tempo", "set-tempo", "master-volume", "master-state", "toolbar", "undo", "redo"):
                 raise ValueError("본체에서 유틸리티 응답이 지연되었습니다.") from exc
             raise
         if not DEMO and isinstance(result, dict) and "rev" in result and "blocks" in result:
@@ -136,6 +136,8 @@ def device_request(action, data):
                 preview_stamp = stamp
         if action in ("cpu", "tuner", "global-tempo") and not DEMO:
             store_library(action, result)
+        if action in ("io-settings", "io-set") and not DEMO:
+            store_library("io-settings", result)
         if action == "library" and not DEMO:
             access = cache_dir / "plugin-access.json"
             if access.exists():
@@ -184,6 +186,15 @@ def operate(action, data):
                 except (OSError, ValueError):
                     pass
         return cached
+    if action == "io-meter":
+        if browse_only or DEMO or connection is None:
+            return {}
+        from pyquadcortex.client import pa
+        try:
+            meter = connection._t.await_broadcast(pa.IOMeterMessage, lambda: None, timeout=.2)
+            return {f.name:v for f,v in meter.ListFields() if f.name not in ("action","request_id")}
+        except TimeoutError:
+            return {}
     if action == "beat":
         client = connection
         if client is None or browse_only or DEMO:
@@ -232,7 +243,7 @@ def operate(action, data):
 
 class Handler(BaseHTTPRequestHandler):
     def log_request(self, code="-", size="-"):
-        if self.path not in ("/api/meters", "/api/gate-meter", "/api/master-state") or code != 200:
+        if self.path not in ("/api/meters", "/api/io-meter", "/api/gate-meter", "/api/master-state") or code != 200:
             super().log_request(code, size)
 
     def send(self, status, content, mime):
@@ -262,7 +273,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("잘못된 요청입니다.")
             started = perf_counter()
             result = operate(self.path.removeprefix("/api/"), data)
-            if self.path not in ("/api/meters", "/api/gate-meter", "/api/master-state"):
+            if self.path not in ("/api/meters", "/api/io-meter", "/api/gate-meter", "/api/master-state"):
                 print(f"{self.path} {perf_counter() - started:.2f}s", flush=True)
             status = 200
         except Exception as exc:
