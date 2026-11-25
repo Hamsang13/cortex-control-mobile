@@ -20,6 +20,8 @@ from demo import Demo
 editor = Demo() if DEMO else None
 DLL_HANDLE = None
 browse_only = "--browse" in sys.argv
+warm_snapshot = None
+preview_stamp = None
 cache_dir = ROOT / ".device-library"
 
 
@@ -65,7 +67,12 @@ def disconnect():
 
 
 def device_request(action, data):
-    global connection, editor, browse_only, tuner_meter
+    global connection, editor, browse_only, tuner_meter, warm_snapshot, preview_stamp
+    if warm_snapshot is not None:
+        stamp, snapshot = warm_snapshot
+        warm_snapshot = None
+        if action == "live" and perf_counter() - stamp < .85:
+            return snapshot
     try:
         if action == "release":
             if DEMO:
@@ -117,6 +124,16 @@ def device_request(action, data):
             if action in ("cpu", "tuner", "global-tempo", "set-tempo", "master-volume", "master-state", "toolbar", "undo", "redo"):
                 raise ValueError("본체에서 유틸리티 응답이 지연되었습니다.") from exc
             raise
+        if not DEMO and isinstance(result, dict) and "rev" in result and "blocks" in result:
+            stamp = (result["rev"], result["scene"], result["dirty"])
+            if stamp != preview_stamp:
+                store_library("preview", result)
+                preview_stamp = stamp
+        elif not DEMO and action == "live" and result.get("unchanged"):
+            stamp = (data["known"], result["scene"], result["dirty"])
+            if stamp != preview_stamp:
+                store_library("preview", dict(editor.grid, rev=stamp[0], scene=stamp[1], dirty=stamp[2]))
+                preview_stamp = stamp
         if action in ("cpu", "tuner", "global-tempo") and not DEMO:
             store_library(action, result)
         if action == "library" and not DEMO:
@@ -148,7 +165,25 @@ def device_request(action, data):
         raise
 
 
+def preload_preset():
+    global warm_snapshot
+    try:
+        state = device_request("live", {})
+        warm_snapshot = (perf_counter(), state)
+    except Exception as exc:
+        print(f"Initial preset read: {exc}", flush=True)
+
+
 def operate(action, data):
+    if action == "preview":
+        cached = {}
+        if not DEMO:
+            for entry in ("preview", "library", "presets"):
+                try:
+                    cached[entry] = json.loads((cache_dir / (entry + ".json")).read_text(encoding="utf8"))
+                except (OSError, ValueError):
+                    pass
+        return cached
     if action == "beat":
         client = connection
         if client is None or browse_only or DEMO:
@@ -243,6 +278,8 @@ if __name__ == "__main__":
     ips = set(socket.gethostbyname_ex(socket.gethostname())[2]) | {"127.0.0.1"}
     for ip in sorted(ips):
         print(f"http://{ip}:8765/#{TOKEN}", flush=True)
+    if not DEMO and not browse_only:
+        USB.submit(preload_preset)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

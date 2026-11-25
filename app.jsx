@@ -660,7 +660,7 @@ function App() {
     [preview, setPreview] = useState(null),
     [paramsOpen, setParamsOpen] = useState(false),
     [lib, L] = useState({ models: [], inputs: {}, outputs: {} }),
-    [paused, setPaused] = useState(false),
+    [usbPaused, setPaused] = useState(false),
     [captures, setCaptures] = useState(null),
     [filter, setFilter] = useState(""),
     [product, setProduct] = useState(""),
@@ -671,6 +671,7 @@ function App() {
     [page, G] = useState(0),
     [modal, M] = useState(null),
     [slots, Q] = useState([]),
+    [cachedSlots, setCachedSlots] = useState([]),
     [bank, K] = useState(0),
     [search, F] = useState(""),
     [pendingScene, J] = useState(null),
@@ -679,7 +680,9 @@ function App() {
     [gig, H] = useState(true),
     [drag, D] = useState(null);
   const [cpu,setCpu] = useState(null), [overlay,setOverlay] = useState(false);
-  const s = liveState ?? (paused ? preview : null);
+  const s = liveState ?? preview;
+  const paused = !liveState;
+  const directorySlots = slots.length ? slots : cachedSlots;
   const stream = useRef({ writing: false, pending: null }),
     history = useRef({ undo: [], redo: [] });
   const mode = useRef(null);
@@ -698,8 +701,19 @@ function App() {
       G(0);
       history.current = { undo: [], redo: [] };
     }
+    setPreview(next);
     latest.current = next;
     S(next);
+  }
+  const libraryRequest = useRef(0);
+  async function loadLibrary() {
+    const request = ++libraryRequest.current;
+    try {
+      const library = await api("library");
+      if (request === libraryRequest.current) L(library);
+    } catch (e) {
+      if (request === libraryRequest.current) T(e.message);
+    }
   }
   async function refresh(force = false) {
     if (
@@ -716,10 +730,11 @@ function App() {
         known: prevState?.rev,
         knownPreview: mode.current === "browse" && !force,
       });
+      if (version !== epoch.current) return;
       if (reply.paused) {
         if (reply.preview) setPreview(reply.preview);
         if (mode.current !== "browse") {
-          L(await api("library"));
+          loadLibrary();
           setCaptures(null);
           S(null);
           P(null);
@@ -735,7 +750,7 @@ function App() {
       const next = reply.unchanged
         ? { ...prevState, scene: reply.scene, dirty: reply.dirty }
         : reply;
-      if (!latest.current || force) L(await api("library"));
+      if (!latest.current || force) loadLibrary();
       if (version === epoch.current) {
         const prev = latest.current;
         if (
@@ -759,11 +774,20 @@ function App() {
     }
   }
   useEffect(() => {
+    let mounted = true;
+    api("preview").then(cached => {
+      if (!mounted) return;
+      if (cached.presets) setCachedSlots(cached.presets);
+      if (mode.current || latest.current) return;
+      if (cached.preview) setPreview(cached.preview);
+      if (cached.library) L(cached.library);
+    }).catch(() => {});
     refresh(true);
     const timer = setInterval(() => refresh(), 850),
       wake = () => refresh(true);
     document.addEventListener("visibilitychange", wake);
     return () => {
+      mounted = false;
       clearInterval(timer);
       document.removeEventListener("visibilitychange", wake);
     };
@@ -792,10 +816,10 @@ function App() {
     epoch.current++;
     B(true);
     try {
-      if (paused) {
+      if (usbPaused) {
         const state = await api("connect");
-        L(await api("library"));
         accept(state);
+        loadLibrary();
         setPaused(false);
         mode.current = "live";
         T("");
@@ -916,12 +940,15 @@ function App() {
   async function directory(mode) {
     if (!latest.current && mode !== "presets") return;
     F("");
+    const warm = directorySlots.length > 0;
+    if (warm) K(Math.floor((directorySlots.find(x=>x.name===s?.name)?.slot ?? 0)/8));
     M({ kind: mode, loading: true });
     try {
       const entries =
         mode === "presets" && slots.length ? slots : await api("presets");
       Q(entries);
-      K(
+      setCachedSlots(entries);
+      if (!warm) K(
         Math.floor(
           (entries.find((x) => x.name === s?.name)?.slot ??
             entries[0]?.slot ??
@@ -1227,7 +1254,7 @@ function App() {
             <img src={icons.neuralLogo} alt="" /><span>{lib.deviceName || "Quad Cortex"}</span>
           </strong>
           <span className="desk-status" role="status">
-            <span data-connected={!!liveState}>{paused ? "USB 대기 · 읽기 전용" : liveState ? "USB 연결됨" : msg ? "USB 연결 확인 필요" : "USB 연결 중…"}</span>
+            <span data-connected={!!liveState}>{usbPaused ? "USB 대기 · 읽기 전용" : liveState ? "USB 연결됨" : msg ? "USB 연결 확인 필요" : preview ? "USB 동기화 중 · 읽기 전용" : "USB 연결 중…"}</span>
             {busy ? " · 처리 중…" : msg && " · " + msg}
           </span>
         </div>
@@ -1247,7 +1274,7 @@ function App() {
           onClick={toggleUsb}
           title="Cortex Control과 USB 사용 전환"
         >
-          {paused ? "USB 연결" : "USB 해제"}
+          {usbPaused ? "USB 연결" : "USB 해제"}
         </button>
       </header>
       <div className={"workspace"+(libraryOpen?" library-open":"")}>
@@ -1576,7 +1603,7 @@ function App() {
         </main>
       </div>
       <footer>
-        <FooterTools report={T} {...{api,s,paused,busy,run,refresh,cpu,setCpu,overlay,setOverlay}} />
+        <FooterTools report={T} {...{api,paused,busy,run,refresh,cpu,setCpu,overlay,setOverlay}} s={liveState || (usbPaused ? preview : null)} />
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
@@ -1592,7 +1619,7 @@ function App() {
           close={close}
         >
           {modal.loading && <p role="status">프리셋 목록을 읽는 중…</p>}
-          {!modal.loading && modal.kind === "presets" && (
+          {(!modal.loading || directorySlots.length > 0) && modal.kind === "presets" && (
             <>
               <input
                 aria-label="프리셋 검색"
@@ -1617,13 +1644,13 @@ function App() {
                 </div>
                 <div className="directory">
                   {(search
-                    ? slots.filter((x) =>
+                    ? directorySlots.filter((x) =>
                         x.name.toLowerCase().includes(search.toLowerCase()),
                       )
                     : Array.from(
                         { length: 8 },
                         (_, j) =>
-                          slots.find((x) => x.slot === bank * 8 + j) || {
+                          directorySlots.find((x) => x.slot === bank * 8 + j) || {
                             slot: bank * 8 + j,
                             name: "",
                           },
@@ -1632,7 +1659,7 @@ function App() {
                     <button
                       key={x.slot}
                       className={x.name === s?.name ? "on" : ""}
-                      disabled={busy || !x.name || paused}
+                      disabled={busy || modal.loading || !x.name || paused}
                       onClick={() => recall(x)}
                     >
                       <span className="slotno">{slotName(x.slot)}</span>
