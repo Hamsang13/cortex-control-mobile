@@ -1,6 +1,6 @@
-# Quad Desk
+# Cortex Remote
 
-Quad Desk는 iPad에서 Neural DSP Quad Cortex의 프리셋과 씬을 편집하는 비공식 웹 앱입니다. Windows PC 또는 Raspberry Pi가 USB로 본체와 통신하고, iPad의 Safari는 로컬 네트워크를 통해 편집 화면을 표시합니다.
+코텍스 리모트(Cortex Remote)는 iPad에서 Neural DSP Quad Cortex의 프리셋과 씬을 편집하는 비공식 웹 앱입니다. Windows PC 또는 Raspberry Pi가 USB로 본체와 통신하고, iPad의 Safari는 로컬 네트워크를 통해 편집 화면을 표시합니다.
 
 ## 사용 라이브러리
 

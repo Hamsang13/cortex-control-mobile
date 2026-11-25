@@ -1,4 +1,4 @@
-Quad Desk · Raspberry Pi Zero 2 WH / Windows
+Cortex Remote · Raspberry Pi Zero 2 WH / Windows
 1. Raspberry Pi Imager로 microSD에 Raspberry Pi OS Lite 64-bit (Bookworm 이상)를 기록합니다.
    호스트 qc-pi, 사용자명 qcuser, 비밀번호, 국가 KR, 집의 2.4GHz Wi-Fi 및 SSH를 설정하세요.
 2. 기록을 마친 카드를 Windows에 다시 꽂아 bootfs 드라이브 최상위에 qc-web.zip을 그대로 복사합니다.

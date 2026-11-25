@@ -23,7 +23,7 @@ sudo udevadm control --reload-rules
 sudo udevadm trigger --subsystem-match=hidraw --action=add
 sudo tee /etc/systemd/system/qc-desk.service >/dev/null <<EOF
 [Unit]
-Description=Quad Desk USB editor
+Description=Cortex Remote USB editor
 After=network.target
 [Service]
 User=$(id -un)

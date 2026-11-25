@@ -93,9 +93,9 @@ if __name__ == "__main__":
     from urllib.request import Request,urlopen
     try:
         snapshot=read_controller()
-        dest=urlsplit(getpass("Pi Quad Desk URL (including #key): ").strip())
+        dest=urlsplit(getpass("Pi Cortex Remote URL (including #key): ").strip())
         if dest.scheme not in ("http","https") or not dest.hostname or not dest.fragment:
-            raise ValueError("Pi Quad Desk의 키 포함 주소를 입력하세요.")
+            raise ValueError("Pi Cortex Remote의 키 포함 주소를 입력하세요.")
         request=Request(dest._replace(path="/api/plugin-import",query="",fragment="").geturl(),
             json.dumps(snapshot).encode(),{"X-QC-Key":dest.fragment,"Content-Type":"application/json"})
         with urlopen(request,timeout=8) as response:
