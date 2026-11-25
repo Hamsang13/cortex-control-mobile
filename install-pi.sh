@@ -4,12 +4,16 @@ cd "$(dirname "$0")"
 if [[ $(id -u) == 0 ]]; then echo 'Run as your normal Pi user.'; exit 1; fi
 sudo -v
 sudo apt-get update
-sudo apt-get install -y python3-venv libhidapi-hidraw0 network-manager dnsmasq-base
+sudo apt-get install -y python3-venv libhidapi-hidraw0 libportaudio2 network-manager dnsmasq-base
 app="$HOME/.local/share/qc-desk"
 mkdir -p "$app"
-install -m644 server.py index.html "$app/"
+install -m644 server.py editor.py demo.py utilities.py pitch.py index.html app.js "$app/"
+if [[ -d .device-library ]]; then
+    mkdir -p "$app/.device-library"
+    install -m600 .device-library/*.json "$app/.device-library/"
+fi
 python3 -m venv "$app/venv"
-"$app/venv/bin/pip" install 'pyquadcortex==0.40.0'
+"$app/venv/bin/pip" install 'pyquadcortex==0.40.0' sounddevice numpy
 "$app/venv/bin/python" -c 'import hid,pyquadcortex'
 if [[ ! -f "$app/key" ]]; then (umask 077; python3 -c 'import secrets;print(secrets.token_urlsafe(18))' > "$app/key"); fi
 key=$(cat "$app/key")

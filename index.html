@@ -1,93 +1,701 @@
-<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Quad Desk</title>
-<style>
-:root{color-scheme:light;--ink:#1d2c3a;--paper:#f7f5ee;--line:#b8c0be;--blue:#194ca0}
-*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px system-ui,sans-serif}
-main{max-width:1280px;margin:auto;padding:clamp(14px,3vw,42px)}header,.heading,.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-header{border-bottom:2px solid var(--ink);padding-bottom:15px}header strong{font:700 24px Georgia,serif}button,input{font:inherit}
-button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:6px;min-height:44px;padding:8px 14px;color:var(--ink)}
-button:disabled{opacity:.55;cursor:wait}button:focus-visible,input:focus-visible{outline:3px solid #dc7900;outline-offset:2px}
-#status,#hint{color:#445466;font-size:14px}#status{min-height:22px}h1{font:500 clamp(28px,5vw,48px) Georgia,serif;margin:7px 0 20px;overflow-wrap:anywhere}h2{font-size:20px;margin:0}section{margin:18px 0}
-.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:#ecefe9}
-#blocks{display:grid;grid-template-columns:30px repeat(8,minmax(70px,1fr));min-width:650px;gap:4px;padding:10px}
-.axis{color:#53616c;text-align:center;align-self:center;font:12px monospace}
-.slot{height:62px;background:#e0e5de;border-radius:5px;display:grid;place-content:center;color:#99a59a}
-.block{font-size:13px;font-weight:600;padding:3px;border:1px solid #93a7b8;background:#f8fbff;overflow-wrap:anywhere}
-.block[aria-pressed=true]{background:var(--blue);color:#fff;border-color:var(--blue)}
-.panel{padding:20px;border:1px solid var(--line);border-top:4px solid var(--blue);border-radius:6px;background:white}
-#knobs{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px}
-.knob{padding:14px;background:#f3f5f7;border-radius:6px;display:grid;gap:10px}
-.knob strong{font-size:13px;letter-spacing:.06em}.knob input{width:100%;accent-color:var(--blue);height:32px}
-.knob output{font:600 19px monospace}.position{font:14px monospace;color:#516271}
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#070707" />
+    <title>Quad Desk</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        color-scheme: dark;
+        background: #050505;
+        color: #ddd;
+        font:
+          14px "Segoe UI",
+          system-ui,
+          sans-serif;
+      }
+      body {
+        margin: 0;
+      }
+      button,
+      select,
+      input {
+        font: inherit;
+        color: inherit;
+      }
+      button,
+      select {
+        background: #1e1e1f;
+        border: 0;
+        border-radius: 5px;
+        cursor: pointer;
+        min-height: 36px;
+        padding: 6px 10px;
+      }
+      button:focus-visible,
+      select:focus-visible,
+      input:focus-visible {
+        outline: 2px solid #69df80;
+      }
+      button:disabled {
+        opacity: 0.5;
+      }
+      button:hover {
+        background: #29292a;
+      }
+      .on {
+        color: #75ee87;
+      }
+      .shell {
+        max-width: 1700px;
+        margin: auto;
+        padding: 0 12px 12px;
+      }
+      header,
+      footer,
+      .bar,
+      .panelhead,
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      header {
+        height: 54px;
+        justify-content: space-between;
+        border-bottom: 1px solid #222;
+      }
+      header strong {
+        font-size: 15px;
+        letter-spacing: 0.02em;
+      }
+      .desk-heading { display:grid; min-width:0; gap:3px; }
+      .desk-status { font-size:11px; color:#aaa; overflow-wrap:anywhere; }
+      .desk-status span::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; background:#888; }
+      .desk-status [data-connected=true]::before { background:#4eec69; }
+      .shell > header { height:auto; min-height:54px; }
+      @media (max-width:540px) {
+        .shell > header { flex-wrap:wrap; padding:5px 0; }
+        .shell > header nav { order:1; width:100%; }
+        .desk-heading { flex:1; }
+      }
+      nav {
+        display: flex;
+        align-self: stretch;
+      }
+      nav button {
+        background: transparent;
+        border-radius: 0;
+        color: #888;
+        padding: 0 18px;
+      }
+      nav .current {
+        color: white;
+        border-top: 2px solid #4eec69;
+      }
+      .workspace {
+        display: grid;
+        grid-template-columns: clamp(142px, 22vw, 270px) minmax(0, 1fr);
+        gap: 9px;
+        margin-top: 8px;
+      }
+      aside,
+      .panel,
+      .dialog {
+        background: #141415;
+        border-radius: 8px;
+      }
+      aside {
+        overflow: auto;
+        height: calc(100dvh - 104px);
+        padding: 4px;
+      }
+      .entry {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-align: left;
+        width: 100%;
+        background: transparent;
+        min-height: 42px;
+      }
+      .entry.model {
+        touch-action: pan-y;
+      }
+      .icon {
+        display: grid;
+        place-items: center;
+        background: #101010;
+        border: 2px solid var(--c);
+        border-radius: 12px;
+        color: #ddd;
+        font-size: 23px;
+        line-height: 1;
+        width: 46px;
+        height: 46px;
+        flex: none;
+      }
+      .bar {
+        flex-wrap: wrap;
+      }
+      .preset {
+        flex: 1;
+        text-align: left;
+        font-style: italic;
+        min-width: 140px;
+      }
+      .scene {
+        padding: 4px;
+        min-width: 30px;
+      }
+      .scene.active {
+        background: #ffc831;
+        color: #121212;
+      }
+      .scroll {
+        overflow: auto;
+      }
+      .board {
+        position: relative;
+        min-width: 470px;
+        display: grid;
+        grid-template-columns: 7% repeat(8, 10.75%) 7%;
+        grid-template-rows: repeat(4, clamp(61px, 10vh, 98px));
+        align-items: center;
+        justify-items: center;
+      }
+      .wires {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+      .port,
+      .cell {
+        z-index: 1;
+      }
+      .port {
+        max-width: 100%;
+        font-size: 10px;
+        padding: 3px;
+        overflow-wrap: anywhere;
+        background: #121213;
+        min-height: 45px;
+      }
+      .cell {
+        width: 100%;
+        height: 100%;
+        display: grid;
+        place-items: center;
+        position: relative;
+      }
+      .tile {
+        background: #101010;
+        padding: 0;
+        touch-action: none;
+        border-radius: 12px;
+      }
+      .tile.selected .icon {
+        outline: 2px solid var(--c);
+      }
+      .cell .del {
+        display: none;
+        position: absolute;
+        left: calc(50% + 10px);
+        top: calc(50% - 33px);
+        background: #aaa;
+        color: black;
+        border-radius: 100%;
+        font: 16px/1 sans-serif;
+        min-height: 24px;
+        width: 24px;
+        padding: 0;
+      }
+      .cell:hover .del,
+      .cell .selected + .del {
+        display: block;
+      }
+      .empty {
+        background: transparent;
+        color: transparent;
+      }
+      .cell:hover .empty,
+      .cell.target .empty,
+      .cell.drop .empty {
+        color: white;
+        background: #222;
+      }
+      .cell.drop {
+        background: #324c3c88;
+      }
+      .panel {
+        margin-top: 8px;
+        overflow: hidden;
+      }
+      .panelhead {
+        padding: 5px 8px;
+        border-bottom: 1px solid #333;
+      }
+      .grow {
+        flex: 1;
+      }
+      .params {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+      .param {
+        position: relative;
+        height: 99px;
+        background: #202021;
+        border-right: 1px solid #101010;
+        border-bottom: 1px solid #101010;
+        border-radius: 0;
+        text-align: left;
+        padding: 8px;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .param small {
+        position: absolute;
+        top: 9px;
+        left: 8px;
+        font-size: 10px;
+      }
+      .param output {
+        position: absolute;
+        bottom: 8px;
+        left: 8px;
+        font-size: 11px;
+      }
+      .choice-param { color:#ddd; }
+      .param-switch { position:absolute; bottom:10px; left:8px; display:grid; grid-template-columns:20px auto; grid-template-rows:22px 22px; align-items:center; gap:0 8px; font-size:12px; color:#888; }
+      .param-switch i { position:relative; grid-row:span 2; width:18px; height:43px; background:black; border-radius:12px; }
+      .param-switch i::after { content:""; position:absolute; left:2px; bottom:3px; width:14px; height:14px; border:2px solid var(--c); box-sizing:border-box; border-radius:50%; }
+      .param-switch i.up::after { bottom:26px; }
+      .param-switch .current { color:#f2f2f2; }
+      .param-select { position:absolute; left:8px; right:8px; bottom:6px; display:flex; align-items:center; justify-content:space-between; gap:5px; padding:7px 9px; background:#111; border-radius:5px; font-size:12px; }
+      .param-select span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .param-options { position:fixed; z-index:20; overflow:auto; overscroll-behavior:contain; background:#080808; padding:4px; border:1px solid #333; border-radius:7px; box-shadow:0 5px 18px #000a; }
+      .param-options button { display:block; width:100%; min-height:36px; padding:6px 10px; text-align:left; color:#aaa; background:none; }
+      .param-options button:hover,.param-options button:focus { background:#2d2d2d; }
+      .param-options button[aria-selected=true] { background:#2d2d2d; color:#3f6; }
+      .dial {
+        position: absolute;
+        right: 8px;
+        bottom: 12px;
+        border: 2px solid var(--c);
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        transform: rotate(var(--angle));
+        background: #121212;
+      }
+      .dial:after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 15px;
+        background: #eee;
+        height: 13px;
+        width: 2px;
+      }
+      .muted {
+        opacity: 0.44;
+      }
+      .ghost {
+        position: fixed;
+        pointer-events: none;
+        z-index: 6;
+        transform: translate(-50%, -50%);
+      }
+      footer {
+        color: #aaa;
+        font-size: 12px;
+        min-height: 36px;
+      }
+      .shade {
+        position: fixed;
+        inset: 0;
+        background: #000a;
+        display: grid;
+        place-items: center;
+        z-index: 5;
+      }
+      .dialog {
+        padding: 18px;
+        width: min(540px, 92vw);
+        max-height: 82dvh;
+        overflow: auto;
+        border: 1px solid #333;
+      }
+      .dialog h2 {
+        margin: 0 0 14px;
+        font-size: 18px;
+      }
+      .dialog label {
+        display: grid;
+        gap: 5px;
+        margin: 10px 0;
+      }
+      .dialog input {
+        padding: 8px;
+      }
+      .dialog .actions {
+        margin-top: 12px;
+        justify-content: flex-end;
+      }
+      .directory {
+        display: grid;
+        gap: 3px;
+      }
+      .directory button {
+        text-align: left;
+      }
+      .slotno {
+        display: inline-block;
+        width: 46px;
+        color: #999;
+      }
+      .gig {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin: 20px 0;
+      }
+      .gig button {
+        height: 15vh;
+        font-size: 30px;
+      }
+      .gig .active {
+        background: #ffc831;
+        color: #000;
+      }
+      @media (max-width: 700px) {
+        .workspace {
+          grid-template-columns: 100px minmax(0, 1fr);
+        }
+        aside {
+          font-size: 11px;
+        }
+        .entry {
+          padding: 4px;
+          gap: 4px;
+        }
+        .entry .icon {
+          width: 28px;
+          height: 28px;
+          font-size: 16px;
+        }
+        .params {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        nav button {
+          padding: 0 8px;
+        }
+        .scene {
+          min-width: 28px;
+        }
+      }
+      @media (pointer: coarse) {
+        button {
+          min-height: 42px;
+        }
+        .cell .del {
+          min-height: 26px;
+          width: 26px;
+        }
+      }
+      .picker {
+        display: grid;
+        grid-template-columns: 144px 1fr;
+        gap: 14px;
+        margin-top: 12px;
+      }
+      .banks {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 3px;
+        align-content: start;
+      }
+      .banks button {
+        padding: 3px;
+      }
+      .directory {
+        align-content: start;
+      }
+      .dialog > input {
+        width: 100%;
+      }
+      @media (max-width: 480px) {
+        .picker {
+          grid-template-columns: 84px 1fr;
+        }
+        .banks {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      aside.expanded {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        padding: 0;
+        overflow: hidden;
+      }
+      .models,
+      .rail {
+        overflow-y: auto;
+      }
+      .rail button {
+        background: transparent;
+        border-radius: 0;
+        display: grid;
+        place-items: center;
+        width: 100%;
+        height: 52px;
+        padding: 0;
+      }
+      .rail .icon {
+        border: 0;
+        background: transparent;
+        font-size: 17px;
+        width: 24px;
+        height: 28px;
+        color: #888;
+      }
+      .rail .chosen {
+        border-left: 2px solid #45ec66;
+      }
+      .rail .chosen .icon {
+        color: #fff;
+      }
+      .models .entry.model {
+        font-size: 12px;
+        min-height: 35px;
+      }
+      .models .entry.model.on {
+        background: #222;
+      }
+      .icon {
+        object-fit: contain;
+        background: none;
+        border: 0;
+      }
+      .entry.model .icon {
+        width: 26px;
+        height: 26px;
+      }
+      .entry.model small {
+        display: block;
+        color: #999;
+      }
+      .libsearch {
+        width: 100%;
+        padding: 7px;
+        margin: 5px 0;
+      }
+      .tile.selected .icon {
+        outline-offset: -4px;
+      }
+      .workspace main {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        min-height: calc(100dvh - 106px);
+      }
+      .gig-panel {
+        margin-top: auto;
+        padding-top: 10px;
+        display: grid;
+        grid-template-columns: minmax(92px, 20%) 1fr;
+        min-height: clamp(145px, 28vh, 265px);
+      }
+      .gig-side {
+        display: flex;
+        flex-direction: column;
+        background: #2d2d2d;
+        border-radius: 6px 0 0 6px;
+        overflow: hidden;
+      }
+      .gig-side > div,
+      .gig-side button {
+        background: #202020;
+        padding: 8px;
+        text-align: left;
+      }
+      .gig-side strong {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 8px;
+      }
+      .gig-side button {
+        border-top: 1px solid #080808;
+        font-size: 11px;
+      }
+      .gig-scenes {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-rows: 1fr 1fr;
+        gap: 1px;
+        border-radius: 0 6px 6px 0;
+        overflow: hidden;
+        background: #090909;
+      }
+      .gig-scenes button {
+        position: relative;
+        border-radius: 0;
+        isolation: isolate;
+        overflow: hidden;
+        color: #d0d0d0;
+        background: var(
+          --scene-shade,
+          color-mix(in srgb, var(--scene-color) 10%, #141414)
+        );
+        font-size: clamp(12px, 1.7vw, 22px);
+        padding: 4px;
+      }
+      .gig-scenes button:disabled {
+        opacity: 1;
+        cursor: default;
+      }
+      .gig-scenes button.active {
+        background: var(--scene-color);
+        color: #101010;
+      }
+      .gig-scenes b {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font-size: clamp(40px, 8vh, 95px);
+        font-weight: 600;
+        color: var(--scene-color);
+        opacity: 0.11;
+        z-index: -1;
+      }
+      .gig-scenes button.active b {
+        color: #151515;
+      }
+      .plugin-children {
+        border-left: 1px solid #363636;
+        margin: 0 0 5px 12px;
+        padding-left: 5px;
+      }
+      .product[aria-expanded="true"] {
+        color: #65df7a;
+        background: #242424;
+      }
+      .product span {
+        color: #888;
+      }
+      .plugin-section summary {
+        padding: 10px 4px;
+        font-size: 10px;
+        color: #bbb;
+        cursor: pointer;
+      }
+      .product {
+        border: 1px solid #333;
+        margin: 2px 0;
+        font-size: 12px;
+      }
+      .foot-gig {
+        min-height: 24px;
+        font-size: 10px;
+      }
+      .foot-gig[aria-pressed="true"] {
+        background: #888;
+        color: #171717;
+      }
+      footer {
+        gap: 14px;
+      }
+      .scroll-end {
+        height: 2px;
+      }
+      .capture-tools,
+      .capture-tabs {
+        display: flex;
+        gap: 3px;
+        margin: 4px 0;
+      }
+      .capture-tools input,
+      .capture-tools select {
+        min-width: 0;
+        flex: 1;
+        width: 100%;
+        background: #242424;
+        border: 0;
+        border-radius: 3px;
+        padding: 5px;
+      }
+      .capture-tabs button {
+        flex: 1;
+        font-size: 10px;
+      }
+      .capture-tabs button[aria-pressed="true"] {
+        background: #353535;
+      }
+      .folder-btn {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        text-align: left;
+        margin: 2px 0;
+        font-size: 11px;
+        min-height: 35px;
+        border: 1px solid #333;
+        background: #202020;
+      }
+      .capture-children {
+        padding-left: 7px;
+      }
+      .pin {
+        color: #42e753;
+      }
+      .capture-browser .entry.model {
+        min-height: 32px;
+      }
+      .capture-browser .entry.model small {
+        display: none;
+      }
+
+footer {gap:4px;flex-wrap:wrap}
+footer>button,.util-steps button {font-size:11px;min-height:26px}
+footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color:#101010}
+.foot-bpm,.util-tempo b {font-variant-numeric:tabular-nums;color:#b8de60}
+.util-steps{display:inline-grid;align-self:center}.util-steps button{min-height:12px;height:12px;padding:0 7px;font-size:10px;line-height:10px}
+.cpu-meter {position:absolute;bottom:2px;left:3px;right:3px;height:6px;background:#232323;pointer-events:none;z-index:1}
+.cpu-meter i{display:block;height:100%;background:#c0dc59}
+.tile{position:relative}
+.utility-shade{z-index:12}
+.utility{background:#222;color:#eee;width:min(510px,96vw);max-height:90dvh;overflow:auto;border:1px solid #555;border-radius:9px;text-align:center;box-shadow:0 12px 48px #000a}
+.utility header,.util-tabs,.util-scenes,.tuner-bottom,.util-tempo,.pitch-label{display:flex;align-items:center;gap:5px}
+.utility header{padding:0 14px;background:#303030}.utility header strong{margin-right:auto}
+.utility select,.utility input[type=number]{background:#323232;border:1px solid #555;border-radius:4px;padding:6px;color:#fff}
+.util-tabs,.util-scenes,.util-tempo{justify-content:center;margin:14px}
+.util-scenes button{flex:1;min-width:0}.util-tempo{gap:10px}.util-tempo b{font-size:60px}.util-tempo>button{width:60px;height:60px;border-radius:50%}
+.util-options{padding:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;text-align:left}
+.util-options label,.utility small{display:block;color:#ccc;padding:4px}.util-options input,.util-options select{width:100%;display:block;margin-top:4px}
+.util-beats{display:flex;gap:5px;justify-content:center;margin:12px}.util-beats i{background:#555;width:10px;height:10px;border-radius:50%}.util-beats .active{background:#c2df60}.metronome{margin:8px}.util-note{font-size:42px;padding:24px 0;height:105px}.util-note small{display:inline;font-size:18px}
+.pitch-scale{margin:10px 8%;height:4px;background:linear-gradient(90deg,#967342,#bfd769,#967342);position:relative}
+.pitch-scale i{position:absolute;width:14px;height:14px;top:50%;transform:translate(-50%,-50%);background:#cae784;border-radius:50%}.pitch-label,.tuner-bottom{justify-content:space-between;padding:5px 8%}
+.tuner-bottom{border-top:1px solid #444;padding:15px 10px;margin-top:32px}.tuner-bottom input[type=number]{width:74px}
 </style>
-<main><header><strong>Quad Desk</strong><button id="refresh">본체 다시 읽기</button></header>
-<p id="status" role="status"></p><section><h1 id="title">현재 프리셋</h1>
-<div class="scroll" aria-label="블록 위치"><div id="blocks"></div></div></section>
-<section class="panel"><div class="panel-head"><h2 id="selected">블록 편집</h2><span class="position" id="position"></span></div>
-<p id="hint"></p><div id="knobs"></div></section></main>
-<script>
-const el=id=>document.getElementById(id);
-let state=null, selected=null, busy=false;
-function element(tag,text){const node=document.createElement(tag);node.textContent=text;return node}
-async function request(action,data={}){
-    if(busy)return;
-    busy=true;el('status').textContent='USB 통신 중…';render();
-    try{
-        const response=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json','X-QC-Key':location.hash.slice(1)},body:JSON.stringify(data)});
-        if(response.status===403)throw Error('설치 시 표시된 #키 포함 주소로 접속하세요.');
-        const result=await response.json();
-        if(!response.ok)throw Error(result.error);
-        state=result;
-        let status='본체에서 읽었습니다.';
-        if(action==='edit'){
-            const block=result.blocks.find(b=>b.row===data.row&&b.col===data.col&&b.model===data.model);
-            const actual=block?.knobs[data.param];
-            status=(typeof actual==='number' && Math.abs(actual-data.value)<0.005)
-                ? '변경값을 본체에서 확인했습니다. 영구 저장은 본체에서 하세요.'
-                : '명령 전송 후 값이 일치하지 않습니다. 본체 다시 읽기로 확인하세요.';
-        }
-        el('status').textContent=status;
-    }catch(error){state=null;el('status').textContent=error.message}
-    finally{busy=false;render()}
-}
-function render(){
-    el('refresh').disabled=busy;
-    el('title').textContent=state?.name||'현재 프리셋';
-    el('blocks').replaceChildren();el('knobs').replaceChildren();
-    const blocks=state?.blocks||[];
-    const id=b=>[b.row,b.col,b.model].join('-');
-    const active=blocks.find(b=>id(b)===selected)||blocks.find(b=>Object.keys(b.knobs).length)||blocks[0];
-    selected=active?id(active):null;
-    const board=el('blocks');
-    const axis=text=>{const cell=element('span',text);cell.className='axis';board.append(cell)};
-    axis('');
-    for(let col=1;col<=8;col++)axis(String(col));
-    for(let row=0;row<4;row++){
-        axis('R'+(row+1));
-        for(let col=0;col<8;col++){
-            const b=blocks.find(item=>item.row===row&&item.col===col);
-            if(!b){const slot=element('span','·');slot.className='slot';slot.ariaHidden='true';board.append(slot);continue}
-            const button=element('button',b.name);
-            button.className='block';button.disabled=busy;
-            button.setAttribute('aria-pressed',String(id(b)===selected));
-            button.setAttribute('aria-label',b.name+' '+(row+1)+'행 '+(col+1)+'열');
-            button.onclick=()=>{selected=id(b);render();board.querySelector('[aria-pressed=true]')?.focus({preventScroll:true})};
-            board.append(button);
-        }
-    }
-    el('position').textContent=active?'R'+(active.row+1)+' / '+(active.col+1):'';
-    el('selected').textContent=active?.name||'블록 편집';
-    el('hint').textContent=active?'씬 공통 노브 · 조절 범위 0–100%':'블록을 선택하세요.';
-    if(!active)return;
-    if(!Object.keys(active.knobs).length)el('hint').textContent='이 블록에는 이 버전에서 편집할 수 있는 공통 노브가 없습니다.';
-    for(const [param,previous] of Object.entries(active.knobs)){
-        const label=element('label',''), slider=document.createElement('input'),output=element('output','');
-        slider.type='range';slider.min=0;slider.max=100;slider.step=0.1;slider.value=previous*100;slider.disabled=busy;
-        label.className='knob';slider.setAttribute('aria-label',param);
-        const display=()=>{output.textContent=Number(slider.value).toFixed(1)+'%'};
-        display();slider.oninput=display;
-        slider.onchange=()=>request('edit',{preset:state.name,row:active.row,col:active.col,model:active.model,param,previous,value:Number(slider.value)/100});
-        label.append(element('strong',param),output,slider);el('knobs').append(label);
-    }
-}
-el('refresh').onclick=()=>request('live');request('live');
-</script></html>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script defer src="/app.js"></script>
+  </body>
+</html>

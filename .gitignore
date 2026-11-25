@@ -3,3 +3,5 @@ __pycache__/
 .venv/
 qc-test/
 .env
+node_modules/
+.device-library/
