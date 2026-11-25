@@ -29,6 +29,85 @@ def lane_flags(models, model_id, index, invert=False):
     return flags if param.scene_mode else flags[:1]
 
 
+def model_params(block, model, metadata):
+    params = []
+    for spec in model.parameters if model else ():
+        if spec.type not in (
+            "float",
+            "switch",
+            "rotarySwitch",
+            "comboBox",
+            "toggleButton",
+        ) or spec.index >= len(block.params):
+            continue
+        ui = metadata.get((model.id, spec.index), {})
+        if ui.get("hidden", "false").lower() == "true":
+            continue
+        param = block.params[spec.index]
+        values = [
+            v
+            if isinstance(v, float) and math.isfinite(v) and 0 <= v <= 1
+            else None
+            for v in (x.float_value if x.HasField("float_value") else None for x in param.param_values)
+        ]
+        if not values or values[0] is None:
+            continue
+        options = list(block.params[spec.index].dynamic_steps)
+        if not options and ui.get("stepNames"):
+            options = [x.strip() for x in ui["stepNames"].split(",")]
+        skew = ui.get("skew", "LIN_SKEW")
+        try:
+            exponent = 1 / float(skew) if skew != "LIN_SKEW" else 1
+        except (ValueError, ZeroDivisionError):
+            exponent = None
+        params.append(
+            dict(
+                index=spec.index,
+                name=spec.name,
+                type=spec.type,
+                values=values,
+                assigned=param.scene_mode,
+                min=spec.minimum,
+                max=spec.maximum,
+                unit=spec.units,
+                normalized=spec.range_is_placeholder or exponent is None,
+                exponent=exponent,
+                integer=ui.get("showAsInteger") == "true",
+                pos=int(ui.get("displayPos", spec.index)),
+                toggleOn=ui.get("toggleOn"),
+                toggleOff=ui.get("toggleOff"),
+                options=options,
+                steps=len(options) or spec.option_count,
+            )
+        )
+    return sorted(params, key=lambda p: p["pos"])
+
+
+ROUTE_MODELS = {
+    "input": ("input_control", 28000, "set_input_gate"),
+    "output": ("output_control", 23000, "set_lane_output"),
+    "start": ("combined_splitter", 10004, "set_splitter_param"),
+    "end": ("mixer", 11000, "set_mixer_param"),
+}
+
+
+def route_params(chain, qc, metadata):
+    result = {}
+    for part, (field, mid, _) in ROUTE_MODELS.items():
+        block = next((m for m in getattr(chain, field) if m.hash == mid), None)
+        if block is None:
+            continue
+        params = model_params(block, qc.catalog[mid], metadata)
+        for param in params:
+            param["pan"] = param["name"].startswith("PAN")
+            if part == "start" and param["name"] == "FREQUENCY":
+                param.update(min=20, max=20000, normalized=False, integer=True)
+            if param["name"].startswith("LEVEL") or param["name"] in ("MIXER LEVEL", "VOLUME"):
+                param.update(min=-40, max=12, exponent=1, unit="dB", normalized=False, level=True)
+        result[part] = [p for p in params if p["name"] != "SPLIT MODE"]
+    return result
+
+
 def read_grid(api, qc, metadata):
     preset = qc.read_current_preset()
     blocks = []
@@ -36,6 +115,7 @@ def read_grid(api, qc, metadata):
     for row, chain in enumerate(preset.chains):
         lanes.append(dict(
             input=chain.in_portid, output=chain.out_portid,
+            controls=route_params(chain, qc, metadata),
             gate=lane_flags(chain.input_control, qc.INPUT_GATE_CONTROL, 1, invert=True),
             mute=lane_flags(chain.output_control, qc.LANE_OUTPUT_CONTROL, 2),
         ))
@@ -43,56 +123,7 @@ def read_grid(api, qc, metadata):
             if not block.hash:
                 continue
             model = qc.catalog.get(block.hash)
-            params = []
-            for spec in model.parameters if model else ():
-                if spec.type not in (
-                    "float",
-                    "switch",
-                    "rotarySwitch",
-                    "comboBox",
-                    "toggleButton",
-                ) or spec.index >= len(block.params):
-                    continue
-                ui = metadata.get((block.hash, spec.index), {})
-                if ui.get("hidden", "false").lower() == "true":
-                    continue
-                param = api.param_state(preset, row, col, spec.index)
-                values = [
-                    v
-                    if isinstance(v, float) and math.isfinite(v) and 0 <= v <= 1
-                    else None
-                    for v in param.values
-                ]
-                if not values or values[0] is None:
-                    continue
-                options = list(block.params[spec.index].dynamic_steps)
-                if not options and ui.get("stepNames"):
-                    options = [x.strip() for x in ui["stepNames"].split(",")]
-                skew = ui.get("skew", "LIN_SKEW")
-                try:
-                    exponent = 1 / float(skew) if skew != "LIN_SKEW" else 1
-                except (ValueError, ZeroDivisionError):
-                    exponent = None
-                params.append(
-                    dict(
-                        index=spec.index,
-                        name=spec.name,
-                        type=spec.type,
-                        values=values,
-                        assigned=param.scene_mode,
-                        min=spec.minimum,
-                        max=spec.maximum,
-                        unit=spec.units,
-                        normalized=spec.range_is_placeholder or exponent is None,
-                        exponent=exponent,
-                        integer=ui.get("showAsInteger") == "true",
-                        pos=int(ui.get("displayPos", spec.index)),
-                        toggleOn=ui.get("toggleOn"),
-                        toggleOff=ui.get("toggleOff"),
-                        options=options,
-                        steps=len(options) or spec.option_count,
-                    )
-                )
+            params = model_params(block, model, metadata)
             bypass = api.bypass_state(preset, row, col)
             capture_name = ""
             capture_key = ""
@@ -110,7 +141,7 @@ def read_grid(api, qc, metadata):
                     name=capture_name or (model.name if model else str(block.hash)),
                     capture=capture_key,
                     category=model.category if model else "Other",
-                    params=sorted(params, key=lambda p: p["pos"]),
+                    params=params,
                     bypass=list(bypass.scenes),
                 )
             )
@@ -291,6 +322,25 @@ class Editor:
 
     def request(self, action, d):
         q, api = self.qc, self.api
+        if action in ("toolbar", "master-volume"):
+            from pyquadcortex.client import pa
+            from time import monotonic, sleep
+            if action == "master-volume":
+                target = d.get("value")
+                if type(target) not in (int, float) or not 0 <= target <= 1:
+                    raise ValueError("Invalid master volume")
+                q.set_master_volume(target)
+                deadline = monotonic() + .9
+                while True:
+                    level = q.master_volume(timeout=.5).volume
+                    if abs(level - target) <= .005:
+                        return dict(volume=level)
+                    if monotonic() >= deadline:
+                        raise ValueError("본체에서 마스터 볼륨 변경을 확인하지 못했습니다.")
+                    sleep(.045)
+            frames = q._t.request(pa.UndoRedoMessage(action=pa.MessageAction.READ), timeout=.7)
+            return dict(volume=q.master_volume(timeout=.7).volume,
+                        undo=bool(frames.undo_frames), redo=bool(frames.redo_frames))
         if action in ("cpu", "tuner", "global-tempo", "set-tempo"):
             return utility_request(self, action, d)
         if action == "live":
@@ -320,11 +370,25 @@ class Editor:
         if state["rev"] != d.get("rev") or state["scene"] != d.get("scene"):
             raise ValueError("본체 상태가 변경되었습니다. 다시 읽은 뒤 시도하세요.")
         if action in ("undo", "redo"):
+            from time import sleep, monotonic
             from pyquadcortex.client import pa
+            def frames():
+                return q._t.request(pa.UndoRedoMessage(action=pa.MessageAction.READ), timeout=.7)
+            previous_frames = frames()
+            if not getattr(previous_frames, action + "_frames"):
+                raise ValueError("사용할 수 있는 편집 기록이 없습니다.")
 
             q._t.send(
                 pa.UndoRedoMessage(action=pa.MessageAction.UPDATE, **{action: True})
             )
+            until = monotonic() + .7
+            while True:
+                current = frames()
+                if (list(current.undo_frames), list(current.redo_frames)) != (list(previous_frames.undo_frames), list(previous_frames.redo_frames)):
+                    break
+                if monotonic() >= until:
+                    raise ValueError("본체에서 편집 기록 변경을 확인하지 못했습니다.")
+                sleep(.035)
         elif action == "recall":
             slot = integer(d, "slot", 0, 255)
             if slot not in self.slots or self.slots[slot] != d.get("name"):
@@ -363,6 +427,8 @@ class Editor:
             "bypass",
             "input",
             "output",
+            "route-edit",
+            "route-assign",
             "lane-mute",
             "split",
         ):
@@ -384,6 +450,25 @@ class Editor:
             (q.set_chain_input if action == "input" else q.set_chain_output)(
                 row, int(port)
             )
+            return
+        if action in ("route-edit","route-assign"):
+            part = d.get("part")
+            controls = state["lanes"][row]["controls"].get(part, [])
+            param = next((p for p in controls if p["index"] == d.get("index")), None)
+            value = d.get("value")
+            if not param:
+                raise ValueError("Invalid routing parameter")
+            if action == "route-assign":
+                field,mid,_ = ROUTE_MODELS[part]
+                enabled = not param["assigned"]
+                if part == "start":
+                    q._t.send(q._combined_splitter_message(row,param["index"],scene_mode=enabled))
+                else:
+                    q._sub_param_scene_mode(field,mid,row,param["index"],enabled)
+                return
+            if type(value) not in (int, float) or not 0 <= value <= 1:
+                raise ValueError("Invalid routing parameter")
+            getattr(q, ROUTE_MODELS[part][2])(row, param["index"], value=value)
             return
         if action == "lane-mute":
             if type(d.get("mute")) != bool or not state["lanes"][row]["mute"]:
@@ -460,6 +545,14 @@ def verify_edit(action, data, before, after):
         raise ValueError("편집 중 프리셋 또는 씬이 바뀌었습니다.")
     if action in ("input", "output"):
         success = after["lanes"][row][action] == data["value"]
+    elif action in ("route-edit","route-assign"):
+        param = next(p for p in after["lanes"][row]["controls"][data["part"]] if p["index"] == data["index"])
+        actual = param["values"][after["scene"] if param["assigned"] else 0]
+        if action == "route-assign":
+            old = next(p for p in before["lanes"][row]["controls"][data["part"]] if p["index"] == data["index"])
+            success = old["assigned"] != param["assigned"]
+        else:
+            success = actual is not None and abs(actual - data["value"]) < .002
     elif action == "lane-mute":
         flags = after["lanes"][row]["mute"]
         success = bool(flags) and flags[after["scene"] if len(flags) > 1 else 0] == data["mute"]

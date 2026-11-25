@@ -1,8 +1,9 @@
+import DeviceToolbar from "./DeviceToolbar";
 import {GridRouting, Port, portLabel} from "./GridRouting";
 import ChoiceParameter from "./ChoiceParameter";
 import FooterTools from "./FooterTools";
 import icons from "./cortex-icons.json";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 
 const letters = "ABCDEFGH",
@@ -166,7 +167,7 @@ function Knob({ p, scene, commit, assign, busy, disabled }) {
   const real = p.normalized
     ? value * 100
     : p.min + (p.max - p.min) * Math.pow(value, p.exponent ?? 1);
-  const formatted =
+  const formatted = p.pan ? (Math.abs(value-.5)<.005?"C":(value<.5?"L ":"R ")+Math.round(Math.abs(value-.5)*200)) : p.level && value < .01 ? "Off" :
     p.options[Math.round(value * (p.options.length - 1))] ??
     (p.steps > 1
       ? String(Math.round(value * (p.steps - 1)) + 1)
@@ -769,9 +770,8 @@ function App() {
   async function writeKnob(p, value) {
     const queue = stream.current;
     queue.pending = {
-      row: active.row,
-      col: active.col,
-      model: active.model,
+      row: route?.row ?? active.row,
+      ...(route ? {part:route.part} : {col:active.col,model:active.model}),
       index: p.index,
       value,
       identity: s.identity,
@@ -789,18 +789,18 @@ function App() {
           if (
             now?.identity !== n.identity ||
             now?.scene !== n.scene ||
-            b?.model !== n.model
+            (!n.part && b?.model !== n.model)
           )
             break;
           if (
             Math.abs(
-              (b.params.find((p) => p.index === n.index)?.values[
+              ((n.part ? now.lanes[n.row].controls[n.part] : b.params).find(p=>p.index===n.index)?.values[
                 p.assigned ? n.scene : 0
               ] ?? -1) - n.value,
             ) < 1e-6
           )
             continue;
-          if (!(await remember("edit", n))) break;
+          if (!(await remember(n.part ? "route-edit" : "edit", n))) break;
         }
       } finally {
         queue.pending = null;
@@ -866,6 +866,10 @@ function App() {
     C(plugin ? "Plugins" : block?.category || "");
     if (plugin) setProduct(plugin);
   }
+  const route = picked?.part && s ? picked : null;
+  const openRoute = useCallback((row,part)=>{
+    P({row,part}); setParamsOpen(true); C(""); G(0);
+  },[]);
   function select(row, col) {
     P({ row, col });
     if (at(row, col)) setParamsOpen(true);
@@ -891,7 +895,7 @@ function App() {
         const b = result.blocks.find(
           (b) => b.row === old.row && b.col === old.col,
         );
-        P(b ? old : null);
+        P(old.part || b ? old : null);
         reveal(b);
       } else {
         P(null);
@@ -1120,6 +1124,7 @@ function App() {
             GIG VIEW
           </button>
         </nav>
+        <DeviceToolbar api={api} online={!!liveState && !paused} busy={busy} revision={s?.rev} travel={travel} report={T}/>
         <button
           disabled={busy}
           onClick={toggleUsb}
@@ -1140,7 +1145,10 @@ function App() {
       </header>
       <div className="workspace">
         {
-          <aside className={category ? "expanded" : ""}>
+          <aside className={category && !route ? "expanded" : ""}>
+            {route && ["input","output"].includes(route.part) ?
+              <PortList route={route} lane={s.lanes[route.row]} lib={lib} disabled={busy || paused}
+                back={()=>P(null)} choose={value=>remember(route.part,{row:route.row,value})}/> : <>
             {category && (
               <div className="rail">
                 {categories.map((c) => (
@@ -1214,6 +1222,7 @@ function App() {
                 ))
               )}
             </div>
+            </>}
           </aside>
         }
         <main>
@@ -1247,37 +1256,19 @@ function App() {
               ▣
             </button>
             {scenes}
-            {!gig && (
-              <>
-                <button
-                  disabled={busy || !s}
-                  aria-label="실행 취소"
-                  onClick={() => travel("undo")}
-                >
-                  ↶
-                </button>
-                <button
-                  disabled={busy || !s}
-                  aria-label="다시 실행"
-                  onClick={() => travel("redo")}
-                >
-                  ↷
-                </button>
-              </>
-            )}
           </div>
           {
             <>
               <div className="scroll">
                 <div className="board">
                   {s && <GridRouting key={s.identity+"-"+s.rev+"-"+s.scene} state={s} disabled={busy || paused}
-                    open={(row,part)=>M({kind:"routing",row,part})}
+                    selection={route} open={openRoute}
                     commit={points=>remember("split",points)} />}
                   {s?.lanes.map((lane, row) => (
                     <React.Fragment key={row}>
                       <Port side="input" row={row} value={lane.input} name={lib.inputs[lane.input]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
                         branched={s.splits.some(v=>row===v.row+1 && v.start>=0)}
-                        open={()=>M({kind:"routing",row,part:"input"})} />
+                        open={()=>openRoute(row,"input")} />
                       {Array.from({ length: 8 }, (_, col) => {
                         const b = at(row, col),
                           selected = picked?.row === row && picked?.col === col,
@@ -1347,11 +1338,14 @@ function App() {
                       })}
                       <Port side="output" row={row} value={lane.output} name={lib.outputs[lane.output]} indicator={lane.output!==0 && (lane.mute?.[s.scene] ?? lane.mute?.[0])}
                         branched={s.splits.some(v=>row===v.row+1 && v.end>=0)}
-                        open={()=>M({kind:"routing",row,part:"output"})} />
+                        open={()=>openRoute(row,"output")} />
                     </React.Fragment>
                   ))}
                 </div>
               </div>
+              {route && (!gig || paramsOpen) && <RoutePanel key={route.row+route.part} route={route} state={s}
+                open={openRoute} busy={busy} paused={paused} commit={writeKnob}
+                assign={p=>M({kind:"assign",p,route,rev:s.rev,scene:s.scene})}/>}
               {active && (!gig || paramsOpen) && (
                 <section
                   className="panel"
@@ -1417,7 +1411,7 @@ function App() {
                     <div>Gig view</div>
                     <strong>⊞　SCENE</strong>
                     <button
-                      disabled={!active}
+                      disabled={!active && !route}
                       aria-pressed={paramsOpen}
                       onClick={() => setParamsOpen(!paramsOpen)}
                     >
@@ -1477,7 +1471,6 @@ function App() {
               presets: "My Presets",
               save: "My Presets에 저장",
               assign: modal.p?.name,
-              routing: ({input:"Input",output:"Output",start:"Splitter",end:"Mixer"})[modal.part] + " · " + (modal.row+1),
             }[modal.kind]
           }
           close={close}
@@ -1562,6 +1555,10 @@ function App() {
             <button
               disabled={busy}
               onClick={() => {
+                if(modal.route) {
+                  remember("route-assign",{...modal.route,index:modal.p.index,rev:modal.rev,scene:modal.scene},close);
+                  return;
+                }
                 blockAction(
                   "assign",
                   { index: modal.p.index, rev: modal.rev, scene: modal.scene },
@@ -1573,76 +1570,44 @@ function App() {
               {letters[modal.scene]}
             </button>
           )}
-          {modal.kind === "routing" && s && (
-            <Routing
-              key={modal.row+"-"+modal.part}
-              part={modal.part}
-              row={modal.row}
-              s={s}
-              lib={lib}
-              run={remember}
-              busy={busy || paused}
-            />
-          )}
         </Modal>
       )}
     </div>
   );
 }
-function Routing({ part, row, s, lib, run, busy }) {
-  const split = s.splits.find((v) => v.row === row),
-    [start, A] = useState(split?.start ?? -1),
-    [end, E] = useState(split?.end ?? -1);
-  return (
-    <>
-      {[part].filter(k=>k==="input" || k==="output").map((k) => (
-        <label key={k}>
-          {k.toUpperCase()}
-          <select
-            disabled={busy}
-            value={s.lanes[row][k]}
-            onChange={(e) => run(k, { row, value: Number(e.target.value) })}
-          >
-            {Object.entries(lib[k + "s"]).filter(([v])=>k!=="input" || Number(v)!==14 || s.lanes[row].input===14).map(([v, n]) => (
-              <option key={v} value={v}>
-                {portLabel(n)}
-              </option>
-            ))}
-          </select>
-        </label>
-      ))}
-      {part==="output" && s.lanes[row].mute?.length>0 && ![0,16,17,18].includes(s.lanes[row].output) && (
-        <button aria-label="출력 Mute" aria-pressed={s.lanes[row].mute[s.scene] ?? s.lanes[row].mute[0]}
-          disabled={busy} onClick={()=>run("lane-mute",{row,mute:!(s.lanes[row].mute[s.scene] ?? s.lanes[row].mute[0])})}>
-          Mute {(s.lanes[row].mute[s.scene] ?? s.lanes[row].mute[0])?"On":"Off"}
-        </button>
-      )}
-      {(part==="start" || part==="end") && (
-        <>
-          {[
-            [start, A, "분기"],
-            [end, E, "병합"],
-          ].map(([v, set, n]) => (
-            <label key={n}>
-              {n}
-              <select disabled={busy} value={v} onChange={(e) => set(Number(e.target.value))}>
-                {Array.from({ length: 9 }, (_, i) => (
-                  <option key={i} value={i - 1}>
-                    {i || "없음"}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ))}
-          <button
-            disabled={busy || (start>=0 && end>=0 && end<start)}
-            onClick={() => run("split", { row, start, end })}
-          >
-            배선 적용
-          </button>
-        </>
-      )}
-    </>
-  );
+function PortList({route,lane,lib,disabled,back,choose}){
+  const input=route.part==="input";
+  const groups=input ? [["Mono",[1,2,4,5,8,9,10,11]],["Stereo",[3,6,12,13]],["Routing",[7,0]]] :
+    [["Stereo",[19,1,2,3,22,14,15]],["Mono",[4,5,6,7,8,9,20,21,10,11,12,13]],["Routing",[16,17,18,0]]];
+  const ports=lib[route.part+"s"];
+  return <div className="models port-list"><button onClick={back}>‹　{route.part.toUpperCase()}</button>
+    {groups.map(([name,ids])=><details key={route.part+name} open><summary>{name.toUpperCase()}</summary>
+      {ids.filter(id=>ports[id]!=null && !(input && id===7 && route.row<2) && !(!input && route.row>=2 && [16,17,18].includes(id))).map(id=>
+        <button key={id} className="entry" aria-pressed={lane[route.part]===id} disabled={disabled}
+          onClick={()=>choose(id)}>{id===0?"Not In Use":id===19?"Multiple Outputs":
+          portLabel(ports[id]).replace(/^In /,"Input ").replace(/^USB /,input?"USB Input ":"USB Output ").replace(/^(XLR|Out) /,"Output ")}</button>)}
+    </details>)}</div>;
+}
+
+function RoutePanel({route,state,open,busy,paused,commit,assign}){
+  const {part,row}=route, params=state.lanes[row].controls?.[part] || [];
+  const pair=part==="start" || part==="end";
+  const current=p=>p?.values[p.assigned?state.scene:0];
+  const type=Math.round((current(params.find(p=>p.name==="TYPE"))??0)*2);
+  const gate=params.find(p=>p.name==="BYPASS");
+  const split=state.splits.find(v=>v.row===row);
+  const inactive=p=> (pair && !(split?.[part]>=0)) || (part==="start" && (
+    (p.name==="BALANCE" && type!==0) || (["LEVEL TO A","LEVEL TO B"].includes(p.name) && type!==1) ||
+    (["FREQUENCY","MODE"].includes(p.name) && type!==2)));
+  return <section className="panel" style={{"--c":pair?(part==="start"?"#168bea":"#eb1e9d"):"#ddd"}}>
+    <div className="panelhead">{pair?["start","end"].map(k=>
+      <button key={k} aria-pressed={part===k} onClick={()=>open(row,k)}>{k==="start"?"Splitter":"Mixer"} {(row+1)+"/"+(row+2)}</button>):
+      <strong className="grow">{part==="input"?"Input gate control":"Lane output control"}　Path {row+1}</strong>}
+      {gate && <button disabled={busy||paused} aria-label="Input gate" aria-pressed={current(gate)<.5} onClick={()=>commit(gate,current(gate)<.5?1:0)}>⏻</button>}
+    </div>
+    <div className="params">{params.filter(p=>p!==gate).map(p=><BlockParameter key={p.index+"-"+state.scene}
+      p={p} scene={state.scene} readOnly={paused} busy={busy} disabled={paused||inactive(p)}
+      commit={value=>commit(p,value)} assign={()=>assign(p)}/>)}</div>
+  </section>;
 }
 createRoot(document.getElementById("root")).render(<App />);

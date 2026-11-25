@@ -292,8 +292,7 @@
       .choice-param { color:#ddd; }
       .param-switch { position:absolute; bottom:10px; left:8px; display:grid; grid-template-columns:20px auto; grid-template-rows:22px 22px; align-items:center; gap:0 8px; font-size:12px; color:#888; }
       .param-switch i { position:relative; grid-row:span 2; width:18px; height:43px; background:black; border-radius:12px; }
-      .param-switch i::after { content:""; position:absolute; left:2px; bottom:3px; width:14px; height:14px; border:2px solid var(--c); box-sizing:border-box; border-radius:50%; }
-      .param-switch i.up::after { bottom:26px; }
+      .param-switch i::after { content:""; position:absolute; left:2px; bottom:var(--switch-position,3px); width:14px; height:14px; border:2px solid var(--c); box-sizing:border-box; border-radius:50%; }
       .param-switch .current { color:#f2f2f2; }
       .param-select { position:absolute; left:8px; right:8px; bottom:6px; display:flex; align-items:center; justify-content:space-between; gap:5px; padding:7px 9px; background:#111; border-radius:5px; font-size:12px; }
       .param-select span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -705,6 +704,20 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
 .pitch-scale{margin:10px 8%;height:4px;background:linear-gradient(90deg,#967342,#bfd769,#967342);position:relative}
 .pitch-scale i{position:absolute;width:14px;height:14px;top:50%;transform:translate(-50%,-50%);background:#cae784;border-radius:50%}.pitch-label,.tuner-bottom{justify-content:space-between;padding:5px 8%}
 .tuner-bottom{border-top:1px solid #444;padding:15px 10px;margin-top:32px}.tuner-bottom input[type=number]{width:74px}
+
+      .device-tools {display:flex;align-items:center;gap:3px}
+      .device-tools button {background:transparent;padding:4px;color:#dedede;font-size:19px}
+      .device-tools button:disabled {opacity:.32}
+      .device-tools .master-dial {position:relative;width:40px;min-height:36px;touch-action:none;user-select:none;border-left:1px solid #333;border-radius:0}
+      .master-dial i {display:block;margin:auto;width:26px;height:26px;border:1px solid #aaa;border-radius:50%;transform:rotate(var(--turn));position:relative}
+      .master-dial i::after {content:"";position:absolute;background:#eee;height:5px;width:2px;left:50%;top:0}
+      .master-dial span {position:absolute;font-size:10px;inset:0;display:grid;place-items:center}
+      .wire-hit,.wire-branch {pointer-events:stroke;touch-action:none}
+      .cell {pointer-events:none}
+      .cell button {pointer-events:auto}
+      .port-list summary {margin:5px 3px;padding:9px;background:#303030;cursor:pointer;border-radius:4px}
+      .port-list [aria-pressed=true],.panelhead [aria-pressed=true] {color:#70ed86;background:#141414}
+      .board {user-select:none;-webkit-user-select:none}
 </style>
   </head>
   <body>

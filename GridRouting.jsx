@@ -1,4 +1,4 @@
-import React, {useRef, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 
 const gapX = gap => 70 + gap * 107.5;
 
@@ -27,9 +27,43 @@ export function Port({side, row, value, name, branched, indicator, open}) {
   </button>;
 }
 
-export function GridRouting({state,disabled,commit,open}) {
+export function GridRouting({state,disabled,commit,open,selection}) {
   const [drag,setDrag] = useState(null);
   const pointer = useRef(null);
+  const wire = useRef(null);
+  useEffect(()=>{
+    const board=wire.current.closest(".board");
+    let hold=null, suppress=false;
+    function cancel(){clearTimeout(hold?.timer);hold=null}
+    function start(e){
+      cancel();suppress=false;
+      if(!e.isPrimary || e.button!==0 || e.target.closest(".port,.tile,.del,.route-node"))return;
+      const path=e.target.closest("[data-wire-row]");
+      const box=board.getBoundingClientRect();
+      const t=(e.clientY-box.top)/box.height*4;
+      if(!path && Math.abs(t-Math.floor(t)-.5)*box.height/4>12)return;
+      const lane=Number(path?.dataset.wireRow ?? Math.floor(t));
+      if(!path && !wire.current.querySelector('[data-wire-row="'+lane+'"]'))return;
+      const row=lane & ~1, part=path?.dataset.part || "start";
+      hold={x:e.clientX,y:e.clientY,timer:setTimeout(()=>{
+        suppress=true;open(row,part);
+      },550)};
+    }
+    function move(e){if(hold && Math.hypot(hold.x-e.clientX,hold.y-e.clientY)>7)cancel()}
+    function click(e){if(suppress){suppress=false;e.preventDefault();e.stopPropagation()}}
+    function context(e){if(hold || suppress)e.preventDefault()}
+    board.addEventListener("pointerdown",start,true);
+    board.addEventListener("pointermove",move,true);
+    board.addEventListener("pointerleave",cancel);
+    window.addEventListener("pointerup",cancel,true);
+    window.addEventListener("pointercancel",cancel,true);
+    board.addEventListener("click",click,true);
+    board.addEventListener("contextmenu",context);
+    return ()=>{cancel();board.removeEventListener("pointerdown",start,true);
+      board.removeEventListener("pointermove",move,true);board.removeEventListener("pointerleave",cancel);
+      window.removeEventListener("pointerup",cancel,true);window.removeEventListener("pointercancel",cancel,true);
+      board.removeEventListener("click",click,true);board.removeEventListener("contextmenu",context)};
+  },[open]);
   function points(row) {
     return (drag?.row===row ? drag : state.splits.find(s=>s.row===row)) ||
       {row,start:-1,end:-1};
@@ -61,10 +95,10 @@ export function GridRouting({state,disabled,commit,open}) {
     pointer.current=null;setDrag(null);
     if(cancel)return;
     if(!g.moved)open(g.row,g.part);
-    else if(g.candidate && g.candidate[g.part]!==g.original[g.part])commit(g.candidate);
+    else if(g.candidate && g.candidate[g.part]!==g.original[g.part]){open(g.row,g.part);commit(g.candidate);}
   }
   return <>
-    <svg className="wires" viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true">
+    <svg ref={wire} className="wires" viewBox="0 0 1000 400" preserveAspectRatio="none" >
       {state.lanes.map((lane,row)=>{
         const y=row*100+50, lower=row%2===1;
         const p=points(lower?row-1:row);
@@ -72,14 +106,18 @@ export function GridRouting({state,disabled,commit,open}) {
         const right=lower && p.end>=0 ? gapX(8) : 965;
         return <g key={row} fill="none" stroke="#bdbdbd" strokeWidth="1.35">
           {(lane.input || lane.output || p.start>=0 || p.end>=0 || state.blocks.some(b=>b.row===row)) ?
-            <path d={`M${left} ${y}H${right}`} vectorEffect="non-scaling-stroke"/>:null}
+            <><path d={`M${left} ${y}H${right}`} vectorEffect="non-scaling-stroke"/>
+              <path data-wire-row={row} className="wire-hit" stroke="transparent" strokeWidth="18"
+                tabIndex={0} role="button" aria-label={`${row+1}행 배선 편집`}
+                onKeyDown={e=>{if(["Enter"," "].includes(e.key)){e.preventDefault();open(row & ~1,"start")}}}
+                d={`M${left} ${y}H${right}`}/></>:null}
           {drag?.row===row && Array.from({length:9},(_,gap)=><circle key={gap} cx={gapX(gap)} cy={y} r="3.8" fill="#151515" stroke="white"/>)}
           {!lower && ["start","end"].map((part,i)=>p[part]>=0 &&
-            <path key={part} d={branch(gapX(p[part]+i),gapX(i*8),y)} vectorEffect="non-scaling-stroke"/>)}
+            <path data-wire-row={row} className="wire-branch" data-part={part} key={part} d={branch(gapX(p[part]+i),gapX(i*8),y)} vectorEffect="non-scaling-stroke"/>)}
         </g>;
       })}
     </svg>
-    {[0,2].map(row=>{
+    {[0,2].filter(row=>selection?.row===row && ["start","end"].includes(selection.part)).map(row=>{
       const p=points(row);
       return ["start","end"].map((part,i)=>{
         const parked=p[part]<0, x=parked?(i?944:56):gapX(p[part]+i);

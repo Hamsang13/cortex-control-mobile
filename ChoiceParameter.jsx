@@ -7,6 +7,7 @@ export default function ChoiceParameter({p, scene, disabled, busy, readOnly, com
   const toggle = binary && (p.type === "switch" || p.type === "toggleButton" ||
     (!p.type && p.steps === 2));
   const count = p.options.length || (toggle ? 2 : p.steps) || 0;
+  const vertical = toggle || (p.type === "switch" && count === 3);
   const index = Math.round((value ?? 0) * (count - 1));
   const label = i => p.options[i] || (toggle ? ["Off", "On"][i] : String(i+1));
   const anchor = useRef(null), menu = useRef(null), hold = useRef(null);
@@ -52,9 +53,9 @@ export default function ChoiceParameter({p, scene, disabled, busy, readOnly, com
   return <>
     <button ref={anchor} type="button" className="param choice-param"
       role={toggle?"switch":undefined} aria-checked={toggle?index===1:undefined}
-      aria-haspopup={toggle?undefined:"listbox"} aria-expanded={toggle?undefined:!!position}
+      aria-haspopup={vertical?undefined:"listbox"} aria-expanded={vertical?undefined:!!position}
       aria-label={p.name+" "+(value==null?"—":label(index))}
-      disabled={disabled || busy || value==null || count<2 || (readOnly && toggle)}
+      disabled={disabled || busy || value==null || count<2 || (readOnly && vertical)}
       onContextMenu={e=>e.preventDefault()}
       onPointerDown={e=>{
         if(!e.isPrimary || e.button!==0)return;
@@ -70,19 +71,23 @@ export default function ChoiceParameter({p, scene, disabled, busy, readOnly, com
       onPointerLeave={cancelHold} onPointerCancel={cancelHold} onPointerUp={cancelHold}
       onKeyDown={e=>{
         if(e.key==="F10" && e.shiftKey && !readOnly){e.preventDefault();assign()}
-        if(!toggle && ["ArrowDown","ArrowUp"].includes(e.key)){e.preventDefault();show()}
+        if(["ArrowDown","ArrowUp"].includes(e.key)){
+          e.preventDefault();
+          if(vertical)choose(Math.max(0,Math.min(count-1,index+(e.key==="ArrowUp"?1:-1))));
+          else show();
+        }
       }}
       onClick={e=>{
         if(suppressClick.current && e.detail!==0){suppressClick.current=false;return}
-        if(toggle) {
+        if(vertical) {
           const target=e.target.closest("[data-choice]");
-          choose(target?Number(target.dataset.choice):1-index);
+          choose(target?Number(target.dataset.choice):(index+1)%count);
         } else show();
       }}>
       <small>{p.name}{p.assigned?" · "+"ABCDEFGH"[scene]:""}</small>
-      {toggle ? <span className="param-switch">
-        <i aria-hidden="true" className={index===1?"up":""}/>
-        {[1,0].map(i=><span key={i} data-choice={i} className={index===i?"current":""}>{label(i)}</span>)}
+      {vertical ? <span className="param-switch" style={{gridTemplateRows:"repeat("+count+",22px)"}}>
+        <i aria-hidden="true" style={{gridRow:"span "+count,height:(count*22-1)+"px","--switch-position":(3+index*22)+"px"}}/>
+        {Array.from({length:count},(_,i)=>count-1-i).map(i=><span key={i} data-choice={i} className={index===i?"current":""}>{label(i)}</span>)}
       </span> : <span className="param-select"><span>{label(index)}</span><b aria-hidden="true">⌄</b></span>}
     </button>
     {position && createPortal(<div className="param-options" style={position} ref={menu}

@@ -44,6 +44,27 @@ def block(row, col, model):
     )
 
 
+def demo_route_controls(row):
+    def make(names, defaults):
+        result = []
+        for i, (name, v) in enumerate(zip(names, defaults)):
+            options = {"TYPE": ["Balance", "A/B", "Crossover"], "STEREO": ["Normal", "Split"],
+                       "MODE": ["Regular", "Invert"]}.get(name, [])
+            switch = bool(options) or name in ("MUTE","SOLO","BYPASS","PHASE")
+            result.append(dict(index=i,name=name,type="switch" if switch else "float",values=[v]*8,
+                               assigned=False, min=0,max=100,unit="%",normalized=True,
+                               options=options,steps=(len(options) or 2) if switch else None))
+        return result
+    controls = {"input":make(["NOISE REDUCTION","BYPASS","INPUT GAIN"],[.3,0,.5]),
+                "output":make(["VOLUME","PAN","MUTE","SOLO"],[.77,.5,0,0])}
+    if row in (0,2):
+        controls["start"]=make(["TYPE","STEREO","BALANCE","LEVEL TO A","LEVEL TO B","FREQUENCY","MODE"],
+                               [0,0,.5,.77,.77,.5,0])
+        controls["end"]=make(["LEVEL A","PAN A","LEVEL B","PAN B","PHASE","MIXER LEVEL"],
+                             [.77,.5,.77,.5,0,.77])
+    return controls
+
+
 class Demo:
     def __init__(self):
         self.global_tempo = [0.4,0,1,.613137,0,.5,.1,0,0,0]
@@ -51,7 +72,7 @@ class Demo:
             tempo=[[v] for v in self.global_tempo],
             name="Demo · Clean",
             identity="demo-0",
-            lanes=[dict(input=1, output=19, mute=[False]) for _ in range(4)],
+            lanes=[dict(input=1, output=19, mute=[False], controls=demo_route_controls(row)) for row in range(4)],
             blocks=[block(0, 0, 1), block(0, 2, 2), block(0, 4, 3)],
             splits=[],
         )
@@ -60,6 +81,7 @@ class Demo:
             1: dict(deepcopy(self.grid), name="Demo · Drive", identity="demo-1"),
         }
         self.scene = 0
+        self.volume = .5
         self.tuner_mute = False
         self.dirty = False
         self.undo = []
@@ -67,6 +89,14 @@ class Demo:
 
     def request(self, a, d):
         g = self.grid
+        if a == "toolbar":
+            return dict(volume=self.volume,undo=bool(self.undo),redo=bool(self.redo))
+        if a == "master-volume":
+            v=d.get("value")
+            if type(v) not in (int,float) or not 0 <= v <= 1:
+                raise ValueError("Invalid master volume")
+            self.volume=v
+            return dict(volume=v)
         if a == "cpu":
             return {}
         if a == "tuner-mute":
@@ -128,6 +158,16 @@ class Demo:
                 )
                 if a in ("input", "output"):
                     g["lanes"][row][a] = d["value"]
+                elif a in ("route-edit", "route-assign"):
+                    lane=g["lanes"][row]
+                    p=next(p for p in lane["controls"][d["part"]] if p["index"]==d["index"])
+                    if a=="route-assign":
+                        p.update(values=[p["values"][self.scene if p["assigned"] else 0]]*8,
+                                 assigned=not p["assigned"])
+                    else:
+                        p["values"][self.scene if p["assigned"] else 0]=d["value"]
+                    if p["name"]=="MUTE":
+                        lane["mute"]=[v>=.5 for v in (p["values"] if p["assigned"] else p["values"][:1])]
                 elif a == "lane-mute":
                     g["lanes"][row]["mute"] = [d["mute"]]
                 elif a == "split":

@@ -109,7 +109,7 @@ def device_request(action, data):
         try:
             result = editor.request(action, data)
         except TimeoutError as exc:
-            if action in ("cpu", "tuner", "global-tempo", "set-tempo"):
+            if action in ("cpu", "tuner", "global-tempo", "set-tempo", "master-volume", "toolbar", "undo", "redo"):
                 raise ValueError("본체에서 유틸리티 응답이 지연되었습니다.") from exc
             raise
         if action in ("cpu", "tuner", "global-tempo") and not DEMO:
