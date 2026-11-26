@@ -46,6 +46,7 @@ CHANNEL = "https://raw.githubusercontent.com/Hamsang13/cortex-control-mobile/pi-
 
 
 def online_update(expected=None, install=False):
+    import hashlib
     import io
     import urllib.error
     import urllib.request
