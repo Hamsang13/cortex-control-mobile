@@ -21,7 +21,7 @@ export function watchPiRestart(target) {
     request = new AbortController();
     const timeout = setTimeout(() => request?.abort(), 3500);
     try {
-      const response = await fetch(new URL("/pi-ready", destination.origin), {
+      const response = await fetch(new URL(target.wifiTicket ? "/wifi-ready/"+encodeURIComponent(target.wifiTicket) : "/pi-ready", destination.origin), {
         cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer",
         redirect: "error", signal: request.signal
       });

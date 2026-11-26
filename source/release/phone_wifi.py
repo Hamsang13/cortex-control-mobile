@@ -17,6 +17,7 @@ SLOTS = ("cortex-phone-a", "cortex-phone-b")
 PROFILES = Path("/etc/NetworkManager/system-connections")
 SAVED = Path("/var/lib/cortex-network/preferred")
 PENDING = SAVED.with_name("transition")
+LAST_AP = SAVED.with_name("ap-uuid")
 SOCKET = Path("/run/cortex-network/control.sock")
 
 
@@ -81,7 +82,13 @@ class Network:
         # Keep retrying if the radio is temporarily unavailable.
         self.phase = "recovering"
         self.deadline = time.monotonic() + 5
-        nm("connection", "up", "id", AP, "ifname", "wlan0")
+        if LAST_AP.exists():
+            try:
+                nm("connection", "up", "uuid", LAST_AP.read_text().strip(), "ifname", "wlan0")
+            except subprocess.CalledProcessError:
+                nm("connection", "up", "id", AP, "ifname", "wlan0")
+        else:
+            nm("connection", "up", "id", AP, "ifname", "wlan0")
         PENDING.unlink(missing_ok=True)
         self.phase = "idle"
         self.ticket = ""
@@ -122,6 +129,10 @@ class Network:
                     nm("connection","delete","id",slot)
             return {}
         if action == "join" and self.phase in ("idle","connected"):
+            if self.phase == "idle":
+                current = nm("-g","GENERAL.CON-UUID","device","show","wlan0")
+                if current and current != "--" and nm("-g","802-11-wireless.mode","connection","show","uuid",current) == "ap":
+                    LAST_AP.write_text(str(uuid.UUID(current)))
             slot = next(s for s in SLOTS if s != self.saved)
             profile(slot, data.get("ssid"), data.get("password"))
             self.schedule(slot)

@@ -234,6 +234,14 @@ def directory_data(action, data):
 
 
 def operate(action, data):
+    if action == "external-wifi":
+        from pi_settings import external_wifi
+        return external_wifi(PI_CONFIG, data)
+    if action in ("online-check","online-install"):
+        if not os.environ.get("QC_HEALTH_ID"):
+            raise ValueError("Pi 설치 환경이 필요합니다.")
+        from pi_settings import online_update
+        return online_update(data.get("build"), action == "online-install")
     if action == "update-status":
         if not os.environ.get("QC_HEALTH_ID"):
             return {"available": False}
@@ -337,6 +345,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/app-health" and os.environ.get("QC_HEALTH_ID") and self.client_address[0] == "127.0.0.1":
             return self.send(200, os.environ["QC_HEALTH_ID"].encode(), "text/plain")
+        if self.path.startswith("/wifi-ready/") and PI_CONFIG:
+            from pi_settings import external_wifi
+            try:
+                network = external_wifi(PI_CONFIG, {"action":"status"})
+            except (OSError, ValueError):
+                network = {}
+            if network.get("phase") != "trial" or network.get("ticket") != self.path.split("/")[-1]:
+                return self.send_error(404)
+            self.path = "/pi-ready"
         if self.path == "/pi-ready" and PI_CONFIG:
             self.send_response(200)
             data = boot_proof(PI_CONFIG).encode("ascii")

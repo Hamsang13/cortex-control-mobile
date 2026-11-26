@@ -47,7 +47,7 @@ docker run --rm --privileged -e TEST_BOOT=1 \
 | `confirm` | 활성 후보에 재접속한 브라우저가 보낸 ticket을 확인한 뒤 다음 부팅에도 쓸 프로필을 저장합니다. |
 | `forget` | 저장한 자동 연결 선택을 지우고 개인 AP로 돌아가 휴대폰 프로필을 삭제합니다. |
 
-후속 앱은 기존 웹 키 인증을 거친 요청만 중계해야 합니다. 전환 전에 iPad에 새 Wi-Fi 이름과 접속 주소를 표시하세요. 포트는 현재 앱 설정에서 가져옵니다. 브라우저가 새 네트워크에서 실제로 앱에 접속한 뒤에만 confirm을 호출하세요. 서버 내부 폴링으로 확인하면 휴대폰의 기기 간 통신 차단을 감지할 수 없습니다. 기존 개인 AP 프로필은 별도로 보존합니다. 연결 실패, 90초 내 확인 누락, 확인 후 연결 끊김에는 해당 AP로 돌아옵니다. 다음 부팅에는 마지막 확인된 프로필로 한 번 다시 시도합니다.
+앱은 기존 웹 키 인증을 거친 요청을 중계합니다. 전환 전에 iPad에 새 Wi-Fi 이름과 접속 주소를 표시하세요. 포트는 현재 앱 설정에서 가져옵니다. 브라우저가 새 네트워크에서 실제로 앱에 접속한 뒤에만 confirm을 호출하세요. 서버 내부 폴링으로 확인하면 휴대폰의 기기 간 통신 차단을 감지할 수 없습니다. 기존 개인 AP 프로필은 별도로 보존합니다. 연결 실패, 90초 내 확인 누락, 확인 후 연결 끊김에는 해당 AP로 돌아옵니다. 다음 부팅에는 마지막 확인된 프로필로 한 번 다시 시도합니다.
 
 ## 3. GitHub Releases 첨부 파일
 
@@ -60,3 +60,19 @@ docker run --rm --privileged -e TEST_BOOT=1 \
 이미지 기본 무선 국가 코드는 KR이며 해외 사용자는 최초 부팅 전에 bootfs의 `cortex-country.txt`를 해당 국가 코드로 변경합니다. 처음 설치하는 사용자의 단계별 안내와 구버전의 1회 이전 절차는 [프로젝트 README](../../README.md)에 있습니다. 패키지 빌드는 GitHub 게시·태그 생성·실기 설치를 수행하지 않습니다.
 
 릴리스 게시 후 루트 README의 배포 표에 각 파일의 GitHub Releases 다운로드 링크를 연결하고 공개 상태를 갱신합니다.
+
+## GitHub 서명 업데이트 채널
+
+기본 상태에서는 소스만 푸시합니다. 운영자가 온라인 배포를 승인하면 저장소 Actions 변수 `PI_UPDATE_CHANNEL=enabled`와 Actions secret `PI_UPDATE_SIGNING_PEM`을 구성합니다. secret은 설치된 Pi의 공개 키와 일치하는 Ed25519 PEM이어야 합니다. 기존 오프라인 키를 CI에 위탁할 수 없는 배포에서는 채널을 비활성 상태로 두고 오프라인 서명을 사용하세요. 다른 키로 전환하려면 먼저 Pi의 신뢰 키를 별도로 배포해야 합니다.
+
+`Signed Pi application update`를 main에서 수동 실행하거나 이후 source 변경을 main으로 푸시하면 잠금 파일로 웹 앱을 빌드하고 서명된 ZIP과 latest.json을 공개 pi-updates 브랜치의 한 커밋에 올립니다. 저장소의 Actions 토큰에는 해당 브랜치 쓰기 권한이 필요합니다. GitHub Releases 게시나 Pages 활성화는 필요하지 않습니다. 첫 활성화 시 해당 채널의 update.zip을 기존 설정의 오프라인 업데이트에 한 번 사용하세요.
+
+Pi의 기존 cortex-network.service가 외부 Wi-Fi 전환을 담당합니다. 구버전 helper에서 복구 AP 프로필이 다른 경우 새 소스의 release/phone_wifi.py로 helper를 먼저 갱신해야 합니다. 시스템 서비스 설치·교체는 일반 앱 업데이트 범위 밖입니다.
+
+BLE를 함께 설치할 때에는 인터넷에 연결된 Pi에서 현재 qc-desk.service 사용자와 실제 설정 파일 경로를 지정합니다. 예를 들어 일반 설치 계정이라면 저장소 루트에서 다음을 실행합니다.
+
+```sh
+sudo bash source/release/install-ble.sh "$(id -un)" "$HOME/.local/share/qc-desk/pi-settings.json"
+```
+
+이 스크립트는 BlueZ, python3-dbus-next, python3-cryptography와 BLE 서비스를 설치합니다. iPad에서 여는 HTTPS 화면도 같은 버전의 웹 번들로 갱신하세요.

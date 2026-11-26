@@ -1,8 +1,10 @@
 import React,{useEffect,useState} from "react";
+import {bluetoothMode} from "./bleTransport";
 
 export default function OfflineUpdate({api}) {
   const [file,setFile]=useState(null), [message,setMessage]=useState(""), [busy,setBusy]=useState(false);
-  const [available,setAvailable]=useState(false);
+  const [available,setAvailable]=useState(false), [release,setRelease]=useState(null);
+  const [checking,setChecking]=useState(false),[attempt,recheck]=useState(0),[notice,setNotice]=useState("");
   useEffect(()=>{
     let mounted=true;
     api("update-status").then(s=>{
@@ -12,15 +14,30 @@ export default function OfflineUpdate({api}) {
     }).catch(()=>{});
     return ()=>{mounted=false};
   },[api]);
-  async function apply(){
-    if(!file || busy)return;
+  useEffect(()=>{
+    if(!available)return;
+    let active=true;
+    setChecking(true);setRelease(null);setNotice("GitHub에서 새 빌드를 확인하는 중…");
+    api("online-check").then(info=>{
+      if(active){setRelease(info);setNotice(info.available?"설치 가능한 빌드 "+info.build.slice(0,7):"최신 빌드입니다.");}
+    }).catch(e=>{if(active)setNotice(e.message)}).finally(()=>{if(active)setChecking(false)});
+    return ()=>{active=false};
+  },[available,attempt,api]);
+  async function apply(online){
+    if(busy || (online?!release?.available:!file))return;
     setBusy(true);
     try{
-      setMessage("ZIP 업로드 및 서명 확인 중…");
-      const response=await fetch("/api/update-zip",{method:"POST",headers:{"X-QC-Key":location.hash.slice(1)},body:file});
-      const data=await response.json();
-      if(!response.ok)throw Error(data.error||"업로드 실패");
-      setMessage("앱을 다시 시작하고 있습니다. Wi-Fi 연결을 유지하세요.");
+      let data;
+      if(online){
+        setMessage("Pi에서 다운로드 및 서명 확인 중…");
+        data=await api("online-install",{build:release.build});
+      }else{
+        setMessage("ZIP 업로드 및 서명 확인 중…");
+        const response=await fetch("/api/update-zip",{method:"POST",headers:{"X-QC-Key":location.hash.slice(1)},body:file});
+        data=await response.json();
+        if(!response.ok)throw Error(data.error||"업로드 실패");
+      }
+      setMessage("앱을 다시 시작하고 있습니다.");
       for(let i=0;i<75;i++){
         await new Promise(resolve=>setTimeout(resolve,1000));
         let state;
@@ -33,9 +50,12 @@ export default function OfflineUpdate({api}) {
     }catch(e){setMessage(e.message)}finally{setBusy(false)}
   }
   if(!available)return null;
-  return <section><h3>오프라인 앱 업데이트</h3>
+  return <section><h3>온라인 앱 업데이트</h3><p role="status">{notice}</p>
+    <button disabled={busy||checking} onClick={()=>recheck(v=>v+1)}>다시 확인</button>
+    {release?.available&&<button disabled={busy||checking} onClick={()=>apply(true)}>업데이트 설치</button>}
+    {!bluetoothMode&&<><h3>오프라인 앱 업데이트</h3>
     <label>업데이트 ZIP <input type="file" accept=".zip,application/zip" disabled={busy}
       onChange={e=>setFile(e.target.files[0]||null)}/></label>
-    <button disabled={!file||busy} onClick={apply}>업데이트 적용</button><p role="status">{message}</p>
-  </section>
+    <button disabled={!file||busy} onClick={()=>apply(false)}>업데이트 적용</button></>}
+    <p role="status">{message}</p></section>;
 }

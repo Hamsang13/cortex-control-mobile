@@ -16,6 +16,68 @@ LOCK = Lock()
 PROFILE = "QC-Pedalboard"
 
 
+def external_wifi(config, data):
+    import socket
+    action = data.get("action")
+    if action not in ("status", "confirm", "join", "forget"):
+        raise ValueError("지원하지 않는 네트워크 요청입니다.")
+    if not config or not Path("/run/cortex-network/control.sock").exists():
+        if action == "status":
+            return {"available": False}
+        raise ValueError("Pi 네트워크 서비스가 필요합니다.")
+    with socket.socket(socket.AF_UNIX) as client:
+        client.settimeout(32)
+        client.connect("/run/cortex-network/control.sock")
+        client.sendall(json.dumps(data).encode() + b"\n")
+        with client.makefile("rb") as reader:
+            result = json.loads(reader.readline(4096))
+    if "error" in result:
+        raise ValueError("Pi 네트워크 요청을 완료하지 못했습니다. 연결 상태를 확인하세요.")
+    if action == "join":
+        result.update(url=f"http://{result['host']}:{address(config['url'])[1]}", proof=boot_proof(config))
+    if action == "confirm":
+        return external_wifi(config, {"action":"status"})
+    return result
+
+
+CHANNEL = "https://raw.githubusercontent.com/Hamsang13/cortex-control-mobile/pi-updates/"
+
+
+def online_update(expected=None, install=False):
+    import hashlib
+    import io
+    import urllib.error
+    import urllib.request
+    from updater import state, upload
+    from package import FILES, LIMIT
+    try:
+        with urllib.request.urlopen(CHANNEL+"latest.json", timeout=6) as response:
+            info = json.loads(response.read(4097))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise ValueError("게시된 온라인 업데이트가 없습니다.") from exc
+        raise
+    except OSError as exc:
+        raise ValueError("GitHub에 연결할 수 없습니다. Pi의 인터넷 연결을 확인하세요.") from exc
+    if not (re.fullmatch("[0-9a-f]{40}",info["build"]) and
+            all(re.fullmatch("[0-9a-f]{64}",info[k]) for k in ("sha256","manifest"))):
+        raise ValueError("업데이트 정보를 확인할 수 없습니다.")
+    active = state()["active"]
+    if active == "base":
+        files = {name:hashlib.sha256((Path(__file__).parent/name).read_bytes()).hexdigest() for name in FILES}
+        manifest = dict(format=1,product="cortex-remote",version=info["version"],files=files)
+        active = hashlib.sha256(json.dumps(manifest,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+    if not install:
+        return dict(build=info["build"],version=info["version"],available=active!=info["manifest"])
+    if expected != info["build"] or active == info["manifest"]:
+        raise ValueError("업데이트 정보를 다시 확인하세요.")
+    with urllib.request.urlopen(CHANNEL+"update.zip", timeout=30) as response:
+        archive = response.read(LIMIT+1)
+    if len(archive)>LIMIT or hashlib.sha256(archive).hexdigest()!=info["sha256"]:
+        raise ValueError("다운로드가 불완전하거나 빌드가 변경되었습니다. 다시 확인하세요.")
+    return upload(io.BytesIO(archive),len(archive))
+
+
 def address(url):
     parsed = urlsplit(url)
     ip = ipaddress.IPv4Address(parsed.hostname)
