@@ -818,7 +818,7 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
       .library-toggle span {display:grid;place-items:center;width:16px;height:24px}
       .library-toggle span::before {content:"";width:8px;height:8px;border:solid currentColor;border-width:2px 2px 0 0;transform:rotate(45deg)}
       .library-toggle[aria-expanded=true] span::before {transform:rotate(-135deg)}
-      @media (orientation:landscape) {
+      @media (min-width:600px), (orientation:landscape) {
         .workspace {
           --rail-width:44px;--sidebar-width:var(--rail-width);--list-width:min(260px,30vw);
           position:relative;grid-template-columns:var(--sidebar-width) minmax(0,1fr);column-gap:24px;
@@ -832,7 +832,7 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
         .library-open #block-library .models {visibility:visible}
         .library-toggle {position:absolute;z-index:4;left:var(--sidebar-width);top:min(45dvh,50%);transition:left .18s ease-out}
       }
-      @media (orientation:portrait) {
+      @media (max-width:599px) and (orientation:portrait) {
         #block-library:not(.expanded) .rail {display:none}
         .workspace {position:relative;display:block}
         .workspace main {padding-left:12px}
@@ -854,12 +854,10 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
         }
         .library-open #block-library.expanded .category-label {display:block;font-size:12px;line-height:1.2}
       }
-      @media (min-width:600px) and (any-pointer:coarse) and (orientation:landscape) {
+      @media (min-width:600px) and (any-pointer:coarse) {
         .workspace.library-open:has(#block-library.expanded) {--rail-width:clamp(126px,15vw,160px);--list-width:min(230px,25vw)}
       }
-      @media (min-width:600px) and (any-pointer:coarse) and (orientation:portrait) {
-        .library-open #block-library.expanded {grid-template-columns:clamp(138px,24vw,196px) minmax(0,1fr)}
-      }
+
       @media (prefers-reduced-motion:reduce) {.workspace,#block-library,.workspace .library-toggle {transition:none}}
       .quick-splits {display:flex;gap:2px;margin-left:auto}
       .quick-splits button {display:grid;place-items:center;padding:2px;min-width:0}
@@ -871,7 +869,7 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
         .shell > header,.shell > footer {flex:none}
         .workspace {flex:1;min-height:0}
         .workspace #block-library {box-sizing:border-box}
-        @media (orientation:landscape) { .workspace #block-library {height:100%;min-height:0} }
+        @media (min-width:600px), (orientation:landscape) { .workspace #block-library {height:100%;min-height:0} }
         .workspace main {height:100%;min-height:0;overflow:hidden}
         .workspace main > .bar {flex:none}
         .workspace main > .scroll {flex:none}

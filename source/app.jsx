@@ -895,7 +895,7 @@ function App() {
   const [libraryOpen,setLibraryOpen]=useState(false);
   const libraryToggle=useRef(null);
   useEffect(()=>{
-    const portrait=window.matchMedia("(orientation: portrait)");
+    const portrait=window.matchMedia(phoneEditorQuery);
     const reset=()=>setLibraryOpen(false);
     portrait.addEventListener("change",reset);
     return ()=>portrait.removeEventListener("change",reset);
@@ -1400,7 +1400,7 @@ function App() {
   },[editingBranch]);
   const openRoute = useCallback((row,part)=>{
     P({row,part}); setParamsOpen(true); C(""); G(0);
-    if ((part==="input" || part==="output") && !window.matchMedia("(orientation: portrait)").matches)
+    if ((part==="input" || part==="output") && !window.matchMedia(phoneEditorQuery).matches)
       setLibraryOpen(true);
   },[]);
   function select(row, col) {
@@ -1426,7 +1426,7 @@ function App() {
       P({row,col});
       reveal(model);
       G(0);
-      if (window.matchMedia("(orientation: portrait)").matches) setLibraryOpen(false);
+      if (window.matchMedia(phoneEditorQuery).matches) setLibraryOpen(false);
     });
   }
   function travel(action) {
@@ -1475,7 +1475,7 @@ function App() {
       if (!g.moved && Math.hypot(dx, dy) < 7) return;
       if (!g.moved && libraryOpen && src.row==null) {
         if (ev.pointerType==="touch" && Math.abs(dy)>Math.abs(dx)) return;
-        if (window.matchMedia("(orientation: portrait)").matches) setLibraryOpen(false);
+        if (window.matchMedia(phoneEditorQuery).matches) setLibraryOpen(false);
       }
       g.moved = true;
       D({
@@ -1527,7 +1527,7 @@ function App() {
     </button>
   ));
   const close = () => M(null),
-    categories = [
+    categories = !lib.models.length ? nativeOrder : [
       ...new Set([
         ...lib.models.filter((m) => !m.plugin).map((m) => family(m.category)),
         ...(lib.models.some((m) => m.plugin) ? ["Plugins"] : []),
@@ -1699,7 +1699,11 @@ function App() {
               <PortList route={route} lane={{...s.lanes[route.row],input:displayedInput(s.lanes,route.row)}} lib={lib} disabled={busy || paused}
                 back={()=>P(null)} choose={value=>remember(route.part,{row:route.row,value},()=>setLibraryOpen(false))}/> :
             <div className="models">
-              {category ? (
+              {!lib.models.length && <div role="status">
+                <p>{libraryPending ? "이펙터 목록을 불러오는 중…" : liveState ? "이펙터 목록을 불러오지 못했습니다." : "Quad Cortex를 USB로 연결하면 모델 목록이 표시됩니다."}</p>
+                {!libraryPending && liveState && <button onClick={loadLibrary}>다시 불러오기</button>}
+              </div>}
+              {category && !lib.models.length ? <button onClick={()=>C("")}>‹　{category}</button> : category ? (
                 <>
                   <button onClick={() => C("")}>‹　{family(category)}</button>
                   {category === "Plugins" ? (
@@ -1969,7 +1973,7 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.1.1</span>
+        <span className="foot-version">Cortec Remote v0.1.2</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());
