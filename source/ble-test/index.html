@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cortex Remote · Bluetooth</title>
+<style>
+*{box-sizing:border-box}body{color-scheme:dark;margin:0;background:#101112;color:#f2f3f2;font:16px system-ui,sans-serif}
+main{max-width:32rem;margin:auto;padding:8vh 1rem}h1{margin-bottom:.5rem;font-size:1.55rem}
+p{color:#c7c9c8;line-height:1.55}label,input{display:block;width:100%}
+input,button{font:inherit;padding:.75rem;border-radius:.5rem;border:1px solid #505351;background:#242625;color:inherit;margin:.3rem 0}
+button:disabled{opacity:.45}#scenes{display:grid;grid-template-columns:repeat(4,1fr);gap:.35rem}
+button[aria-pressed=true]{border-color:#44ed75;color:#44ed75}output{display:block;color:#8ae2a3;margin:1rem 0}
+</style>
+<main><h1>Cortex Remote · Bluetooth</h1><p id="hint"></p>
+<label>리모트 접속 키<input id="key" type="password" autocomplete="off" spellcheck="false"></label>
+<button id="connect" disabled>Pi 연결</button> <button id="ping" disabled>응답 확인</button>
+<output id="status" role="status"></output><div id="scenes" aria-label="씬 전환"></div></main>
+<script>
+const svc="c0de0001-9b67-47bf-8924-21400b9b8a72", ctl=svc.replace("0001-","0002-");
+const el=id=>document.getElementById(id), key=el("key"), status=el("status"), connect=el("connect"), ping=el("ping");
+let device, characteristic, busy=false;
+const supported=isSecureContext && !!navigator.bluetooth?.requestDevice;
+const ipadChrome=/CriOS\//.test(navigator.userAgent);
+el("hint").textContent=supported?"Pi를 선택하고 기존 접속 키로 응답을 확인하세요. 씬 버튼은 본체의 실제 씬을 변경합니다.":
+  ipadChrome?"이 iPad/iPhone용 Chrome에서는 웹 블루투스 제어를 사용할 수 없습니다.":
+  !isSecureContext?"웹 블루투스에는 신뢰된 HTTPS 또는 이 기기의 localhost에서 연 화면이 필요합니다.":
+  "이 브라우저에서 Web Bluetooth를 제공하지 않습니다.";
+key.disabled=!supported;
+function render(){
+  connect.disabled=!supported || busy || !!characteristic;
+  ping.disabled=busy || !characteristic || !key.value;
+  for(const btn of el("scenes").children)btn.disabled=ping.disabled;
+}
+key.oninput=render;
+connect.onclick=async()=>{
+  busy=true;render();
+  try{
+    device=await navigator.bluetooth.requestDevice({filters:[{services:[svc]}]});
+    device.ongattserverdisconnected=()=>{characteristic=null;status.textContent="블루투스 연결이 끊겼습니다.";render()};
+    const server=await device.gatt.connect();
+    characteristic=await (await server.getPrimaryService(svc)).getCharacteristic(ctl);
+    status.textContent="Pi 연결됨 · 응답 확인을 누르세요.";
+  }catch(e){device?.gatt?.disconnect();status.textContent=e.message}
+  finally{busy=false;render()}
+};
+async function send(op){
+  if(busy||!characteristic)return;
+  busy=true;render();status.textContent="응답 대기 중…";
+  try{
+    const secret=await crypto.subtle.importKey("raw",new TextEncoder().encode(key.value),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
+    async function sign(data){return new Uint8Array(await crypto.subtle.sign("HMAC",secret,new Uint8Array(data))).slice(0,16)}
+    const challenge=new Uint8Array((await characteristic.readValue()).buffer);
+    if(challenge.length!==17||challenge[0]!==67)throw Error("다시 시도해 주세요.");
+    const msg=[...challenge,op];
+    await characteristic.writeValueWithResponse(new Uint8Array([op,...await sign(msg)]));
+    const result=new Uint8Array((await characteristic.readValue()).buffer);
+    const tag=await sign([...msg,...result.slice(0,3)]);
+    if(result.length!==19||result[0]!==82||result[1]!==op||!tag.every((v,i)=>v===result[i+3]))throw Error("Pi 응답 인증 실패");
+    if(result[2])throw Error("Pi가 응답했지만 리모트 명령이 실패했습니다. 본체 USB 연결을 확인하세요.");
+    status.textContent=op?"본체가 씬 "+String.fromCharCode(64+op)+" 전환을 확인했습니다.":"인증 성공 · Pi 리모트 서버가 블루투스로 응답했습니다.";
+    if(op)Array.from(el("scenes").children).forEach((b,i)=>b.setAttribute("aria-pressed",i===op-1));
+  }catch(e){status.textContent="명령 실패 · "+e.message}
+  finally{busy=false;render()}
+}
+ping.onclick=()=>send(0);
+for(let op=1;op<=8;op++){const b=document.createElement("button");b.textContent="씬 "+String.fromCharCode(64+op);b.onclick=()=>send(op);el("scenes").appendChild(b)}
+render();
+</script></html>

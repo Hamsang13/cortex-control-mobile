@@ -55,6 +55,10 @@ git pull --ff-only origin main
 bash source/install-pi.sh
 ```
 
+## 블루투스 웹 시험판
+
+Windows Chrome에서 Pi 응답 확인과 씬 전환을 시험하는 [별도 웹 화면과 사용법](source/ble-test/)이 있습니다. iPad용 Chrome은 이 시험에 필요한 Web Bluetooth를 기본 지원하지 않습니다. v1.0.0의 기본 연결은 Wi-Fi입니다.
+
 ## 배포자 · 패키지 재생성
 
 개발 소스는 [source/](source/)에 있습니다. [배포 빌드와 검증 절차](source/release/README.md)에 고정된 OS 원본, 서명 키 관리, ZIP 생성, 이미지 빌드, 가상 부팅 시험과 GitHub Releases 첨부 파일 목록이 있습니다.
