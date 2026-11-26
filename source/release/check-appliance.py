@@ -116,7 +116,7 @@ def main():
     form = urllib.parse.urlencode(dict(proof=nonce,ssid="Cortex-QA",wifi=secrets.token_hex(8),key=key)).encode()
     assert key.encode() in urllib.request.urlopen(BASE+"/",form,timeout=5).read()
     def api(path, content=b"{}"):
-        req=urllib.request.Request(BASE+"/api/"+path,content,{"X-QC-Key":key})
+        req=urllib.request.Request(BASE+"/api/"+path,content,{"X-QC-Key":key,"X-QC-Admin":json.loads(CONFIG.read_bytes())["adminKey"]})
         return json.load(urllib.request.urlopen(req,timeout=30))
     wait(lambda:api("update-status")["available"])
     assert "ssid Cortex-QA" in subprocess.check_output(["iw","dev","wlan0","info"],text=True)
@@ -141,14 +141,10 @@ def main():
                 bad.writestr(name,b"wrong" if name=="server.py" else z.read(name))
         invalid(buf.getvalue())
     log("PASS truncated and tampered ZIP rejected; original app still responds")
-    entry=api("update-zip",bundle)
-    def applied():
-        state=api("update-status")
-        return state["ticket"]==entry["ticket"] and state["status"]=="applied"
-    wait(applied)
+    # The embedded app and the supplied ZIP have the same signed build sequence.
+    invalid(bundle)
     assert CONFIG.read_bytes()==saved and cache.read_bytes()==sentinel
-    assert subprocess.check_output(["iw","dev","wlan0","info"],text=True).find("ssid Cortex-QA")>=0
-    log("PASS signed ZIP activated; Wi-Fi, key, URL and cache preserved")
+    log("PASS equal-build offline reinstall rejected; settings preserved")
     # Simulate a launch failure after staging (disk error), using the supervisor's journal.
     # The user upload endpoint still requires a valid release signature.
     sys.path.insert(0,"/usr/local/lib/qc-desk")

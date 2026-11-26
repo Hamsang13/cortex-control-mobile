@@ -4,56 +4,105 @@ on:
     branches: [main]
     paths: ['source/**', '.github/workflows/pi-updates.yml']
   workflow_dispatch:
+    inputs:
+      channel:
+        type: choice
+        options: [preview, stable]
+        default: preview
 permissions:
-  contents: write
+  contents: read
 concurrency:
-  group: pi-update-channel
+  group: pi-update-${{ inputs.channel || 'preview' }}
   cancel-in-progress: false
+env:
+  QC_CHANNEL: ${{ inputs.channel || 'preview' }}
 jobs:
-  publish:
+  build:
     if: github.ref == 'refs/heads/main' && vars.PI_UPDATE_CHANNEL == 'enabled'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
       - run: npm --prefix source ci && npm --prefix source run build
-      - run: python -m pip install cryptography
-      - name: Build signed package
+      - run: /usr/bin/python3 source/release/test_online_update.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bundle
+          path: source/app.js
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.channel == 'stable' && 'production' || 'preview' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: bundle
+          path: source
+      - name: Sign archive and channel metadata
         env:
-          SIGNING_PEM: ${{ secrets.PI_UPDATE_SIGNING_PEM }}
+          PREVIEW_KEY: ${{ secrets.PI_UPDATE_SIGNING_PEM }}
+          STABLE_KEY: ${{ secrets.STABLE_SIGNING_PEM }}
         run: |
           set -eu
           umask 077
           key=$(mktemp)
           trap 'rm -f "$key"' EXIT
-          printf '%s\n' "$SIGNING_PEM" > "$key"
-          openssl pkey -in "$key" -pubout | diff - source/release/update-public.pem
-          python source/release/package.py "$key" update.zip
-          python - <<'PY'
-          import hashlib, json, os, pathlib, zipfile
-          archive = pathlib.Path("update.zip")
-          with zipfile.ZipFile(archive) as z:
-              manifest = z.read("manifest.json")
-          metadata = dict(build=os.environ["GITHUB_SHA"], version=json.loads(manifest)["version"],
-                          manifest=hashlib.sha256(manifest).hexdigest(), sha256=hashlib.sha256(archive.read_bytes()).hexdigest())
-          pathlib.Path("latest.json").write_text(json.dumps(metadata))
+          public=source/release/update-public.pem
+          if [ "$QC_CHANNEL" = stable ]; then
+            printf '%s\n' "$STABLE_KEY" > "$key"
+            public=source/release/stable-public.pem
+          else
+            printf '%s\n' "$PREVIEW_KEY" > "$key"
+          fi
+          unset PREVIEW_KEY STABLE_KEY
+          openssl pkey -in "$key" -pubout | diff - "$public"
+          /usr/bin/python3 source/release/package.py "$key" update.zip
+          PYTHONPATH=source/release /usr/bin/python3 - "$key" <<'PY'
+          import os, sys
+          from pathlib import Path
+          from package import canonical, sign_metadata
+          Path("latest.json").write_bytes(canonical(sign_metadata(Path("update.zip"),Path(sys.argv[1]),os.environ["GITHUB_SHA"])))
           PY
-      - name: Publish ZIP and metadata together
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: signed
+          path: |
+            update.zip
+            latest.json
+  publish:
+    needs: sign
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: signed
+      - name: Publish verified build
         run: |
           set -eu
+          branch=pi-updates
+          if [ "$QC_CHANNEL" = stable ]; then branch=stable-updates; fi
           git fetch origin main
           test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA" || exit 0
           git config user.name github-actions
           git config user.email github-actions@users.noreply.github.com
           parent=()
-          if git ls-remote --exit-code origin refs/heads/pi-updates >/dev/null; then
-            git fetch origin refs/heads/pi-updates
+          if git ls-remote --exit-code origin "refs/heads/$branch" >/dev/null; then
+            git fetch origin "refs/heads/$branch"
             parent=(-p "$(git rev-parse FETCH_HEAD)")
           fi
           export GIT_INDEX_FILE="$RUNNER_TEMP/channel-index"
           git read-tree --empty
           git add -f -- latest.json update.zip
-          commit=$(git commit-tree "$(git write-tree)" "${parent[@]}" -m "feat: Pi 앱 업데이트 게시")
-          git push origin "$commit:refs/heads/pi-updates"
+          commit=$(git commit-tree "$(git write-tree)" "${parent[@]}" -m "feat: 서명된 리모트 업데이트 게시")
+          git push origin "$commit:refs/heads/$branch"

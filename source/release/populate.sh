@@ -5,11 +5,14 @@ zip=${2:?signed zip}
 src=$(cd "$(dirname "$0")/.." && pwd)
 stage="$root/tmp/cortex-image-build"
 mkdir -p "$stage/release"
-install -m644 "$src"/release/{phone_wifi.py,package.py,updater.py,firstboot.py,update-public.pem,hotspot.sh,install-runtime.sh} "$stage/release/"
+install -m644 "$src"/release/{phone_wifi.py,package.py,updater.py,firstboot.py,stable-public.pem,update-public.pem,hotspot.sh,install-runtime.sh} "$stage/release/"
 install -m644 "$zip" "$stage/update.zip"
-chroot "$root" bash -eu -c '
+channel=${QC_CHANNEL:-preview}
+[[ $channel == preview || $channel == stable ]]
+if [[ $channel == stable ]]; then cp "$stage/release/stable-public.pem" "$stage/release/update-public.pem"; fi
+chroot "$root" env QC_CHANNEL="$channel" bash -eu -c '
 cd /tmp/cortex-image-build
-PYTHONPATH=release python3 -c "from pathlib import Path; from package import unpack; unpack(Path(\"update.zip\"),Path.cwd(),Path(\"release/update-public.pem\"))"
+PYTHONPATH=release python3 -c "from pathlib import Path; import os; from package import unpack; unpack(Path(\"update.zip\"),Path.cwd(),Path(\"release/update-public.pem\"),os.environ[\"QC_CHANNEL\"])"
 getent passwd cortex-remote >/dev/null || useradd --system --user-group --home-dir /var/lib/cortex-remote --shell /usr/sbin/nologin cortex-remote
 bash release/install-runtime.sh cortex-remote /var/lib/cortex-remote image
 usermod -L pi

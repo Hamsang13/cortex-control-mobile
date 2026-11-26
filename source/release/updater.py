@@ -48,7 +48,12 @@ def record(s):
         os.close(fd)
 
 
-def upload(stream, size):
+def policy():
+    path = RUNTIME / "policy.json"
+    return json.loads(path.read_bytes())
+
+
+def upload(stream, size, expected=None):
     if not 0 < size <= LIMIT:
         raise ValueError("업데이트 ZIP은 16 MiB 이하로 선택하세요.")
     with exclusive():
@@ -56,6 +61,8 @@ def upload(stream, size):
         if current["status"] in ("pending","starting"):
             raise ValueError("다른 업데이트를 적용하고 있습니다.")
         with tempfile.TemporaryDirectory(dir=STORE) as tmp:
+            trust = policy()
+            floor = max(current.get("sequence", 0), trust["baseSequence"])
             stage = Path(tmp)/"app"
             stage.mkdir()
             with tempfile.TemporaryFile(dir=STORE) as archive:
@@ -68,9 +75,16 @@ def upload(stream, size):
                     remaining -= len(chunk)
                 archive.seek(0)
                 try:
-                    digest = unpack(archive, stage, RUNTIME/"update-public.pem")
+                    digest = unpack(archive, stage, RUNTIME/"update-public.pem", trust["channel"])
                 except Exception as exc:
                     raise ValueError("공식 업데이트 ZIP의 서명 또는 파일 검증에 실패했습니다.") from exc
+            manifest = json.loads((stage/"manifest.json").read_bytes())
+            sequence = manifest["sequence"]
+            if sequence <= floor:
+                raise ValueError("이미 설치한 빌드 또는 이전 빌드입니다.")
+            if expected and (digest != expected["manifest"] or any(
+                    manifest[k] != expected[k] for k in ("version","sequence","channel"))):
+                raise ValueError("게시 정보와 패키지가 일치하지 않습니다.")
             dest = STORE / digest
             if not dest.exists():
                 stage.rename(dest)
@@ -79,7 +93,7 @@ def upload(stream, size):
                 if any((dest/f.name).read_bytes()!=f.read_bytes() for f in stage.iterdir()):
                     raise ValueError("기존 설치 파일 검증에 실패했습니다.")
             ticket = secrets.token_hex(12)
-            record(dict(active=current["active"], target=digest, ticket=ticket, status="pending"))
+            record(dict(active=current["active"], sequence=floor, target=digest, targetSequence=sequence, ticket=ticket, status="pending"))
             return {"ticket":ticket}
 
 
@@ -132,7 +146,7 @@ def supervise():
                 except (OSError, ValueError):
                     healthy = 0
             if healthy == 3 and child.poll() is None:
-                s.update(active=s["target"], status="applied")
+                s.update(active=s["target"], sequence=s["targetSequence"], status="applied")
             else:
                 stop(child)
                 child = start(s["active"], secrets.token_hex(16))

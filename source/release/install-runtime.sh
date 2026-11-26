@@ -8,6 +8,16 @@ cd "$(dirname "$0")/.."
 runtime=/usr/local/lib/qc-desk
 install -d -m 0755 "$runtime"
 install -m 0644 pi_settings.py release/{phone_wifi.py,firstboot.py,package.py,updater.py,update-public.pem} "$runtime/"
+# The base image is itself an installed build. Seed its rollback floor.
+channel=${QC_CHANNEL:-preview}
+seq=0
+if [[ -f manifest.json ]]; then
+    seq=$(python3 -c 'import json; print(int(json.load(open("manifest.json"))["sequence"]))')
+elif git -c safe.directory="*" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    seq=$(git -c safe.directory="*" rev-list --first-parent --count HEAD)
+fi
+if [[ $channel == stable ]]; then install -m 0644 release/stable-public.pem "$runtime/update-public.pem"; fi
+printf '{"channel":"%s","baseSequence":%d}\n' "$channel" "$seq" > "$runtime/policy.json"
 install -m 0755 release/hotspot.sh "$runtime/"
 install -d -o "$account" -g "$(id -gn "$account")" "$app"
 install -m 0644 server.py editor.py demo.py device_settings.py pi_settings.py io_settings.py plugin_sync.py plugin-names.json utilities.py pitch.py index.html app.js "$app/"

@@ -46,38 +46,43 @@ CHANNEL = "https://raw.githubusercontent.com/Hamsang13/cortex-control-mobile/pi-
 
 
 def online_update(expected=None, install=False):
-    import hashlib
     import io
     import urllib.error
     import urllib.request
-    from updater import state, upload
-    from package import FILES, LIMIT
+    import base64
     try:
-        with urllib.request.urlopen(CHANNEL+"latest.json", timeout=6) as response:
+        from updater import state, upload, policy, RUNTIME
+    except ImportError as exc:
+        raise ValueError("기존 설치의 보안 이전을 먼저 완료하세요.") from exc
+    from package import LIMIT, canonical, verify_bytes
+    trust = policy()
+    channel = trust["channel"]
+    url = CHANNEL if channel == "preview" else CHANNEL.replace("/pi-updates/", "/stable-updates/")
+    try:
+        with urllib.request.urlopen(url+"latest.json", timeout=6) as response:
             info = json.loads(response.read(4097))
-    except urllib.error.HTTPError as exc:
-        if exc.code == 404:
-            raise ValueError("게시된 온라인 업데이트가 없습니다.") from exc
-        raise
-    except OSError as exc:
-        raise ValueError("GitHub에 연결할 수 없습니다. 리모트 디바이스의 인터넷 연결을 확인하세요.") from exc
-    if not (re.fullmatch("[0-9a-f]{40}",info["build"]) and
-            all(re.fullmatch("[0-9a-f]{64}",info[k]) for k in ("sha256","manifest"))):
-        raise ValueError("업데이트 정보를 확인할 수 없습니다.")
-    active = state()["active"]
-    if active == "base":
-        files = {name:hashlib.sha256((Path(__file__).parent/name).read_bytes()).hexdigest() for name in FILES}
-        manifest = dict(format=1,product="cortex-remote",version=info["version"],files=files)
-        active = hashlib.sha256(json.dumps(manifest,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+    except (OSError, ValueError) as exc:
+        raise ValueError("게시된 업데이트 정보를 가져올 수 없습니다.") from exc
+    try:
+        signature = base64.b64decode(info.pop("signature"), validate=True)
+        verify_bytes(canonical(info), signature, RUNTIME/"update-public.pem")
+        if not (info["channel"] == channel and type(info["sequence"]) is int and info["sequence"] > 0 and
+                re.fullmatch("[0-9a-f]{40}",info["build"]) and
+                all(re.fullmatch("[0-9a-f]{64}",info[k]) for k in ("sha256","manifest"))):
+            raise ValueError()
+    except (KeyError, TypeError, ValueError, subprocess.CalledProcessError) as exc:
+        raise ValueError("업데이트 정보의 서명 또는 배포 채널을 확인할 수 없습니다.") from exc
+    current = state()
+    available = info["sequence"] > max(current.get("sequence",0), trust["baseSequence"])
     if not install:
-        return dict(build=info["build"],version=info["version"],available=active!=info["manifest"])
-    if expected != info["build"] or active == info["manifest"]:
+        return dict(build=info["build"],version=info["version"],available=available)
+    if expected != info["build"] or not available:
         raise ValueError("업데이트 정보를 다시 확인하세요.")
-    with urllib.request.urlopen(CHANNEL+"update.zip", timeout=30) as response:
+    with urllib.request.urlopen(url+"update.zip", timeout=30) as response:
         archive = response.read(LIMIT+1)
     if len(archive)>LIMIT or hashlib.sha256(archive).hexdigest()!=info["sha256"]:
         raise ValueError("다운로드가 불완전하거나 빌드가 변경되었습니다. 다시 확인하세요.")
-    return upload(io.BytesIO(archive),len(archive))
+    return upload(io.BytesIO(archive),len(archive),info)
 
 
 def address(url):
@@ -106,6 +111,7 @@ def validate(config):
 
 def write_config(path, config):
     validate(config)
+    config.setdefault("adminKey",secrets.token_urlsafe(24))
     with tempfile.NamedTemporaryFile(dir=path.parent, mode="w", encoding="utf8", delete=False) as f:
         tmp = Path(f.name)
         try:

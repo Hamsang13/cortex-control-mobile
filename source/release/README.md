@@ -9,8 +9,8 @@
 ```sh
 npm --prefix source ci
 npm --prefix source run build
-mkdir -p dist/v0.1.3
-python3 source/release/package.py /secure/cortex-update-ed25519.pem dist/v0.1.3/cortex-remote-v0.1.3-update.zip
+mkdir -p dist/v0.2.0
+python3 source/release/package.py /secure/cortex-update-ed25519.pem dist/v0.2.0/cortex-remote-v0.2.0-update.zip
 ```
 
 공식 ZIP에는 `source/release/update-public.pem`에 대응하는 **오프라인 Ed25519 개인 키**가 필요합니다. 개인 키는 저장소·SD·ZIP·GitHub 릴리스에 넣지 마세요. 최초로 독립 배포판을 만들 때만 별도 키 쌍을 생성하고 **자신의 이미지에 들어갈** 공개 키를 바꿉니다. 공개 키가 다른 이미지는 해당 ZIP을 거부합니다.
@@ -29,7 +29,7 @@ Linux 또는 Docker Desktop의 Linux 컨테이너 엔진을 사용합니다. x86
 
 ```sh
 docker run --rm --privileged -e TEST_BOOT=1 \
-  -v "$PWD/source:/src:ro" -v "$PWD/dist/v0.1.3:/out" debian:trixie-slim \
+  -v "$PWD/source:/src:ro" -v "$PWD/dist/v0.2.0:/out" debian:trixie-slim \
   bash /src/release/build-image.sh /out
 ```
 
@@ -53,8 +53,8 @@ docker run --rm --privileged -e TEST_BOOT=1 \
 
 | 파일 | 용도 |
 | --- | --- |
-| `cortex-remote-v0.1.3-pi-zero2w-arm64.img.xz` | 새 SD 카드에 기록할 OS와 앱 |
-| `cortex-remote-v0.1.3-update.zip` | 기존 설치의 설정 화면에서 적용할 서명된 오프라인 앱 업데이트 |
+| `cortex-remote-v0.2.0-pi-zero2w-arm64.img.xz` | 새 SD 카드에 기록할 OS와 앱 |
+| `cortex-remote-v0.2.0-update.zip` | 기존 설치의 설정 화면에서 적용할 서명된 오프라인 앱 업데이트 |
 | `SHA256SUMS` | 내려받은 두 파일의 SHA-256 |
 
 이미지 기본 무선 국가 코드는 KR이며 해외 사용자는 최초 부팅 전에 bootfs의 `cortex-country.txt`를 해당 국가 코드로 변경합니다. 처음 설치하는 사용자의 단계별 안내와 구버전의 1회 이전 절차는 [프로젝트 README](../../README.md)에 있습니다. 패키지 빌드는 GitHub 게시·태그 생성·실기 설치를 수행하지 않습니다.
@@ -78,3 +78,16 @@ sudo bash source/release/install-ble.sh "$(id -un)" "$HOME/.local/share/qc-desk/
 이 스크립트는 BlueZ, python3-dbus-next, python3-cryptography와 BLE 서비스를 설치합니다. iPad에서 여는 HTTPS 화면도 같은 버전의 웹 번들로 갱신하세요.
 
 오프라인 설치에서는 리모트 디바이스에 BlueZ, 시스템 Python의 cryptography와 venv가 준비되어 있을 때 세 번째 인자로 dbus_next-0.2.3-py3-none-any.whl의 절대 경로를 지정할 수 있습니다. 도우미 전용 가상환경에 설치하며 리모트 디바이스가 핫스팟을 유지한 채로 진행됩니다.
+
+### 기존 설치의 보안 이전
+
+리모트 디바이스에서 신뢰하는 최신 main 체크아웃을 준비하고 기존 qc-desk 서비스 계정으로 다음을 실행합니다. 인자에는 서비스의 실제 QC_DATA_DIR을 사용하세요. 설치된 시험 채널 공개 키가 일치해야 합니다. 첫 이전은 GitHub 연결이 필요합니다. 관리자 키는 최초 등록 화면 또는 기기 소유자의 SSH 세션에서만 확인하세요.
+
+```bash
+bash source/release/migrate-security.sh "$HOME/.local/share/qc-desk"
+python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["adminKey"])' "$HOME/.local/share/qc-desk/pi-settings.json"
+```
+
+시험 채널은 main 푸시 시 자동 게시합니다. 정식 채널은 버전 1.0.0부터 main에서 수동으로 stable을 선택하고 production Environment의 소유자 승인을 받아 게시합니다. STABLE_SIGNING_PEM과 stable-public.pem은 정식 전용입니다. 정식 이미지 생성 시 QC_CHANNEL=stable을 지정합니다. 채널 전환은 해당 공개 키가 들어 있는 신뢰된 설치 이미지가 필요합니다.
+
+빌드 번호는 전체 Git 기록의 first-parent 커밋 수입니다. 수동 패키지 제작도 전체 main 체크아웃에서 하세요. 시험·정식 기록을 되감지 마세요. 기기는 서명된 latest.json과 ZIP에 포함된 채널·빌드 번호를 대조하고 마지막 정상 설치보다 새로운 빌드만 받습니다. 새 버전의 기동에 실패하면 이전 정상본으로 자동 복구합니다.
