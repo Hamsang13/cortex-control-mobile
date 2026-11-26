@@ -110,16 +110,24 @@ class Network:
             nm("connection", "up", "id", self.target, "ifname", "wlan0")
             self.phase = "trial"
             self.deadline = time.monotonic() + 90
-        elif self.phase in ("trial", "recovering"):
+        elif self.phase in ("trial", "recovering", "offline-pending"):
             self.fallback()
 
     def request(self, data):
         action = data.get("action")
         if action == "status":
-            return dict(version=1, phase=self.phase, host=socket.gethostname()+".local", ticket=self.ticket)
+            ssid = nm("-e","no","-g","802-11-wireless.ssid","connection","show","id",self.target) if self.phase in ("trial","connected") else ""
+            return dict(version=1, phase=self.phase, host=socket.gethostname()+".local", ticket=self.ticket, canOffline=True, ssid=ssid)
         if action == "scan":
             names = nm("-e","no","-g","SSID","device","wifi","list","ifname","wlan0","--rescan","auto")
             return dict(ssids=list(dict.fromkeys(filter(None, names.splitlines()))))
+        if action == "offline" and self.phase in ("connected","trial"):
+            SAVED.unlink(missing_ok=True)
+            self.saved = ""
+            PENDING.touch()
+            self.phase = "offline-pending"
+            self.deadline = time.monotonic()+4
+            return self.request({"action":"status"})
         if action == "forget":
             SAVED.unlink(missing_ok=True)
             self.saved = ""

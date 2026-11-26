@@ -1,4 +1,3 @@
-import ExternalWifi from "./ExternalWifi";
 import ConnectionChoice from "./ConnectionChoice";
 import {bluetoothMode} from "./bleTransport";
 import OfflineUpdate from "./OfflineUpdate";
@@ -63,8 +62,8 @@ function PiForm({initial,api}) {
     <button disabled={busy}>접속 설정 저장</button><p role="status">{message}</p></form>
 }
 
-export default function DeviceSettings({api,online,close}){
-  const [page,setPage]=useState(groups[0][0]),[values,setValues]=useState(null),[pi,setPi]=useState(null);
+export default function DeviceSettings({api,online,close,network,onNetwork}){
+  const [page,setPage]=useState("연결 방식"),[values,setValues]=useState(null),[pi,setPi]=useState(null);
   const [error,setError]=useState(""),[busy,setBusy]=useState(false),[retry,setRetry]=useState(0);
   const [piError,setPiError]=useState(""),[piRetry,setPiRetry]=useState(0);
   const dialog=useRef(null),writing=useRef(false);
@@ -89,8 +88,7 @@ export default function DeviceSettings({api,online,close}){
         <button key={name} aria-pressed={page===name} onClick={()=>setPage(name)}>{name}</button>)}</div>
         <section><select className="settings-mobile-nav" aria-label="설정 항목" value={page} onChange={e=>setPage(e.target.value)}>
           {pages.map(name=><option key={name}>{name}</option>)}</select><h3>{page}</h3>
-          {page==="연결 방식"?<><ConnectionChoice piUrl={pi?.url}/>
-          <p>Bluetooth는 iPad에서 Bluefy와 신뢰된 HTTPS 주소가 필요합니다. Wi-Fi로 돌아갈 때는 Pi 네트워크에서 기존 키 포함 주소를 사용할 수 있습니다.</p></>:page==="Raspberry Pi"?pi?.available?<><PiForm initial={pi} api={api}/><ExternalWifi api={api}/><OfflineUpdate api={api}/></>:piError?<p role="alert">Pi 설정을 읽을 수 없습니다. Pi에서 실행 중인 Cortex Remote에 접속하세요. <button onClick={()=>setPiRetry(v=>v+1)}>다시 읽기</button></p>:pi?<p>핫스팟 이름·비밀번호와 리모트 주소·접속 키는 Raspberry Pi에서 실행 중인 Cortex Remote에 접속하면 변경할 수 있습니다.</p>:<p role="status">Pi 설정을 읽는 중입니다.</p>:
+          {page==="연결 방식"?<ConnectionChoice api={api} pi={pi} network={network} onNetwork={onNetwork}/>: page==="Raspberry Pi"?pi?.available?<><PiForm initial={pi} api={api}/><OfflineUpdate api={api}/></>:piError?<p role="alert">Pi 설정을 읽을 수 없습니다. Pi에서 실행 중인 Cortex Remote에 접속하세요. <button onClick={()=>setPiRetry(v=>v+1)}>다시 읽기</button></p>:pi?<p>핫스팟 이름·비밀번호와 리모트 주소·접속 키는 Raspberry Pi에서 실행 중인 Cortex Remote에 접속하면 변경할 수 있습니다.</p>:<p role="status">Pi 설정을 읽는 중입니다.</p>:
             !online?<p>Quad Cortex를 USB로 연결하세요.</p>:values?
             groups.find(([name])=>name===page)[1].map(item=><Setting key={item[0]} item={item} value={values[item[0]]} busy={busy} save={save}/>):
             !error&&<p role="status">본체 설정 읽는 중…</p>}

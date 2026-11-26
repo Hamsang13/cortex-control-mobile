@@ -19,7 +19,7 @@ PROFILE = "QC-Pedalboard"
 def external_wifi(config, data):
     import socket
     action = data.get("action")
-    if action not in ("status", "confirm", "join", "forget"):
+    if action not in ("status", "confirm", "join", "forget", "offline"):
         raise ValueError("지원하지 않는 네트워크 요청입니다.")
     if not config or not Path("/run/cortex-network/control.sock").exists():
         if action == "status":
@@ -33,6 +33,8 @@ def external_wifi(config, data):
             result = json.loads(reader.readline(4096))
     if "error" in result:
         raise ValueError("Pi 네트워크 요청을 완료하지 못했습니다. 연결 상태를 확인하세요.")
+    if action == "offline":
+        result.update(url=config["url"].rstrip("/"), proof=boot_proof(config))
     if action == "join":
         result.update(url=f"http://{result['host']}:{address(config['url'])[1]}", proof=boot_proof(config))
     if action == "confirm":

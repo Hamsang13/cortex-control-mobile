@@ -7,8 +7,10 @@ config=${2:?provide the absolute pi-settings.json path}
 id "$account" >/dev/null
 [[ $config == /* && -f $config ]]
 runuser -u "$account" -- test -r "$config"
-apt-get update
-apt-get install -y bluez python3-cryptography python3-dbus-next
+if ! command -v bluetoothctl >/dev/null || ! /usr/bin/python3 -c "import cryptography, dbus_next" 2>/dev/null; then
+    apt-get update
+    apt-get install -y bluez python3-cryptography python3-dbus-next
+fi
 install -d /usr/local/lib/qc-desk/ble
 install -m 0644 ble-test/{bridge.py,remote_rpc.py} /usr/local/lib/qc-desk/ble/
 cat >/etc/systemd/system/cortex-ble.service <<EOF

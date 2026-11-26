@@ -1,3 +1,4 @@
+import {modeNames,networkMode} from "./ConnectionChoice";
 import {bluetoothMode, bluetoothApi} from "./bleTransport";
 import BluetoothRemote from "./BluetoothRemote";
 import DeviceSettings from "./DeviceSettings";
@@ -819,6 +820,24 @@ function GigScenes({state:s,current,enabled,select}) {
 }
 
 function App() {
+  const [network,setNetwork]=useState(null);
+  const networkEpoch=useRef(0);
+  const updateNetwork=useCallback(result=>{networkEpoch.current++;setNetwork(result)},[]);
+  useEffect(()=>{
+    let mounted=true,timer;
+    async function read(){
+      const before=networkEpoch.current;
+      let next;
+      try {
+        if(!document.hidden)next=await api("external-wifi",{action:"status"});
+        if(mounted && next && before===networkEpoch.current)setNetwork(next);
+      } catch {if(mounted && before===networkEpoch.current)setNetwork(null)}
+      if(mounted)timer=setTimeout(read,["scheduled","trial","recovering","offline-pending"].includes(next?.phase)?2000:15000);
+    }
+    read();
+    return ()=>{mounted=false;clearTimeout(timer)};
+  },[network?.phase]);
+  const linkLabel=bluetoothMode?modeNames.ble:network?.version?modeNames[networkMode(network)]:"";
   const [compactParams,setCompactParams]=useState(()=>matchMedia(phoneEditorQuery).matches);
   useEffect(()=>{
     const media=matchMedia(phoneEditorQuery),resize=()=>setCompactParams(media.matches);
@@ -875,7 +894,7 @@ function App() {
     [pendingScene, J] = useState(null),
     [busy, B] = useState(false),
     [msg, T] = useState(""),
-    [gig, H] = useState(true),
+    [gig, H] = useState(false),
     [drag, D] = useState(null);
   const [cpu,setCpu] = useState(null), [overlay,setOverlay] = useState(false);
   const s = liveState ?? preview;
@@ -1584,7 +1603,7 @@ function App() {
               <path d="m9.8 3 .6-2h3.2l.6 2 2 .9 2-.7 2.2 2.2-.8 2 .9 2 2.1.6v3.2l-2.1.6-.9 2 .8 2-2.2 2.2-2-.7-2 .9-.6 2h-3.2l-.6-2-2-.9-2 .7-2.2-2.2.8-2-.9-2-2.1-.6V10l2.1-.6.9-2-.8-2 2.2-2.2 2 .7z"/><circle cx="12" cy="11.6" r="3.2"/>
             </svg></button></div>
           <span className="desk-status" role="status">
-            <span data-connected={!!liveState}>{usbPaused ? "USB 대기 · 읽기 전용" : liveState ? "USB 연결됨" : msg ? "USB 연결 확인 필요" : preview ? "USB 동기화 중 · 읽기 전용" : "USB 연결 중…"}</span>
+            <span data-connected={!!liveState}>{linkLabel && linkLabel+" · "}{usbPaused ? "USB 대기 · 읽기 전용" : liveState ? "USB 연결됨" : msg ? "USB 연결 확인 필요" : preview ? "USB 동기화 중 · 읽기 전용" : "USB 연결 중…"}</span>
             {busy ? " · 처리 중…" : msg && " · " + msg}
           </span>
         </div>
@@ -1920,7 +1939,7 @@ function App() {
         </div>
       )}
       {refreshPrompt && <RefreshPrompt preset={refreshPrompt} choose={chooseRefresh}/>}
-      {settingsOpen && <DeviceSettings api={api} online={!!liveState && !paused} close={()=>setSettingsOpen(false)}/>}
+      {settingsOpen && <DeviceSettings api={api} network={network} onNetwork={updateNetwork} online={!!liveState && !paused} close={()=>setSettingsOpen(false)}/>}
       {ioOpen && <IOSettings meterFrame={meterFrame} api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
       {modal && (
         <DirectoryFrame close={close}>
