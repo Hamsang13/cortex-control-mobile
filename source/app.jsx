@@ -1602,7 +1602,7 @@ function App() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
               <path d="m9.8 3 .6-2h3.2l.6 2 2 .9 2-.7 2.2 2.2-.8 2 .9 2 2.1.6v3.2l-2.1.6-.9 2 .8 2-2.2 2.2-2-.7-2 .9-.6 2h-3.2l-.6-2-2-.9-2 .7-2.2-2.2.8-2-.9-2-2.1-.6V10l2.1-.6.9-2-.8-2 2.2-2.2 2 .7z"/><circle cx="12" cy="11.6" r="3.2"/>
             </svg></button></div>
-          <span className="desk-status" role="status">
+          <span className="desk-status" role="status" title={msg || undefined}>
             <span data-connected={!!liveState}>{linkLabel && linkLabel+" · "}{usbPaused ? "USB 대기 · 읽기 전용" : liveState ? "USB 연결됨" : msg ? "USB 연결 확인 필요" : preview ? "USB 동기화 중 · 읽기 전용" : "USB 연결 중…"}</span>
             {busy ? " · 처리 중…" : msg && " · " + msg}
           </span>
