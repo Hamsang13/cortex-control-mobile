@@ -76,3 +76,5 @@ sudo bash source/release/install-ble.sh "$(id -un)" "$HOME/.local/share/qc-desk/
 ```
 
 이 스크립트는 BlueZ, python3-dbus-next, python3-cryptography와 BLE 서비스를 설치합니다. iPad에서 여는 HTTPS 화면도 같은 버전의 웹 번들로 갱신하세요.
+
+오프라인 설치에서는 Pi에 BlueZ, 시스템 Python의 cryptography와 venv가 준비되어 있을 때 세 번째 인자로 dbus_next-0.2.3-py3-none-any.whl의 절대 경로를 지정할 수 있습니다. 도우미 전용 가상환경에 설치하며 Pi가 핫스팟을 유지한 채로 진행됩니다.
