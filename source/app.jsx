@@ -142,16 +142,16 @@ function GridCpuTotals({cpu,blocks,pair}) {
   });
 }
 const headerMeters = [
-  ["IN", "1/2", physicalInputs],
-  ["OUT", "1/2/3/4", physicalOutputs],
+  ["IN", physicalInputs],
+  ["OUT", physicalOutputs],
 ];
 
 function SignalMeters({ active, publish }) {
-  const [io, setIO] = useState({});
+  const [frame, setFrame] = useState({});
   useEffect(() => {
     let current = true, timer;
     function update(values) {
-      setIO(values.io ?? {});
+      setFrame(values);
       publish(values);
     }
     async function refresh() {
@@ -174,15 +174,18 @@ function SignalMeters({ active, publish }) {
   }, [active, publish]);
 
   return <div className="signal-meters" aria-label="Quad Cortex physical signal levels">
-    {headerMeters.map(([type, numbers, channels]) => <div className="signal-line" key={type}>
-      <span className="signal-label">{type} {numbers}</span>
+    {headerMeters.map(([type, channels]) => <div className="signal-line" key={type}>
+      <span className="signal-label">{type} {channels.map((channel,i) =>
+        <React.Fragment key={channel}>{i > 0 && "/"}<b data-connected={frame.plugged?.[channel]}>{i+1}</b></React.Fragment>
+      )}</span>
+      <div className="signal-bars">
       {channels.map((channel,i) => {
-        const reading=hidReading(io,channel);
+        const reading=hidReading(frame.io,channel);
         const label=type+" "+(i+1)+(reading?.clip?" CLIP":"");
         return <span className="signal-channel" key={channel} role="img" aria-label={label} title={label} data-clip={reading?.clip}>
           <MeterTrack reading={reading}/>
         </span>;
-      })}
+      })}</div>
     </div>)}
   </div>;
 }
@@ -1922,7 +1925,7 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.0.2</span>
+        <span className="foot-version">Cortec Remote v0.0.3</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());

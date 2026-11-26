@@ -87,8 +87,8 @@
       .signal-meters {
         display: grid;
         gap: 2px;
-        width: clamp(150px, 17vw, 195px);
-        min-width: 138px;
+        width: clamp(232px, 22vw, 318px);
+        min-width: 232px;
         padding: 4px 6px;
         border: 1px solid #333;
         border-radius: 6px;
@@ -96,13 +96,17 @@
       }
       .signal-line {
         display: grid;
-        grid-template-columns: 62px repeat(4, minmax(0, 1fr));
+        grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
         align-items: center;
         gap: 3px;
         font: 600 10px/1.2 system-ui, sans-serif;
         white-space: nowrap;
       }
-      .signal-channel .signal-track { display:block; height:4px; }
+      .signal-label b {color:#888}
+      .signal-label b[data-connected=true] {color:#62ec86}
+      .signal-bars {display:flex;gap:4px}
+      .signal-channel {flex:1;min-width:0}
+      .signal-channel .signal-track { display:block; height:5px; }
       .signal-channel[data-clip=true] .signal-track { background:#ff6468; }
       .signal-track {
         position: relative;
@@ -130,7 +134,7 @@
         .shell > header { flex-wrap:wrap; padding:5px 0; }
         .shell > header nav { order:2; width:100%; }
         .signal-meters { order:1; width:100%; }
-        .signal-line { grid-template-columns:62px repeat(4,minmax(0,32px)); }
+
         .desk-heading { flex:1 1 115px; }
       }
       nav {

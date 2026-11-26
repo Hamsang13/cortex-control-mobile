@@ -11,6 +11,7 @@ def subscribe_gate_meters(client, enabled):
     transport.send(pa.IOMeterMessage(request_id=transport.next_request_id(),
         **({} if enabled else {"action":pa.MessageAction.DELETE})))
     if enabled:
+        transport.send(pa.IOSettingsMessage(action=pa.MessageAction.READ, request_id=transport.next_request_id()))
         for row in range(4):
             transport.send(pa.GridModelMeterMessage(
                 request_id=transport.next_request_id(), row=row, column=-1))
@@ -28,9 +29,10 @@ class LiveMeterFrames:
         self.last_subscription = monotonic()
         self.gates = {}
         self.io = {}
+        self.plugged = {}
         self.entries = [(pa.GridMessage, lambda m: m.HasField("update_type") and
                          m.update_type == pa.GridMessage.METER_UPDATE, self),
-                        (pa.IOMeterMessage, None, self)]
+                        (pa.IOMeterMessage, None, self), (pa.IOSettingsMessage, None, self)]
         with self.transport._lock:
             self.transport._collectors.extend(self.entries)
 
@@ -38,7 +40,16 @@ class LiveMeterFrames:
         from pyquadcortex.client import pa
         stamp = monotonic()
         with self.lock:
-            if isinstance(msg, pa.IOMeterMessage):
+            if isinstance(msg, pa.IOSettingsMessage):
+                for ports, field, channels in (
+                    (msg.settings.in_port, "input_port_id", {1:"input_1", 2:"input_2"}),
+                    (msg.settings.out_port, "output_port_id", {4:"xlr_1", 5:"xlr_2", 6:"out_3", 7:"out_4"}),
+                ):
+                    for port in ports:
+                        channel = channels.get(getattr(port, field))
+                        if channel and port.HasField("plugged"):
+                            self.plugged[channel] = bool(port.plugged)
+            elif isinstance(msg, pa.IOMeterMessage):
                 for field, value in msg.ListFields():
                     if field.name not in ("action", "request_id"):
                         self.io[field.name] = (stamp, value)
@@ -66,8 +77,8 @@ class LiveMeterFrames:
     def snapshot(self):
         cutoff = monotonic() - .5
         with self.lock:
-            return {name: {k:v for k,(stamp,v) in source.items() if name == "io" or stamp >= cutoff}
-                    for name, source in (("gates", self.gates), ("io", self.io))}
+            return {"plugged": dict(self.plugged), **{name: {k:v for k,(stamp,v) in source.items() if name == "io" or stamp >= cutoff}
+                    for name, source in (("gates", self.gates), ("io", self.io))}}
 
     def close(self):
         with self.transport._lock:
