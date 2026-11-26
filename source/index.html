@@ -102,7 +102,8 @@
         font: 600 10px/1.2 system-ui, sans-serif;
         white-space: nowrap;
       }
-      .signal-label b {color:#888}
+      .signal-label {font-variant-numeric:tabular-nums}
+      .signal-label b {font:inherit;color:#888}
       .signal-label b[data-connected=true] {color:#62ec86}
       .signal-bars {display:flex;gap:4px}
       .signal-channel {flex:1;min-width:0}

@@ -180,6 +180,7 @@ function SignalMeters({ active, publish }) {
       )}</span>
       <div className="signal-bars">
       {channels.map((channel,i) => {
+        if (frame.plugged?.[channel] !== true) return null;
         const reading=hidReading(frame.io,channel);
         const label=type+" "+(i+1)+(reading?.clip?" CLIP":"");
         return <span className="signal-channel" key={channel} role="img" aria-label={label} title={label} data-clip={reading?.clip}>
@@ -1925,7 +1926,7 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.0.3</span>
+        <span className="foot-version">Cortec Remote v0.0.4</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());
