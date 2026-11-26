@@ -1014,10 +1014,16 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
     footer{position:relative}.foot-version{position:absolute;left:50%;transform:translateX(-50%);color:#929292;font:11px system-ui;white-space:nowrap;pointer-events:none}
       footer .foot-tribute{margin-left:auto;opacity:0;min-width:44px;min-height:25px;background:transparent;color:#bcffcd;text-shadow:0 0 8px #65ff97;font:11px system-ui}
       @media(max-width:800px){footer{flex-wrap:wrap}.foot-version{position:static;transform:none;margin-inline:auto}footer .foot-tribute{max-width:9em}}
+    .ble-remote {margin: auto; max-width: 54rem; padding: 1rem; overflow:auto; height:100dvh}
+      .ble-remote h1 {font-size:1.25rem}
+      .ble-remote form {display:flex;align-items:end;gap:.5rem;flex-wrap:wrap}
+      .ble-remote input {display:block;max-width:100%;font-size:16px}
+      .ble-remote .gig-scenes {height:clamp(10rem,45dvh,26rem)}
+      .ble-remote .gig-scenes button:disabled:not(.active) {opacity:.6}
     </style>
   </head>
   <body>
     <div id="root"></div>
-    <script defer src="/app.js"></script>
+    <script defer src="./app.js"></script>
   </body>
 </html>

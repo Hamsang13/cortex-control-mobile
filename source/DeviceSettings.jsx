@@ -77,7 +77,7 @@ export default function DeviceSettings({api,online,close}){
     catch(e){setError(e.message);try{setValues(await api("device-settings"))}catch{setValues(null)}}
     finally{writing.current=false;setBusy(false)}
   }
-  const pages=groups.map(([name])=>name);
+  const pages=[...groups.map(([name])=>name), "Bluetooth"];
   if(pi?.available)pages.push("Raspberry Pi");
   return <dialog ref={dialog} className="settings-dialog" onCancel={close} aria-label="Device Settings"
     onClick={e=>{if(e.target===dialog.current)close()}}>
@@ -86,7 +86,7 @@ export default function DeviceSettings({api,online,close}){
         <button key={name} aria-pressed={page===name} onClick={()=>setPage(name)}>{name}</button>)}</div>
         <section><select className="settings-mobile-nav" aria-label="설정 항목" value={page} onChange={e=>setPage(e.target.value)}>
           {pages.map(name=><option key={name}>{name}</option>)}</select><h3>{page}</h3>
-          {page==="Raspberry Pi"?<><PiForm initial={pi} api={api}/><OfflineUpdate api={api}/></>:
+          {page==="Bluetooth"?<><p>iPad에서 Bluefy로 HTTPS 리모트 화면을 열어 Pi와 연결하세요.</p><a href="?transport=ble">Bluetooth Gig View 열기</a></>:page==="Raspberry Pi"?<><PiForm initial={pi} api={api}/><OfflineUpdate api={api}/></>:
             !online?<p>Quad Cortex를 USB로 연결하세요.</p>:values?
             groups.find(([name])=>name===page)[1].map(item=><Setting key={item[0]} item={item} value={values[item[0]]} busy={busy} save={save}/>):
             !error&&<p role="status">본체 설정 읽는 중…</p>}

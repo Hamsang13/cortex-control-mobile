@@ -57,7 +57,7 @@ bash source/install-pi.sh
 
 ## 블루투스 웹 시험판
 
-Windows Chrome에서 Pi 응답 확인과 씬 전환을 시험하는 [별도 웹 화면과 사용법](source/ble-test/)이 있습니다. iPad용 Chrome은 이 시험에 필요한 Web Bluetooth를 기본 지원하지 않습니다. v1.0.0의 기본 연결은 Wi-Fi입니다.
+iPad의 일반 Wi-Fi를 유지하면서 Bluefy의 **Bluetooth Gig View**에서 Pi 연결, 접속 키 인증, 씬 A~H 전환을 시험할 수 있습니다. 신뢰된 HTTPS에 앱 화면을 올리고 Pi에서 시험용 BLE 서비스를 실행해야 합니다. USB 케이블 없이 Pi 인증까지 확인할 수 있습니다. [시험 설정과 접속 방법](source/ble-test/)
 
 ## 배포자 · 패키지 재생성
 

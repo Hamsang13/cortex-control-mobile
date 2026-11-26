@@ -1,3 +1,4 @@
+import BluetoothRemote from "./BluetoothRemote";
 import DeviceSettings from "./DeviceSettings";
 import IOSettings from "./IOSettings";
 import BlockMenu from "./BlockMenu";
@@ -779,6 +780,40 @@ function ParameterPage({compact, multiple, turn, children, muted}) {
     }}
     onClickCapture={e=>{if(compact && suppressClick.current && e.detail){e.preventDefault();e.stopPropagation()}}}>
     {children}</div>;
+}
+
+function GigScenes({state:s,current,enabled,select}) {
+  return (
+    <div className="gig-scenes">
+      {Array.from(letters, (letter, i) => {
+        const info = s?.sceneInfo?.[i],
+          label =
+            info?.label ||
+            (s?.defaultScene === i
+              ? "Default scene"
+              : "Scene " + letter);
+        const color = info?.color || gigColors[i],
+          activeScene = current === i;
+        return (
+          <button
+            key={letter}
+            className={activeScene ? "active" : ""}
+            disabled={!enabled}
+            aria-pressed={activeScene}
+            aria-label={letter + " · " + label}
+            style={{
+              "--scene-color": gigPalette[color] || color,
+              "--scene-shade": gigShades[color],
+            }}
+            onClick={() => select(i)}
+          >
+            <b aria-hidden="true">{letter}</b>
+            <span>{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function App() {
@@ -1857,35 +1892,7 @@ function App() {
                       Parameter Editor　◉
                     </button>
                   </div>
-                  <div className="gig-scenes">
-                    {Array.from(letters, (letter, i) => {
-                      const info = s?.sceneInfo?.[i],
-                        label =
-                          info?.label ||
-                          (s?.defaultScene === i
-                            ? "Default scene"
-                            : "Scene " + letter);
-                      const color = info?.color || gigColors[i],
-                        activeScene = (pendingScene ?? s?.scene) === i;
-                      return (
-                        <button
-                          key={letter}
-                          className={activeScene ? "active" : ""}
-                          disabled={!liveState}
-                          aria-pressed={activeScene}
-                          aria-label={letter + " · " + label}
-                          style={{
-                            "--scene-color": gigPalette[color] || color,
-                            "--scene-shade": gigShades[color],
-                          }}
-                          onClick={() => run("scene", { target: i })}
-                        >
-                          <b aria-hidden="true">{letter}</b>
-                          <span>{label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <GigScenes state={s} current={pendingScene ?? s?.scene} enabled={liveState} select={i=>run("scene",{target:i})}/>
                 </section>
               )}
             </>
@@ -2010,4 +2017,4 @@ function RoutePanel({meterFrame,route,state,open,busy,paused,commit,assign,setPo
       </div>}</div>
   </section>;
 }
-createRoot(document.getElementById("root")).render(<App />);
+createRoot(document.getElementById("root")).render(new URLSearchParams(location.search).get("transport")==="ble" ? <BluetoothRemote Scenes={GigScenes}/> : <App />);

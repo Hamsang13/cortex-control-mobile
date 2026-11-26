@@ -7,3 +7,11 @@ Windows Chrome에서 이 폴더의 `index.html`을 로컬 파일로 열거나 �
 Pi 쪽은 BlueZ의 GATT 서비스와 광고 기능, Python 3, 시험용 Python 패키지 `dbus-next==0.2.3`을 사용합니다. 리모트 서비스와 같은 사용자로 `QC_PI_CONFIG`를 기존 pi-settings.json 경로로 설정한 뒤 `python3 bridge.py`를 실행합니다. 시스템 블루투스 전원이 켜져 있어야 합니다. 시험 페이지에는 키를 저장하지 않으며, 일회용 난수와 HMAC으로 요청과 응답을 검증합니다. 이 서비스는 v1.0.0 SD 이미지·업데이트 ZIP의 기본 설치 항목에서 제외됩니다.
 
 현장 시험용 임시 서비스를 종료할 때는 Pi에서 `sudo systemctl stop cortex-ble-test cortex-ble-test-web`을 실행하세요. 임시 서비스는 재부팅 시 자동 시작되지 않습니다.
+
+## iPad · Bluetooth Gig View
+
+1. Pi에서 위 BLE 서비스를 실행합니다. iPad는 평소 인터넷 Wi-Fi에 연결한 채로 둡니다.
+2. 웹 화면을 제공하려면 같은 버전의 `source/index.html`과 `source/app.js`를 신뢰할 수 있는 HTTPS 서버의 같은 폴더에 둡니다. 웹 서버에는 접속 키나 Pi 설정 파일이 필요하지 않습니다.
+3. iPad에서 [Bluefy](https://apps.apple.com/kr/app/bluefy-web-ble-browser/id1492822055)를 열고 그 폴더의 `index.html?transport=ble`에 접속합니다. HTTPS에서 리모트가 이미 열려 있으면 설정 → Bluetooth → Bluetooth Gig View 열기로 이동할 수 있습니다.
+4. 기존 웹 접속 키를 입력하고 **Pi 연결 → Cortex Remote**를 선택합니다. 인증 완료 메시지는 USB 케이블 없이도 확인할 수 있습니다. 연결이 끊기면 다시 인증하세요.
+5. Quad Cortex를 Pi에 USB로 연결한 뒤 씬 A~H를 누릅니다. 밝은 타일은 이 화면에서 마지막으로 전환을 확인한 씬입니다. 현재 BLE 프로토콜은 프리셋 이름, 사용자 지정 씬 이름·색, 본체에서 바꾼 씬을 실시간으로 읽지 않습니다.
