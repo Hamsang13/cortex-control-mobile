@@ -31,7 +31,7 @@ def wait(fn, seconds=180):
         try:
             result = fn()
             if result: return result
-        except (OSError, ValueError):
+        except (OSError, ValueError, subprocess.CalledProcessError):
             pass
         time.sleep(.5)
     raise TimeoutError(fn)
@@ -39,6 +39,69 @@ def wait(fn, seconds=180):
 
 def get(path):
     return urllib.request.urlopen(BASE+path, timeout=3).read()
+
+
+def check_phone_wifi():
+    # Run with the same UID and socket protocol as a future signed app update.
+    client = """import json,socket,sys
+with socket.socket(socket.AF_UNIX) as s:
+    s.settimeout(40)
+    s.connect('/run/cortex-network/control.sock')
+    s.sendall(sys.stdin.buffer.read()+bytes([10]))
+    print(s.makefile().readline())
+"""
+    def call(action, **kwargs):
+        out = subprocess.check_output(["runuser","-u","cortex-remote","--","python3","-c",client],
+                                     input=json.dumps(dict(action=action, **kwargs)),text=True)
+        return json.loads(out)
+    assert call("status")["phase"]=="idle"
+    assert "error" in call("join",ssid="bad",password="short")
+    # Put the second radio and its DHCP server in a separate network stack.
+    # Two interfaces on the same Linux host cannot model an independent phone router.
+    def run(*args):
+        subprocess.run(args,check=True,stdout=subprocess.DEVNULL)
+    def phone(*args):
+        run("ip","netns","exec","qa-phone",*args)
+    run("nmcli","device","set","wlan1","managed","no")
+    phy=Path("/sys/class/net/wlan1/phy80211").resolve().name
+    run("ip","netns","add","qa-phone")
+    run("iw","phy",phy,"set","netns","name","qa-phone")
+    phone("ip","link","set","lo","up")
+    phone("ip","addr","add","192.168.43.1/24","dev","wlan1")
+    phone("ip","link","set","wlan1","up")
+    conf=Path("/tmp/qa-phone.conf")
+    conf.write_text("ctrl_interface=/tmp/qa-phone-ctrl\nnetwork={\n"
+                    'ssid="QA-Phone"\nmode=2\nfrequency=2437\nkey_mgmt=WPA-PSK\n'
+                    'proto=RSN\npairwise=CCMP\ngroup=CCMP\npsk="testphone123"\n}\n')
+    phone("wpa_supplicant","-B","-Dnl80211","-iwlan1","-c",str(conf))
+    phone("dnsmasq","--conf-file=/dev/null","--port=0","--interface=wlan1",
+          "--dhcp-range=192.168.43.20,192.168.43.50,1h","--pid-file=/tmp/qa-dns.pid",
+          "--dhcp-leasefile=/tmp/qa-phone.leases")
+    assert "ssids" in call("scan")
+    first=call("join",ssid="QA-Phone",password="testphone123")
+    wait(lambda:call("status")["phase"]=="trial")
+    assert "error" in call("confirm",ticket="wrong")
+    assert call("confirm",ticket=first["ticket"])=={}
+    assert call("status")["phase"]=="connected"
+    log("PASS signed app UID can switch to WPA2 hotspot and confirm")
+    phone("wpa_cli","-p","/tmp/qa-phone-ctrl","-iwlan1","disable_network","0")
+    wait(lambda:call("status")["phase"]=="idle")
+    assert "ssid Cortex-QA" in subprocess.check_output(["iw","dev","wlan0","info"],text=True)
+    phone("wpa_cli","-p","/tmp/qa-phone-ctrl","-iwlan1","enable_network","0")
+    second=call("join",ssid="QA-Phone",password="testphone123")
+    assert second["ticket"] != first["ticket"]
+    wait(lambda:call("status")["phase"]=="trial")
+    wait(lambda:call("status")["phase"]=="idle")
+    assert "ssid Cortex-QA" in subprocess.check_output(["iw","dev","wlan0","info"],text=True)
+    # A supervisor restart in the middle of a new attempt must cancel the trial.
+    log("PASS phone loss and unconfirmed client both restore original private AP")
+    assert "ticket" in call("join",ssid="QA-Phone",password="testphone123")
+    wait(lambda:call("status")["phase"]=="trial")
+    subprocess.run(["systemctl","restart","cortex-network"],check=True)
+    wait(lambda:call("status")["phase"]=="idle")
+    assert "ssid Cortex-QA" in subprocess.check_output(["iw","dev","wlan0","info"],text=True)
+    assert call("forget")=={}
+    log("PASS interrupted switch recovers after service restart; remembered profile removed")
 
 
 def main():
@@ -104,6 +167,7 @@ def main():
     assert updater.state()["active"]==original and CONFIG.read_bytes()==saved and cache.read_bytes()==sentinel
     assert b'Cortec Remote' in get("/app.js")
     log("PASS failed startup rolled back to healthy app")
+    check_phone_wifi()
     log("COMPLETE")
 
 
@@ -112,9 +176,12 @@ if __name__=="__main__":
         main()
     except BaseException:
         import traceback
-        for unit in ("qc-desk-hotspot", "qc-desk"):
+        for unit in ("qc-desk-hotspot", "qc-desk", "cortex-network"):
             status = subprocess.run(["systemctl","show",unit,"-p","ActiveState","-p","SubState","-p","Result"],
                                     capture_output=True, text=True)
             log(unit+" "+status.stdout.strip().replace("\n"," "))
+        diag = subprocess.run(["journalctl","-b","-u","NetworkManager","-u","cortex-network",
+                               "-n","35","--no-pager"],capture_output=True,text=True)
+        log(diag.stdout)
         log(traceback.format_exc())
         raise

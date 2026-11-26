@@ -7,7 +7,7 @@ mode=$3
 cd "$(dirname "$0")/.."
 runtime=/usr/local/lib/qc-desk
 install -d -m 0755 "$runtime"
-install -m 0644 pi_settings.py release/{firstboot.py,package.py,updater.py,update-public.pem} "$runtime/"
+install -m 0644 pi_settings.py release/{phone_wifi.py,firstboot.py,package.py,updater.py,update-public.pem} "$runtime/"
 install -m 0755 release/hotspot.sh "$runtime/"
 install -d -o "$account" -g "$(id -gn "$account")" "$app"
 install -m 0644 server.py editor.py demo.py device_settings.py pi_settings.py io_settings.py plugin_sync.py plugin-names.json utilities.py pitch.py index.html app.js "$app/"
@@ -44,10 +44,30 @@ RestartSec=2
 [Install]
 WantedBy=multi-user.target
 EOF
-systemctl enable qc-desk-hotspot qc-desk
+cat > /etc/systemd/system/cortex-network.service <<EOF
+[Unit]
+Description=Cortex Remote phone hotspot connection and recovery
+After=qc-desk-hotspot.service
+Requires=qc-desk-hotspot.service
+[Service]
+ExecStart=/usr/bin/python3 -I "$runtime/phone_wifi.py" "$account"
+RuntimeDirectory=cortex-network
+RuntimeDirectoryMode=0755
+StateDirectory=cortex-network
+StateDirectoryMode=0700
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/NetworkManager/system-connections
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl enable qc-desk-hotspot qc-desk cortex-network
 if [[ $mode == live ]]; then
     udevadm control --reload-rules
     udevadm trigger --subsystem-match=hidraw --action=add
     systemctl daemon-reload
-    systemctl restart qc-desk
+    systemctl restart qc-desk cortex-network
 fi

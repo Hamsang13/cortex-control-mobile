@@ -55,6 +55,7 @@ qemu-system-aarch64 -M raspi3b -kernel Image -dtb bcm2710-rpi-3-b.dtb -initrd in
 pid=$!
 for _ in {1..300}; do
     if grep -q COMPLETE serial.log; then grep -E 'PASS |COMPLETE' serial.log; exit 0; fi
+    if grep -q 'Traceback (most recent call last):' serial.log && grep -q 'cortex-test.service: Failed' serial.log; then break; fi
     if ! kill -0 "$pid" 2>/dev/null; then break; fi
     sleep 2
 done
