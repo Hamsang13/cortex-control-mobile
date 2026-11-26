@@ -1,3 +1,4 @@
+import {bluetoothMode, bluetoothApi} from "./bleTransport";
 import BluetoothRemote from "./BluetoothRemote";
 import DeviceSettings from "./DeviceSettings";
 import IOSettings from "./IOSettings";
@@ -85,6 +86,7 @@ function placement(model) {
   };
 }
 async function api(action, body = {}, onProgress) {
+  if (bluetoothMode) return bluetoothApi(action,body,onProgress);
   const response = await fetch("/api/" + action, {
     method: "POST",
     headers: {
@@ -2017,4 +2019,4 @@ function RoutePanel({meterFrame,route,state,open,busy,paused,commit,assign,setPo
       </div>}</div>
   </section>;
 }
-createRoot(document.getElementById("root")).render(new URLSearchParams(location.search).get("transport")==="ble" ? <BluetoothRemote Scenes={GigScenes}/> : <App />);
+createRoot(document.getElementById("root")).render(bluetoothMode ? <BluetoothRemote><App /></BluetoothRemote> : <App />);

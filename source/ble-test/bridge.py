@@ -8,6 +8,7 @@ import secrets
 import time
 import urllib.request
 from pathlib import Path
+from remote_rpc import RemoteRPC
 from urllib.parse import urlsplit
 
 from dbus_next import BusType, DBusError, Variant
@@ -94,6 +95,32 @@ class Control(ServiceInterface):
         self.peers[peer]=(time.monotonic()+30,result+hmac.digest(self.key,msg+result,"sha256")[:16])
 
 
+class RemoteCharacteristic(Control):
+    def __init__(self, config):
+        super().__init__(config)
+        self.rpc = RemoteRPC(config, self.base)
+
+    @dbus_property(access=READ)
+    def UUID(self) -> 's':
+        return UUID.replace("0001-", "0003-")
+
+    @method()
+    def ReadValue(self, options: 'a{sv}') -> 'ay':
+        try:
+            value = self.rpc.read(options["device"].value)
+            offset = options.get("offset")
+            return value[offset.value if offset else 0:]
+        except KeyError:
+            raise DBusError("org.bluez.Error.Failed", "Start a request")
+
+    @method()
+    async def WriteValue(self, value: 'ay', options: 'a{sv}'):
+        try:
+            self.rpc.write(options["device"].value, bytes(value))
+        except Exception:
+            raise DBusError("org.bluez.Error.Failed", "Invalid key or transfer")
+
+
 class Advertisement(ServiceInterface):
     def __init__(self):
         super().__init__("org.bluez.LEAdvertisement1")
@@ -122,6 +149,7 @@ async def main():
     proxy=bus.get_proxy_object("org.bluez",adapter,await bus.introspect("org.bluez",adapter))
     bus.export(SERVICE,Service())
     bus.export(SERVICE+"/control",Control(config))
+    bus.export(SERVICE+"/remote",RemoteCharacteristic(config))
     advert="/net/cortexremote/advert"
     bus.export(advert,Advertisement())
     await proxy.get_interface("org.bluez.GattManager1").call_register_application(ROOT,{})

@@ -57,7 +57,7 @@ bash source/install-pi.sh
 
 ## 블루투스 웹 시험판
 
-iPad의 일반 Wi-Fi를 유지하면서 Bluefy의 **Bluetooth Gig View**에서 Pi 연결, 접속 키 인증, 씬 A~H 전환을 시험할 수 있습니다. 신뢰된 HTTPS에 앱 화면을 올리고 Pi에서 시험용 BLE 서비스를 실행해야 합니다. USB 케이블 없이 Pi 인증까지 확인할 수 있습니다. [시험 설정과 접속 방법](source/ble-test/)
+설정 → 연결 방식에서 Wi-Fi 또는 Bluetooth를 선택합니다. 두 방식 모두 같은 GRID, DIRECTORY, GIG VIEW와 파라미터 에디터를 사용합니다. iPad에서는 Bluefy에서 신뢰된 HTTPS 리모트 주소를 열고 Pi에 BLE로 연결합니다. Pi에는 같은 버전의 시험용 BLE 서비스가 필요합니다. [준비 및 검증 방법](source/ble-test/)
 
 ## 배포자 · 패키지 재생성
 

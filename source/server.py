@@ -349,7 +349,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/app.js":
             return self.send(200, (ROOT / "app.js").read_bytes(), "text/javascript")
-        if self.path != "/":
+        if self.path.partition("?")[0] != "/":
             return self.send_error(404)
         self.send(200, (ROOT / "index.html").read_bytes(), "text/html; charset=utf-8")
 

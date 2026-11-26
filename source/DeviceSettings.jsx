@@ -1,3 +1,5 @@
+import ConnectionChoice from "./ConnectionChoice";
+import {bluetoothMode} from "./bleTransport";
 import OfflineUpdate from "./OfflineUpdate";
 import {watchPiRestart} from "./piReconnect";
 import React, {useEffect, useRef, useState} from "react";
@@ -48,8 +50,8 @@ function PiForm({initial,api}) {
       const result=await api("pi-set",form);
       const {reconnect,...settings}=result;
       setForm({...settings,wifi:"",key:""});
-      if(reconnect)watchPiRestart(reconnect);
-      setMessage("저장했습니다. 이 탭을 열어 두세요. Pi 재부팅 후 "+result.ssid+"에 연결되면 "+result.url+"로 자동 이동합니다. Wi-Fi 이름이나 비밀번호를 바꿨다면 Wi-Fi 설정에서 다시 연결하세요.");
+      if(reconnect && !bluetoothMode)watchPiRestart(reconnect);
+      setMessage(bluetoothMode ? "저장했습니다. Pi 재부팅 후 Bluetooth로 다시 연결하세요." : "저장했습니다. 이 탭을 열어 두세요. Pi 재부팅 후 "+result.ssid+"에 연결되면 "+result.url+"로 자동 이동합니다. Wi-Fi 이름이나 비밀번호를 바꿨다면 Wi-Fi 설정에서 다시 연결하세요.");
     }catch(e){setMessage(e.message)}finally{setBusy(false)}
   }
   return <form onSubmit={submit}><p>변경 사항은 다음 Pi 부팅부터 적용됩니다. 새 비밀번호와 접속 키를 보관하세요.</p>
@@ -77,7 +79,7 @@ export default function DeviceSettings({api,online,close}){
     catch(e){setError(e.message);try{setValues(await api("device-settings"))}catch{setValues(null)}}
     finally{writing.current=false;setBusy(false)}
   }
-  const pages=[...groups.map(([name])=>name), "Bluetooth"];
+  const pages=[...groups.map(([name])=>name), "연결 방식"];
   if(pi?.available)pages.push("Raspberry Pi");
   return <dialog ref={dialog} className="settings-dialog" onCancel={close} aria-label="Device Settings"
     onClick={e=>{if(e.target===dialog.current)close()}}>
@@ -86,7 +88,8 @@ export default function DeviceSettings({api,online,close}){
         <button key={name} aria-pressed={page===name} onClick={()=>setPage(name)}>{name}</button>)}</div>
         <section><select className="settings-mobile-nav" aria-label="설정 항목" value={page} onChange={e=>setPage(e.target.value)}>
           {pages.map(name=><option key={name}>{name}</option>)}</select><h3>{page}</h3>
-          {page==="Bluetooth"?<><p>iPad에서 Bluefy로 HTTPS 리모트 화면을 열어 Pi와 연결하세요.</p><a href="?transport=ble">Bluetooth Gig View 열기</a></>:page==="Raspberry Pi"?<><PiForm initial={pi} api={api}/><OfflineUpdate api={api}/></>:
+          {page==="연결 방식"?<><ConnectionChoice piUrl={pi?.url}/>
+          <p>Bluetooth는 iPad에서 Bluefy와 신뢰된 HTTPS 주소가 필요합니다. Wi-Fi로 돌아갈 때는 Pi 네트워크에서 기존 키 포함 주소를 사용할 수 있습니다.</p></>:page==="Raspberry Pi"?<><PiForm initial={pi} api={api}/>{bluetoothMode?<p>업데이트 ZIP은 Wi-Fi로 연결한 뒤 적용하세요.</p>:<OfflineUpdate api={api}/>}</>:
             !online?<p>Quad Cortex를 USB로 연결하세요.</p>:values?
             groups.find(([name])=>name===page)[1].map(item=><Setting key={item[0]} item={item} value={values[item[0]]} busy={busy} save={save}/>):
             !error&&<p role="status">본체 설정 읽는 중…</p>}
