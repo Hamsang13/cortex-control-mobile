@@ -4,12 +4,12 @@
 
 ## 배포 파일 받기
 
-**v1.0.0 공개 준비 중**
+**현재 시험 버전은 v0.0.1입니다. v1.0.0은 정식 출시 때 사용합니다.**
 
 | 하려는 일 | 공개될 파일 |
 | --- | --- |
-| [새 SD 카드 설치](#install-sd) | `cortex-remote-v1.0.0-pi-zero2w-arm64.img.xz` |
-| [기존 Pi 업데이트](#update-pi) | `cortex-remote-v1.0.0-update.zip` |
+| [새 SD 카드 설치](#install-sd) | `cortex-remote-v0.0.1-pi-zero2w-arm64.img.xz` |
+| [기존 Pi 업데이트](#update-pi) | `cortex-remote-v0.0.1-update.zip` |
 
 출시 후 이 표에서 설치 파일을 바로 받을 수 있습니다. 두 파일과 검증용 `SHA256SUMS`는 [GitHub Releases](https://github.com/Hamsang13/cortex-control-mobile/releases)에 함께 게시됩니다.
 
@@ -19,7 +19,7 @@
 
 **Raspberry Pi Zero 2 W/WH**, 8GB 이상 microSD, 안정적인 5V 전원, USB OTG 어댑터와 Quad Cortex용 USB 데이터 케이블을 준비하세요. Mac과 Windows는 같은 이미지를 사용합니다.
 
-1. 배포 파일 `cortex-remote-v1.0.0-pi-zero2w-arm64.img.xz`를 받습니다. `SHA256SUMS`와 대조할 때는 Mac에서 `shasum -a 256 파일명`, Windows PowerShell에서 `Get-FileHash 파일명 -Algorithm SHA256`을 사용하세요.
+1. 배포 파일 `cortex-remote-v0.0.1-pi-zero2w-arm64.img.xz`를 받습니다. `SHA256SUMS`와 대조할 때는 Mac에서 `shasum -a 256 파일명`, Windows PowerShell에서 `Get-FileHash 파일명 -Algorithm SHA256`을 사용하세요.
 2. 컴퓨터의 카드 슬롯 또는 USB 카드 리더기에 microSD를 연결합니다. **기록하면 선택한 카드의 기존 데이터가 모두 지워집니다.** Raspberry Pi Imager에서 Zero 2 W → 운영체제 **사용자 이미지(Use custom)** → 다운로드한 `.img.xz` → 대상 카드를 선택하세요. OS 사용자 설정은 건너뛰고 기록과 검증이 끝날 때까지 기다립니다. XZ 압축 이미지를 지원하는 다른 SD 기록 도구도 사용할 수 있습니다. [Raspberry Pi Imager 공식 안내](https://www.raspberrypi.com/documentation/computers/imager.html)
 3. 무선 국가 기본값은 한국(`KR`)입니다. 다른 국가에서 사용할 때는 기록된 카드의 **bootfs → cortex-country.txt**에 해당 두 자리 국가 코드를 저장합니다. 카드를 안전하게 꺼내 Pi에 넣습니다.
 4. Quad Cortex에는 자체 전원을, Pi에는 **PWR IN**으로 5V를 공급합니다. Pi의 **USB** 데이터 단자와 Quad Cortex의 **USB-B**를 OTG 어댑터와 데이터 케이블로 연결하세요.
@@ -32,7 +32,7 @@
 
 ## 설치 후 · Wi-Fi로 업데이트
 
-1. 인터넷에 연결된 PC 또는 iPad에 `cortex-remote-v1.0.0-update.zip`을 미리 저장합니다. iPad에서는 파일 앱의 **나의 iPad** 등에 실제 다운로드를 완료하세요.
+1. 인터넷에 연결된 PC 또는 iPad에 `cortex-remote-v0.0.1-update.zip`을 미리 저장합니다. iPad에서는 파일 앱의 **나의 iPad** 등에 실제 다운로드를 완료하세요.
 2. 해당 기기를 Pi의 개인 Wi-Fi에 연결하고 기존 즐겨찾기로 리모트를 엽니다.
 3. 기기명 옆 **⚙ → Raspberry Pi → 오프라인 앱 업데이트**에서 받은 ZIP을 그대로 선택해 **업데이트 적용**을 누르세요. 적용 중에는 Pi 전원을 유지합니다.
 4. 서명과 파일 해시가 맞으면 앱을 다시 시작하고 기동 확인 후 브라우저가 새로고침됩니다. 손상된 ZIP은 설치 전에 거부합니다. 후보 앱이 시작되지 않거나 기동 점검을 통과하지 못하면 직전 앱으로 복귀합니다. **Wi-Fi, 접속 키, 사용자 설정과 캐시는 유지**됩니다. 일반 앱 업데이트에는 Pi 재부팅이나 SD 카드 교체가 필요 없습니다.
@@ -54,7 +54,7 @@ Pi 자체의 Wi-Fi 이름·비밀번호·접속 URL·키를 변경할 때는 같
 
 ### GitHub에서 앱 업데이트
 
-배포자가 서명 업데이트 채널을 활성화한 뒤 사용할 수 있습니다. 처음 한 번은 이 기능을 포함한 서명 ZIP을 기존 앱에서 설치합니다. 이후 **설정 → Raspberry Pi**를 열면 Pi가 GitHub의 빌드를 확인합니다. **업데이트 설치**를 누르면 Pi가 ZIP을 받아 검증하고 앱을 재시작합니다. 같은 v1.0.0 내의 변경은 빌드 번호로 표시합니다. 인터넷이 없으면 기존 오프라인 ZIP 절차를 사용하세요. [배포 채널 설정과 BLE 최초 설치](source/release/README.md#github-서명-업데이트-채널)
+공식 서명 업데이트 채널에서 시험 빌드를 제공합니다. 처음 한 번은 이 기능을 포함한 서명 ZIP을 기존 앱에서 설치합니다. 이후 **설정 → Raspberry Pi**를 열면 Pi가 GitHub의 빌드를 확인합니다. **업데이트 설치**를 누르면 Pi가 ZIP을 받아 검증하고 앱을 재시작합니다. 같은 v0.0.1 내의 변경은 빌드 번호로 표시합니다. 인터넷이 없으면 기존 오프라인 ZIP 절차를 사용하세요. [배포 채널 설정과 BLE 최초 설치](source/release/README.md#github-서명-업데이트-채널)
 
 ### ZIP 업로드 메뉴 또는 네트워크 서비스가 없는 기존 Pi
 

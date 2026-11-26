@@ -8,7 +8,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-VERSION = "1.0.0"
+VERSION = "0.0.1"
 FILES = tuple("""server.py editor.py demo.py device_settings.py pi_settings.py
 io_settings.py plugin_sync.py utilities.py pitch.py index.html app.js plugin-names.json""".split())
 LIMIT = 16 * 1024 * 1024
