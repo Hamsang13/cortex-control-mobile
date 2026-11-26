@@ -1268,6 +1268,7 @@ function App() {
     })();
     return queue.writing;
   }
+  const [initialLoading,setInitialLoading]=useState(true);
   const presetRequest = useRef(null);
   const [presetFraction,setPresetFraction]=useState(0);
   const [loadingPresets, setLoadingPresets] = useState(false);
@@ -1294,9 +1295,13 @@ function App() {
   }
   useEffect(() => {
     if (!liveState && !usbPaused) return;
+    let current=true;
     setFolders([]);Q([]);setDirectoryError("");
-    readPresets().catch(error => setDirectoryError(error.message));
+    readPresets().catch(error => {if(current)setDirectoryError(error.message)}).finally(()=>{
+      if(current)setInitialLoading(false);
+    });
     return () => {
+      current=false;
       presetRequest.current = null;
       setLoadingPresets(false);
     };
@@ -1629,10 +1634,13 @@ function App() {
     </>
   );
   // The app bundle is ready. The remaining lights follow actual request boundaries.
+  useEffect(()=>{
+    if (usbPaused || msg) setInitialLoading(false);
+  },[usbPaused,msg]);
   const loadingStep = !previewChecked ? 1 : !liveState ? 2 : libraryPending ? 3 : 4;
   return (
     <div className="shell">
-      {((loadingPresets && !usbPaused) || (!liveState && !usbPaused && !msg) || (usbPaused && busy)) && (
+      {initialLoading && (
         <div className="preset-loading" role="status">
           <div className="splash-chain" aria-hidden="true">
             {["pitch","overdrive","amp","cab","reverb"].map((key,i)=><div key={key} className="splash-block" style={{"--fill":(i<loadingStep?100:i>loadingStep?0:25+75*(i===4?presetFraction:0))+"%"}}>
@@ -1973,7 +1981,7 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.1.2</span>
+        <span className="foot-version">Cortec Remote v0.1.3</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());
