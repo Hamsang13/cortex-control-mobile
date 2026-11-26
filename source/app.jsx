@@ -790,38 +790,81 @@ function ParameterPage({compact, multiple, turn, children, muted}) {
     {children}</div>;
 }
 
-function GigScenes({state:s,current,enabled,select}) {
-  return (
-    <div className="gig-scenes">
-      {Array.from(letters, (letter, i) => {
-        const info = s?.sceneInfo?.[i],
-          label =
-            info?.label ||
-            (s?.defaultScene === i
-              ? "Default scene"
-              : "Scene " + letter);
-        const color = info?.color || gigColors[i],
-          activeScene = current === i;
-        return (
-          <button
-            key={letter}
-            className={activeScene ? "active" : ""}
-            disabled={!enabled}
-            aria-pressed={activeScene}
-            aria-label={letter + " · " + label}
-            style={{
-              "--scene-color": gigPalette[color] || color,
-              "--scene-shade": gigShades[color],
-            }}
-            onClick={() => select(i)}
-          >
-            <b aria-hidden="true">{letter}</b>
-            <span>{label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
+function GigScenes({state:s,current,enabled,select,run}) {
+  const [edit,setEdit]=useState(null), [copy,setCopy]=useState(null), [over,setOver]=useState(null);
+  const drag=useRef(null), skipClick=useRef(false), root=useRef(null);
+  const stamp={identity:s?.identity,rev:s?.rev,scene:s?.scene};
+  useEffect(()=>{
+    function outside(e){ if(!root.current?.contains(e.target))setCopy(null); }
+    function escape(e){ if(e.key==="Escape"){setCopy(null);setEdit(null);} }
+    document.addEventListener("pointerdown",outside);
+    document.addEventListener("keydown",escape);
+    return ()=>{document.removeEventListener("pointerdown",outside);document.removeEventListener("keydown",escape)};
+  },[]);
+  function finishEdit(){
+    if(!edit)return;
+    const {source,label,color,initial,original,stamp}=edit;
+    setEdit(null);
+    const change={};
+    if(label.trim()!==initial)change.label=label.trim();
+    if(color!==original)change.color=color;
+    if(Object.keys(change).length)run("scene-style",{source,...change,...stamp});
+  }
+  function start(e,i){
+    if(!enabled||edit||copy||e.button!==0||!e.isPrimary)return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current={i,x:e.clientX,y:e.clientY,moved:false,stamp};
+    skipClick.current=false;
+  }
+  function move(e){
+    const d=drag.current;
+    if(!d||!e.isPrimary)return;
+    if(!d.moved && Math.hypot(e.clientX-d.x,e.clientY-d.y)<6)return;
+    if(!d.moved){d.moved=true;e.currentTarget.setPointerCapture(e.pointerId);}
+    const target=document.elementFromPoint(e.clientX,e.clientY)?.closest("[data-gig-scene]");
+    setOver(target && root.current.contains(target)?Number(target.dataset.gigScene):null);
+  }
+  function end(e){
+    const d=drag.current;
+    drag.current=null;setOver(null);
+    if(!d?.moved)return;
+    skipClick.current=true;
+    const tile=document.elementFromPoint(e.clientX,e.clientY)?.closest("[data-gig-scene]");
+    if(!tile||!root.current.contains(tile))return;
+    const target=Number(tile.dataset.gigScene);
+    if(target!==d.i)run("scene-transfer",{source:d.i,target,swap:!e.altKey,...d.stamp});
+  }
+  return <div ref={root} className="gig-scenes">{Array.from(letters,(letter,i)=>{
+    const info=s?.sceneInfo?.[i], label=info?.label||(s?.defaultScene===i?"Default scene":"Scene "+letter);
+    const color=info?.color||gigColors[i], active=current===i;
+    return <div className="gig-tile" key={letter} data-gig-scene={i} data-drop={over===i||copy?.source===i}
+      style={{"--scene-color":gigPalette[color]||color,"--scene-shade":gigShades[color]}}>
+      <button className={"scene-face"+(active?" active":"")} disabled={!enabled} aria-pressed={active}
+        aria-label={letter+" · "+label} onPointerDown={e=>start(e,i)} onPointerMove={move} onPointerUp={end}
+        onPointerCancel={()=>{drag.current=null;setOver(null)}} onClick={()=>{
+          if(skipClick.current){skipClick.current=false;return}
+          if(copy){setCopy(null);if(copy.source!==i)run("scene-transfer",{...copy,target:i,swap:false});}
+          else select(i);
+        }}><b aria-hidden="true">{letter}</b><span>{copy?"복사할 씬 선택":label}</span></button>
+      {enabled&&!copy&&edit?.source!==i&&<div className="scene-tools">
+        <button aria-label={letter+" 씬 이름과 색상 편집"} title="Edit scene" onClick={()=>{
+          setEdit({source:i,label,initial:label,original:color,color,stamp});
+        }}><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="m4 16-1 5 5-1L20 8l-4-4z"/></svg></button>
+        <button aria-label={letter+" 씬 교환 또는 복사"} title="Drag and drop to swap, hold ALT to replace"
+          onPointerDown={e=>start(e,i)} onPointerMove={move} onPointerUp={end}
+          onPointerCancel={()=>{drag.current=null;setOver(null)}} onClick={()=>{
+            if(skipClick.current){skipClick.current=false;return}setCopy({source:i,...stamp});
+          }}>⇄</button></div>}
+      {edit?.source===i&&<form className="scene-inline" onSubmit={e=>{e.preventDefault();finishEdit()}}
+        onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))finishEdit()}}>
+        <input aria-label={letter+" 씬 이름"} autoFocus value={edit.label} onFocus={e=>e.target.select()}
+          onChange={e=>setEdit({...edit,label:e.target.value})}/>
+        <div>{["#ffd236","#ff7000","#ff2727","#ff02c2","#6954ff","#0a74e0","#00ffdd","#45f862"].map(c=>
+          <button type="button" key={c} aria-label={c} aria-pressed={edit.color===c} style={{"--swatch":c}}
+            onPointerDown={e=>e.preventDefault()} onClick={()=>setEdit({...edit,color:c})}/>)}</div>
+      </form>}
+    </div>;
+  })}</div>;
 }
 
 function App() {
@@ -1914,7 +1957,7 @@ function App() {
                       Parameter Editor　◉
                     </button>
                   </div>
-                  <GigScenes state={s} current={pendingScene ?? s?.scene} enabled={liveState} select={i=>run("scene",{target:i})}/>
+                  <GigScenes key={String(s?.identity)+String(liveState)} run={run} state={s} current={pendingScene ?? s?.scene} enabled={liveState} select={i=>run("scene",{target:i})}/>
                 </section>
               )}
             </>
@@ -1926,7 +1969,7 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.0.4</span>
+        <span className="foot-version">Cortec Remote v0.1.0</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());

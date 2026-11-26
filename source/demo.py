@@ -1,7 +1,7 @@
 """In-memory editor for running the web interface without a USB device."""
 
 from copy import deepcopy
-from editor import revision
+from editor import revision, scene_change, scene_values
 
 MODELS = [
     (1, "Optical Comp", "Compressor"),
@@ -121,6 +121,7 @@ class Demo:
         self.global_tempo = [0.4,0,1,.613137,0,.5,.1,0,0,0]
         self.grid = dict(
             tempo=[[v] for v in self.global_tempo],
+            sceneInfo=[dict(label="", color=c) for c in ("#ff2727","#0a74e0","#ffd236","#ff02c2","#45f862","#ff7000","#6954ff","#00ffdd")],
             name="Demo · Clean",
             identity="demo-0",
             lanes=[dict(input=1, output=19, mute=[False], controls=demo_route_controls(row)) for row in range(4)],
@@ -210,6 +211,24 @@ class Demo:
                 if source:
                     dest.append((deepcopy(g), self.dirty))
                     self.grid, self.dirty = source.pop()
+            elif a in ("scene-style", "scene-transfer"):
+                if d.get("identity") != g["identity"]:
+                    raise ValueError("Preset changed")
+                src, value, option = scene_change(a, d)
+                self.undo.append((deepcopy(g), self.dirty))
+                self.redo.clear()
+                if a == "scene-style":
+                    if value is not None:
+                        g["sceneInfo"][src]["label"] = value.strip()
+                    if option is not None:
+                        g["sceneInfo"][src]["color"] = option
+                else:
+                    for values in [g["sceneInfo"], *scene_values(g)]:
+                        old = values[value]
+                        values[value] = deepcopy(values[src])
+                        if option:
+                            values[src] = old
+                self.dirty = True
             elif a == "recall":
                 if self.dirty and not d.get("discard"):
                     raise ValueError("Unsaved changes")

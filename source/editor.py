@@ -21,6 +21,41 @@ def integer(data, key, low, high):
     return value
 
 
+def scene_change(action, data):
+    source = integer(data, "source", 0, 7)
+    if action == "scene-style":
+        label, color = data.get("label"), data.get("color")
+        if label is not None and (not isinstance(label, str) or any(ord(c) < 32 for c in label)):
+            raise ValueError("Invalid scene label")
+        if color is not None and (not isinstance(color, str) or len(color) != 7 or color[0] != "#" or
+                                  any(c not in "0123456789abcdef" for c in color[1:])):
+            raise ValueError("Invalid scene color")
+        return source, label, color
+    target = integer(data, "target", 0, 7)
+    swap = data.get("swap")
+    if source == target or type(swap) is not bool:
+        raise ValueError("Invalid scene destination")
+    return source, target, swap
+
+
+def scene_values(grid):
+    for block in grid["blocks"]:
+        if block["bypassAssigned"]:
+            yield block["bypass"]
+        for param in block["params"]:
+            if param["assigned"]:
+                yield param["values"]
+    for lane in grid["lanes"]:
+        for key in ("mute", "gate"):
+            if len(lane.get(key, [])) == 8:
+                yield lane[key]
+        for params in lane["controls"].values():
+            for param in params:
+                if param["assigned"]:
+                    yield param["values"]
+    yield from (values for values in grid["tempo"] if len(values) == 8)
+
+
 def lane_flags(models, model_id, index, invert=False):
     model = next((m for m in models if m.hash == model_id), None)
     if not model or index >= len(model.params):
@@ -590,7 +625,7 @@ class Editor:
         if action == "recall" and result["name"] != d["name"]:
             raise ValueError("요청한 프리셋과 본체 응답이 다릅니다.")
         if action in (
-            "expression", "expression-bypass", "stomp", "momentary",
+            "scene-style", "scene-transfer", "expression", "expression-bypass", "stomp", "momentary",
             "place",
             "delete",
             "move",
@@ -639,6 +674,18 @@ class Editor:
 
     def edit(self, state, action, d):
         q, api = self.qc, self.api
+        if action in ("scene-style", "scene-transfer"):
+            if state["identity"] != d.get("identity"):
+                raise ValueError("Preset changed")
+            source, value, option = scene_change(action, d)
+            if action == "scene-transfer":
+                q.copy_scene(source, value, swap=option)
+            else:
+                if value is not None:
+                    q.set_scene_label(source, value.strip() or None)
+                if option is not None:
+                    q.set_scene_color(source, 0xff000000 | int(option[1:], 16))
+            return
         row = integer(d, "row", 0, 3)
         if action in ("input", "output"):
             ports = api.Input if action == "input" else api.Output
@@ -766,6 +813,21 @@ class Editor:
 
 def verify_edit(action, data, before, after):
     """A completed HID write alone cannot confirm that the device accepted it."""
+    if action in ("scene-style", "scene-transfer"):
+        src, value, option = scene_change(action, data)
+        ok = before["identity"] == after["identity"]
+        if action == "scene-style":
+            meta = after["sceneInfo"][src]
+            ok &= (value is None or meta["label"] == value.strip()) and (option is None or meta["color"] == option)
+        else:
+            def contents(grid, i):
+                return [grid["sceneInfo"][i], *(v[i] for v in scene_values(grid))]
+            ok &= contents(after, value) == contents(before, src)
+            if option:
+                ok &= contents(after, src) == contents(before, value)
+        if not ok:
+            raise ValueError("본체에서 씬 변경 결과를 확인하지 못했습니다.")
+        return
     row, col = data["row"], data.get("col")
 
     def cell(state, r, c):
