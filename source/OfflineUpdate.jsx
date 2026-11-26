@@ -50,9 +50,9 @@ export default function OfflineUpdate({api}) {
     }catch(e){setMessage(e.message)}finally{setBusy(false)}
   }
   if(!available)return null;
-  return <section><h3>온라인 앱 업데이트</h3><p role="status">{notice}</p>
+  return <section className="pi-update-panel"><h3>온라인 앱 업데이트</h3><p role="status">{notice}</p>
     <button disabled={busy||checking} onClick={()=>recheck(v=>v+1)}>다시 확인</button>
-    {release?.available&&<button disabled={busy||checking} onClick={()=>apply(true)}>업데이트 설치</button>}
+    {release?.available&&<button className="install-update" disabled={busy||checking} onClick={()=>apply(true)}>업데이트 설치</button>}
     {!bluetoothMode&&<><h3>오프라인 앱 업데이트</h3>
     <label>업데이트 ZIP <input type="file" accept=".zip,application/zip" disabled={busy}
       onChange={e=>setFile(e.target.files[0]||null)}/></label>

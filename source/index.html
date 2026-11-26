@@ -1019,6 +1019,26 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
       .ble-remote h1 {font-size:1.25rem}
       .ble-remote form {display:flex;align-items:end;gap:.5rem;flex-wrap:wrap}
       .ble-remote input {display:block;max-width:100%;font-size:16px}
+      .settings-body>.pi-settings-page{padding:18px 20px;background:#19191a;min-width:0;scrollbar-width:thin;scrollbar-color:#515152 #19191a}
+      .settings-body>.pi-settings-page>h3{font-size:18px;font-weight:600;margin:0 0 13px;color:#eee}
+      .pi-connection-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px}
+      .pi-connection-form>p{grid-column:1/-1;font-size:12px;line-height:1.5;color:#aaa;margin:0}
+      .pi-connection-form>label{display:grid;align-items:start;gap:5px;padding:0;border:0;min-width:0;font-size:12px;color:#bebebe}
+      .pi-connection-form input{border:1px solid #414142;background:#101011;color:#eee;border-radius:5px;width:100%;max-width:none;min-width:0;box-sizing:border-box;height:36px;padding:0 9px;font-size:13px}
+      .pi-connection-form input:focus-visible{outline:1px solid #60e17e;outline-offset:0}
+      .pi-connection-form>button{grid-column:1/-1;justify-self:end;display:inline-flex;align-items:center;gap:7px}
+      .pi-connection-form>button,.settings-body .pi-update-panel>button{min-height:32px;background:#303031;border:1px solid #424243;font-size:12px;padding:5px 11px}
+      .pi-connection-form>button,.settings-body .pi-update-panel>.install-update{color:#7be995}
+      .settings-body .pi-update-panel{margin-top:16px;padding:13px 0 0;border-top:1px solid #373738;overflow:visible;display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:7px}
+      .settings-body .pi-update-panel>h3{display:block;grid-column:1/-1;font-size:14px;font-weight:600;margin:0}
+      .settings-body .pi-update-panel>h3:nth-of-type(2){border-top:1px solid #373738;padding-top:13px;margin-top:7px}
+      .settings-body .pi-update-panel>p{margin:0;color:#aaa;font-size:12px;overflow-wrap:anywhere}
+      .settings-body .pi-update-panel>p:last-child{grid-column:1/-1}
+      .settings-body .pi-update-panel>label{grid-column:1/3;display:flex;align-items:center;min-width:0;gap:6px;font-size:0}
+      .pi-update-panel input[type=file]{width:100%;min-width:0;color:#bbb;font-size:12px}
+      .pi-update-panel input[type=file]::file-selector-button{background:#303031;color:#ddd;border:1px solid #454546;border-radius:5px;min-height:32px;margin-right:8px;padding:4px 9px}
+      .pi-connection-form p:empty,.settings-body .pi-update-panel p:empty{display:none}
+      @media(max-width:600px){.settings-body>.pi-settings-page{padding:12px}.pi-connection-form{grid-template-columns:minmax(0,1fr)}.settings-body .pi-update-panel>p:first-of-type{grid-column:1/-1}.settings-body .pi-update-panel>button:first-of-type{grid-column:2}}
     </style>
   </head>
   <body>
