@@ -141,9 +141,8 @@ function GridCpuTotals({cpu,blocks,pair}) {
   });
 }
 const headerMeters = [
-  physicalInputs.map((channel, index) => [channel, "IN " + (index + 1)]),
-  ...[0, 2].map(start => physicalOutputs.slice(start, start + 2)
-    .map((channel, index) => [channel, "OUT " + (start + index + 1)])),
+  ["IN", "1/2", physicalInputs],
+  ["OUT", "1/2/3/4", physicalOutputs],
 ];
 
 function SignalMeters({ active, publish }) {
@@ -174,13 +173,14 @@ function SignalMeters({ active, publish }) {
   }, [active, publish]);
 
   return <div className="signal-meters" aria-label="Quad Cortex physical signal levels">
-    {headerMeters.map(group => <div className="signal-group" key={group[0][0]}>
-      {group.map(([channel, label]) => {
-        const reading = hidReading(io, channel);
-        return <div className="signal-line" key={channel} title={reading?.clip ? label + " CLIP" : label}>
-          <span className={reading?.clip ? "signal-clip" : undefined}>{label}</span>
-          <MeterTrack reading={reading} />
-        </div>;
+    {headerMeters.map(([type, numbers, channels]) => <div className="signal-line" key={type}>
+      <span className="signal-label">{type} {numbers}</span>
+      {channels.map((channel,i) => {
+        const reading=hidReading(io,channel);
+        const label=type+" "+(i+1)+(reading?.clip?" CLIP":"");
+        return <span className="signal-channel" key={channel} role="img" aria-label={label} title={label} data-clip={reading?.clip}>
+          <MeterTrack reading={reading}/>
+        </span>;
       })}
     </div>)}
   </div>;

@@ -86,24 +86,24 @@
       .shell > header { height:auto; min-height:54px; }
       .signal-meters {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 6px;
-        width: clamp(190px, 28vw, 310px);
+        gap: 2px;
+        width: clamp(150px, 17vw, 195px);
+        min-width: 138px;
         padding: 4px 6px;
         border: 1px solid #333;
         border-radius: 6px;
         background: #141414;
       }
-      .signal-group { display: grid; gap: 3px; }
       .signal-line {
         display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-columns: 62px repeat(4, minmax(0, 1fr));
         align-items: center;
-        gap: 4px;
+        gap: 3px;
         font: 600 10px/1.2 system-ui, sans-serif;
         white-space: nowrap;
       }
-      .signal-line .signal-clip { color: #ff6468; }
+      .signal-channel .signal-track { display:block; height:4px; }
+      .signal-channel[data-clip=true] .signal-track { background:#ff6468; }
       .signal-track {
         position: relative;
         display: block;
@@ -130,6 +130,7 @@
         .shell > header { flex-wrap:wrap; padding:5px 0; }
         .shell > header nav { order:2; width:100%; }
         .signal-meters { order:1; width:100%; }
+        .signal-line { grid-template-columns:62px repeat(4,minmax(0,32px)); }
         .desk-heading { flex:1 1 115px; }
       }
       nav {
