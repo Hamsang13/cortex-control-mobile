@@ -9,8 +9,8 @@
 ```sh
 npm --prefix source ci
 npm --prefix source run build
-mkdir -p dist/v0.0.1
-python3 source/release/package.py /secure/cortex-update-ed25519.pem dist/v0.0.1/cortex-remote-v0.0.1-update.zip
+mkdir -p dist/v0.0.2
+python3 source/release/package.py /secure/cortex-update-ed25519.pem dist/v0.0.2/cortex-remote-v0.0.2-update.zip
 ```
 
 공식 ZIP에는 `source/release/update-public.pem`에 대응하는 **오프라인 Ed25519 개인 키**가 필요합니다. 개인 키는 저장소·SD·ZIP·GitHub 릴리스에 넣지 마세요. 최초로 독립 배포판을 만들 때만 별도 키 쌍을 생성하고 **자신의 이미지에 들어갈** 공개 키를 바꿉니다. 공개 키가 다른 이미지는 해당 ZIP을 거부합니다.
@@ -21,7 +21,7 @@ openssl genpkey -algorithm ED25519 -out /secure/cortex-update-ed25519.pem
 openssl pkey -in /secure/cortex-update-ed25519.pem -pubout -out source/release/update-public.pem
 ```
 
-패키지 버전은 `source/release/package.py`에서 정의합니다. 사전 배포본은 v0.0.1을 유지하며, v1.0.0은 정식 출시 시 사용합니다. 같은 버전의 여러 빌드는 서명된 manifest의 SHA-256으로 구분합니다. ZIP은 지정된 앱 파일만 포함합니다. OS, 파이썬 가상환경, 고정 실행기 또는 서명 키를 바꾸는 릴리스는 새 이미지나 설치 프로그램을 제공합니다.
+패키지 버전은 `source/release/package.py`에서 정의합니다. 사전 배포본은 v0.x.y를 사용하며, v1.0.0은 정식 출시 시 사용합니다. 같은 버전의 여러 빌드는 서명된 manifest의 SHA-256으로 구분합니다. ZIP은 지정된 앱 파일만 포함합니다. OS, 파이썬 가상환경, 고정 실행기 또는 서명 키를 바꾸는 릴리스는 새 이미지나 설치 프로그램을 제공합니다.
 
 ## 2. 이미지와 가상 부팅 시험
 
@@ -29,11 +29,11 @@ Linux 또는 Docker Desktop의 Linux 컨테이너 엔진을 사용합니다. x86
 
 ```sh
 docker run --rm --privileged -e TEST_BOOT=1 \
-  -v "$PWD/source:/src:ro" -v "$PWD/dist/v0.0.1:/out" debian:trixie-slim \
+  -v "$PWD/source:/src:ro" -v "$PWD/dist/v0.0.2:/out" debian:trixie-slim \
   bash /src/release/build-image.sh /out
 ```
 
-`TEST_BOOT=1`은 배포 이미지의 **별도 복사본**에서 ARM64 Pi 커널과 systemd를 부팅합니다. QEMU의 BCM2837 모델과 Linux의 mac80211_hwsim 무선 장치를 사용해 초기 AP와 등록 화면을 열고, 개인 SSID 전환과 앱 API를 확인합니다. 이어 손상된 ZIP, 서명된 정상 ZIP, 기동에 실패하는 후보를 검사합니다. 이 과정의 설정·키·시험 캐시는 배포 이미지에 기록되지 않습니다. 실제 Zero 2 W/WH의 무선 칩, iPad Wi-Fi 연결, USB 케이블과 Quad Cortex는 별도 실기 확인 대상입니다.
+`TEST_BOOT=1`은 배포 이미지의 **별도 복사본**에서 ARM64 리모트 디바이스 커널과 systemd를 부팅합니다. QEMU의 BCM2837 모델과 Linux의 mac80211_hwsim 무선 장치를 사용해 초기 AP와 등록 화면을 열고, 개인 SSID 전환과 앱 API를 확인합니다. 이어 손상된 ZIP, 서명된 정상 ZIP, 기동에 실패하는 후보를 검사합니다. 이 과정의 설정·키·시험 캐시는 배포 이미지에 기록되지 않습니다. 실제 Zero 2 W/WH의 무선 칩, iPad Wi-Fi 연결, USB 케이블과 Quad Cortex는 별도 실기 확인 대상입니다.
 
 ## 휴대폰 핫스팟 서비스와 앱 업데이트
 
@@ -41,7 +41,7 @@ docker run --rm --privileged -e TEST_BOOT=1 \
 
 | action | 요청 및 동작 |
 | --- | --- |
-| `status` | 프로토콜 버전 1, phase, Pi의 실제 호스트 이름(.local), 현재 전환 ticket을 반환합니다. |
+| `status` | 프로토콜 버전 1, phase, 리모트 디바이스의 실제 호스트 이름(.local), 현재 전환 ticket을 반환합니다. |
 | `scan` | wlan0에서 보이는 SSID 목록을 반환합니다. 스캔할 수 없는 환경에는 SSID 직접 입력도 제공합니다. |
 | `join` | ssid와 password로 WPA2 후보를 준비하고 ticket을 반환합니다. 4초 뒤 wlan0 전환을 시작합니다. |
 | `confirm` | 활성 후보에 재접속한 브라우저가 보낸 ticket을 확인한 뒤 다음 부팅에도 쓸 프로필을 저장합니다. |
@@ -53,8 +53,8 @@ docker run --rm --privileged -e TEST_BOOT=1 \
 
 | 파일 | 용도 |
 | --- | --- |
-| `cortex-remote-v0.0.1-pi-zero2w-arm64.img.xz` | 새 SD 카드에 기록할 OS와 앱 |
-| `cortex-remote-v0.0.1-update.zip` | 기존 설치의 설정 화면에서 적용할 서명된 오프라인 앱 업데이트 |
+| `cortex-remote-v0.0.2-pi-zero2w-arm64.img.xz` | 새 SD 카드에 기록할 OS와 앱 |
+| `cortex-remote-v0.0.2-update.zip` | 기존 설치의 설정 화면에서 적용할 서명된 오프라인 앱 업데이트 |
 | `SHA256SUMS` | 내려받은 두 파일의 SHA-256 |
 
 이미지 기본 무선 국가 코드는 KR이며 해외 사용자는 최초 부팅 전에 bootfs의 `cortex-country.txt`를 해당 국가 코드로 변경합니다. 처음 설치하는 사용자의 단계별 안내와 구버전의 1회 이전 절차는 [프로젝트 README](../../README.md)에 있습니다. 패키지 빌드는 GitHub 게시·태그 생성·실기 설치를 수행하지 않습니다.
@@ -63,13 +63,13 @@ docker run --rm --privileged -e TEST_BOOT=1 \
 
 ## GitHub 서명 업데이트 채널
 
-기본 상태에서는 소스만 푸시합니다. 운영자가 온라인 배포를 승인하면 저장소 Actions 변수 `PI_UPDATE_CHANNEL=enabled`와 Actions secret `PI_UPDATE_SIGNING_PEM`을 구성합니다. secret은 설치된 Pi의 공개 키와 일치하는 Ed25519 PEM이어야 합니다. 기존 오프라인 키를 CI에 위탁할 수 없는 배포에서는 채널을 비활성 상태로 두고 오프라인 서명을 사용하세요. 다른 키로 전환하려면 먼저 Pi의 신뢰 키를 별도로 배포해야 합니다.
+기본 상태에서는 소스만 푸시합니다. 운영자가 온라인 배포를 승인하면 저장소 Actions 변수 `PI_UPDATE_CHANNEL=enabled`와 Actions secret `PI_UPDATE_SIGNING_PEM`을 구성합니다. secret은 설치된 리모트 디바이스의 공개 키와 일치하는 Ed25519 PEM이어야 합니다. 기존 오프라인 키를 CI에 위탁할 수 없는 배포에서는 채널을 비활성 상태로 두고 오프라인 서명을 사용하세요. 다른 키로 전환하려면 먼저 리모트 디바이스의 신뢰 키를 별도로 배포해야 합니다.
 
 `Signed Pi application update`를 main에서 수동 실행하거나 이후 source 변경을 main으로 푸시하면 잠금 파일로 웹 앱을 빌드하고 서명된 ZIP과 latest.json을 공개 pi-updates 브랜치의 한 커밋에 올립니다. 저장소의 Actions 토큰에는 해당 브랜치 쓰기 권한이 필요합니다. GitHub Releases 게시나 Pages 활성화는 필요하지 않습니다. 첫 활성화 시 해당 채널의 update.zip을 기존 설정의 오프라인 업데이트에 한 번 사용하세요.
 
-Pi의 기존 cortex-network.service가 외부 Wi-Fi 전환을 담당합니다. 구버전 helper에서 복구 AP 프로필이 다른 경우 새 소스의 release/phone_wifi.py로 helper를 먼저 갱신해야 합니다. 시스템 서비스 설치·교체는 일반 앱 업데이트 범위 밖입니다.
+리모트 디바이스의 기존 cortex-network.service가 외부 Wi-Fi 전환을 담당합니다. 구버전 helper에서 복구 AP 프로필이 다른 경우 새 소스의 release/phone_wifi.py로 helper를 먼저 갱신해야 합니다. 시스템 서비스 설치·교체는 일반 앱 업데이트 범위 밖입니다.
 
-BLE를 함께 설치할 때에는 인터넷에 연결된 Pi에서 현재 qc-desk.service 사용자와 실제 설정 파일 경로를 지정합니다. 예를 들어 일반 설치 계정이라면 저장소 루트에서 다음을 실행합니다.
+BLE를 함께 설치할 때에는 인터넷에 연결된 리모트 디바이스에서 현재 qc-desk.service 사용자와 실제 설정 파일 경로를 지정합니다. 예를 들어 일반 설치 계정이라면 저장소 루트에서 다음을 실행합니다.
 
 ```sh
 sudo bash source/release/install-ble.sh "$(id -un)" "$HOME/.local/share/qc-desk/pi-settings.json"
@@ -77,4 +77,4 @@ sudo bash source/release/install-ble.sh "$(id -un)" "$HOME/.local/share/qc-desk/
 
 이 스크립트는 BlueZ, python3-dbus-next, python3-cryptography와 BLE 서비스를 설치합니다. iPad에서 여는 HTTPS 화면도 같은 버전의 웹 번들로 갱신하세요.
 
-오프라인 설치에서는 Pi에 BlueZ, 시스템 Python의 cryptography와 venv가 준비되어 있을 때 세 번째 인자로 dbus_next-0.2.3-py3-none-any.whl의 절대 경로를 지정할 수 있습니다. 도우미 전용 가상환경에 설치하며 Pi가 핫스팟을 유지한 채로 진행됩니다.
+오프라인 설치에서는 리모트 디바이스에 BlueZ, 시스템 Python의 cryptography와 venv가 준비되어 있을 때 세 번째 인자로 dbus_next-0.2.3-py3-none-any.whl의 절대 경로를 지정할 수 있습니다. 도우미 전용 가상환경에 설치하며 리모트 디바이스가 핫스팟을 유지한 채로 진행됩니다.

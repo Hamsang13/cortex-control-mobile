@@ -239,7 +239,7 @@ def operate(action, data):
         return external_wifi(PI_CONFIG, data)
     if action in ("online-check","online-install"):
         if not os.environ.get("QC_HEALTH_ID"):
-            raise ValueError("Pi 설치 환경이 필요합니다.")
+            raise ValueError("리모트 디바이스 설치 환경이 필요합니다.")
         from pi_settings import online_update
         return online_update(data.get("build"), action == "online-install")
     if action == "update-status":
@@ -265,7 +265,7 @@ def operate(action, data):
         if os.name == "nt" and not DEMO:
             return save_snapshot(read_controller(),snapshots)
         key = USB.submit(device_request,"library",{}).result().get("deviceKey")
-        return {"deviceKey":key,"owned":load_snapshot(key,snapshots),"guide":GUIDE + " PC에서 python plugin_sync.py를 실행해 이 Pi로 목록을 보내세요."}
+        return {"deviceKey":key,"owned":load_snapshot(key,snapshots),"guide":GUIDE + " PC에서 python plugin_sync.py를 실행해 이 리모트 디바이스로 목록을 보내세요."}
     if action == "preview":
         cached = {}
         if not DEMO:

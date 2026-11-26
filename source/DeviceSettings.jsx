@@ -52,10 +52,10 @@ function PiForm({initial,api}) {
       const {reconnect,...settings}=result;
       setForm({...settings,wifi:"",key:""});
       if(reconnect && !bluetoothMode)watchPiRestart(reconnect);
-      setMessage(bluetoothMode ? "저장했습니다. Pi 재부팅 후 Bluetooth로 다시 연결하세요." : "저장했습니다. 이 탭을 열어 두세요. Pi 재부팅 후 "+result.ssid+"에 연결되면 "+result.url+"로 자동 이동합니다. Wi-Fi 이름이나 비밀번호를 바꿨다면 Wi-Fi 설정에서 다시 연결하세요.");
+      setMessage(bluetoothMode ? "저장했습니다. 리모트 디바이스 재부팅 후 Bluetooth로 다시 연결하세요." : "저장했습니다. 이 탭을 열어 두세요. 리모트 디바이스 재부팅 후 "+result.ssid+"에 연결되면 "+result.url+"로 자동 이동합니다. Wi-Fi 이름이나 비밀번호를 바꿨다면 Wi-Fi 설정에서 다시 연결하세요.");
     }catch(e){setMessage(e.message)}finally{setBusy(false)}
   }
-  return <form className="pi-connection-form" onSubmit={submit}><p>변경 사항은 다음 Pi 부팅부터 적용됩니다. 새 비밀번호와 접속 키를 보관하세요.</p>
+  return <form className="pi-connection-form" onSubmit={submit}><p>변경 사항은 다음 리모트 디바이스 부팅부터 적용됩니다. 새 비밀번호와 접속 키를 보관하세요.</p>
     {[["ssid","Wi-Fi 이름","text"],["wifi","새 Wi-Fi 비밀번호","password"],["url","리모트 접속 URL","url"],["key","새 접속 키","password"]].map(([k,l,type])=>
       <label className="setting-field" key={k}>{l}<input type={type} required={type!=="password"}
         autoComplete={type==="password"?"new-password":"off"} placeholder={type==="password"?"비워 두면 현재 값 유지":""}
@@ -81,18 +81,18 @@ export default function DeviceSettings({api,online,close,network,onNetwork}){
     catch(e){setError(e.message);try{setValues(await api("device-settings"))}catch{setValues(null)}}
     finally{writing.current=false;setBusy(false)}
   }
-  const pages=[...groups.map(([name])=>name), "연결 방식", "Raspberry Pi"];
+  const pages=[...groups.map(([name])=>name), "연결 방식", "리모트 디바이스"];
   return <dialog ref={dialog} className="settings-dialog" onCancel={close} aria-label="Device Settings"
     onClick={e=>{if(e.target===dialog.current)close()}}>
     <div className="settings-card"><div className="settings-title">Device Settings<button aria-label="설정 닫기" onClick={close}>×</button></div>
       <div className="settings-body"><div className="settings-list">{pages.map(name=>
         <button key={name} aria-pressed={page===name} onClick={()=>setPage(name)}>{name}</button>)}</div>
-        <section className={page==="Raspberry Pi" ? "pi-settings-page" : undefined}><select className="settings-mobile-nav" aria-label="설정 항목" value={page} onChange={e=>setPage(e.target.value)}>
+        <section className={page==="리모트 디바이스" ? "pi-settings-page" : undefined}><select className="settings-mobile-nav" aria-label="설정 항목" value={page} onChange={e=>setPage(e.target.value)}>
           {pages.map(name=><option key={name}>{name}</option>)}</select><h3>{page}</h3>
-          {page==="연결 방식"?<ConnectionChoice api={api} pi={pi} network={network} onNetwork={onNetwork}/>: page==="Raspberry Pi"?pi?.available?<><PiForm initial={pi} api={api}/><OfflineUpdate api={api}/></>:piError?<p role="alert">Pi 설정을 읽을 수 없습니다. Pi에서 실행 중인 Cortex Remote에 접속하세요. <button onClick={()=>setPiRetry(v=>v+1)}>다시 읽기</button></p>:pi?<p>핫스팟 이름·비밀번호와 리모트 주소·접속 키는 Raspberry Pi에서 실행 중인 Cortex Remote에 접속하면 변경할 수 있습니다.</p>:<p role="status">Pi 설정을 읽는 중입니다.</p>:
+          {page==="연결 방식"?<ConnectionChoice api={api} pi={pi} network={network} onNetwork={onNetwork}/>: page==="리모트 디바이스"?pi?.available?<><PiForm initial={pi} api={api}/><OfflineUpdate api={api}/></>:piError?<p role="alert">리모트 디바이스 설정을 읽을 수 없습니다. 리모트 디바이스에서 실행 중인 Cortex Remote에 접속하세요. <button onClick={()=>setPiRetry(v=>v+1)}>다시 읽기</button></p>:pi?<p>핫스팟 이름·비밀번호와 리모트 주소·접속 키는 리모트 디바이스에서 실행 중인 Cortex Remote에 접속하면 변경할 수 있습니다.</p>:<p role="status">리모트 디바이스 설정을 읽는 중입니다.</p>:
             !online?<p>Quad Cortex를 USB로 연결하세요.</p>:values?
             groups.find(([name])=>name===page)[1].map(item=><Setting key={item[0]} item={item} value={values[item[0]]} busy={busy} save={save}/>):
             !error&&<p role="status">본체 설정 읽는 중…</p>}
-          {error&&page!=="Raspberry Pi"&&page!=="연결 방식"&&<p role="alert">{error} <button onClick={()=>setRetry(v=>v+1)}>다시 읽기</button></p>}
+          {error&&page!=="리모트 디바이스"&&page!=="연결 방식"&&<p role="alert">{error} <button onClick={()=>setRetry(v=>v+1)}>다시 읽기</button></p>}
         </section></div></div></dialog>
 }

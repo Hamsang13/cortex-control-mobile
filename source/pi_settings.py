@@ -24,7 +24,7 @@ def external_wifi(config, data):
     if not config or not Path("/run/cortex-network/control.sock").exists():
         if action == "status":
             return {"available": False}
-        raise ValueError("Pi 네트워크 서비스가 필요합니다.")
+        raise ValueError("리모트 디바이스 네트워크 서비스가 필요합니다.")
     with socket.socket(socket.AF_UNIX) as client:
         client.settimeout(32)
         client.connect("/run/cortex-network/control.sock")
@@ -32,7 +32,7 @@ def external_wifi(config, data):
         with client.makefile("rb") as reader:
             result = json.loads(reader.readline(4096))
     if "error" in result:
-        raise ValueError("Pi 네트워크 요청을 완료하지 못했습니다. 연결 상태를 확인하세요.")
+        raise ValueError("리모트 디바이스 네트워크 요청을 완료하지 못했습니다. 연결 상태를 확인하세요.")
     if action == "offline":
         result.update(url=config["url"].rstrip("/"), proof=boot_proof(config))
     if action == "join":
@@ -60,7 +60,7 @@ def online_update(expected=None, install=False):
             raise ValueError("게시된 온라인 업데이트가 없습니다.") from exc
         raise
     except OSError as exc:
-        raise ValueError("GitHub에 연결할 수 없습니다. Pi의 인터넷 연결을 확인하세요.") from exc
+        raise ValueError("GitHub에 연결할 수 없습니다. 리모트 디바이스의 인터넷 연결을 확인하세요.") from exc
     if not (re.fullmatch("[0-9a-f]{40}",info["build"]) and
             all(re.fullmatch("[0-9a-f]{64}",info[k]) for k in ("sha256","manifest"))):
         raise ValueError("업데이트 정보를 확인할 수 없습니다.")
