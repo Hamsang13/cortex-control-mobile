@@ -1,3 +1,4 @@
+import {useQueuedSettings} from "./useQueuedSettings";
 import React,{useEffect,useRef,useState} from "react";
 
 import {useMeterFrame} from "./SignalTrack";
@@ -87,11 +88,11 @@ export default function IOSettings({api,readOnly,close}){
   const meterFrame = useMeterFrame();
   const [defaults,setDefaults]=useState({}),[liveValues,set]=useState({});
   const values={...liveValues,...(!readOnly && meterFrame.settings),...(!readOnly && meterFrame.expression)};
-  const v={...defaults,...values};
+
   const [port,pick]=useState(lastPort);
   const [usbPage,setUsbPage]=useState(1);
-  const [eq,showEQ]=useState(false),[band,selectBand]=useState(0),[busy,wait]=useState(false),[error,report]=useState("");
-  const [point,previewPoint]=useState(null),pending=useRef(false),dialog=useRef(null);
+  const [eq,showEQ]=useState(false),[band,selectBand]=useState(0),[error,report]=useState("");
+  const [point,previewPoint]=useState(null),dialog=useRef(null);
   useEffect(()=>{
     let live=true;
     const initial=document.activeElement;
@@ -114,10 +115,10 @@ export default function IOSettings({api,readOnly,close}){
     if(readOnly)return;
     let active=true,timer;
     async function refresh(){
-      if(!document.hidden && !pending.current){
+      if(!document.hidden && !edits.queue.current.length){
         try{
           const state=await api("io-settings",{refresh:true});
-          if(active && !pending.current)set(previous=>({...previous,...state}));
+          if(active && !edits.queue.current.length)set(previous=>({...previous,...state}));
         }catch{/* The next read retries on a temporary USB timeout. */}
       }
       if(active)timer=setTimeout(refresh,1000);
@@ -125,19 +126,14 @@ export default function IOSettings({api,readOnly,close}){
     timer=setTimeout(refresh,1000);
     return ()=>{active=false;clearTimeout(timer)};
   },[readOnly,api]);
-  async function change(entries){
-    if(readOnly||pending.current)return;
-    pending.current=true;wait(true);report("");
-    try{
-      let state=values;
-      for(const [key,value] of entries){
-        if(state[key]==null || value===state[key])continue;
-        state=await api("io-set",{key,value,previous:state[key]});set(state);
-      }
-    }catch(e){report(e.message);try{set(await api("io-settings"))}catch{}}
-    finally{pending.current=false;wait(false)}
-  }
-  const locked=readOnly||busy||!Object.keys(liveValues).length;
+  const locked=readOnly||!Object.keys(liveValues).length;
+  const edits=useQueuedSettings(!locked,values,
+    (key,value,previous)=>api("io-set",{key,value,previous}),set,async error=>{
+      report(error.message);
+      return api("io-settings").catch(()=>null);
+    });
+  const v={...defaults,...values,...edits.draft};
+  function change(entries){report("");return edits.enqueue(entries)}
   const write=(key,n)=>change([[key,n]]);
   const dial=(key,label,fmt,steps,off=false)=><Dial key={key} label={label} value={v[key]} format={fmt} steps={steps}
     disabled={locked||off||liveValues[key]==null} write={n=>write(key,n)}/>;

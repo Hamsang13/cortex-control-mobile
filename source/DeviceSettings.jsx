@@ -1,3 +1,4 @@
+import {useQueuedSettings} from "./useQueuedSettings";
 import SaveIcon from "./SaveIcon";
 import ConnectionChoice from "./ConnectionChoice";
 import {bluetoothMode} from "./bleTransport";
@@ -26,19 +27,19 @@ const groups = [
     ["midi_clock_out","MIDI clock out",["Off","MIDI DIN","USB MIDI","USB and DIN"]],["midi_clock_in_enabled","MIDI clock in"]]]
 ];
 
-function Setting({item, value, busy, save, t}) {
+function Setting({item, value, save, t}) {
   const [key,label,options]=item;
   const [draft,setDraft]=useState(null);
   const submit=v=>{setDraft(null);if(v!==value)save(key,v)};
   return <label className="setting-field"><span>{t(label)}</span>
     {value==null ? <small>—</small> : (options==="range" || key==="hold_timing") ?
-      <><input type="range" min="0" max={key==="hold_timing"?5:100} value={draft??value} disabled={busy}
+      <><input type="range" min="0" max={key==="hold_timing"?5:100} value={draft??value}
         onChange={e=>setDraft(Number(e.target.value))} onPointerUp={e=>submit(Number(e.currentTarget.value))}
         onKeyUp={e=>submit(Number(e.currentTarget.value))} onPointerCancel={()=>setDraft(null)}
         onBlur={()=>{if(draft!=null)submit(draft)}}/><output>{key==="hold_timing"?options[draft??value]:(draft??value)+"%"}</output></> :
-      options ? <select value={value} disabled={busy} onChange={e=>submit(Number(e.target.value))}>
+      options ? <select value={value} onChange={e=>submit(Number(e.target.value))}>
         {options.map((o,i)=><option key={i} value={key==="midi_channel"?i+1:i}>{t(o)}</option>)}</select> :
-      <input type="checkbox" role="switch" checked={value} disabled={busy} onChange={e=>submit(e.target.checked)}/>}
+      <input type="checkbox" role="switch" checked={value} onChange={e=>submit(e.target.checked)}/>}
   </label>
 }
 
@@ -66,22 +67,22 @@ function PiForm({initial,api,t,language}) {
 export default function DeviceSettings({api,online,close,network,onNetwork,settingsLanguage}){
   const {language,changeLanguage,t}=settingsLanguage;
   const [page,setPage]=useState("연결 방식"),[values,setValues]=useState(null),[pi,setPi]=useState(null);
-  const [error,setError]=useState(""),[busy,setBusy]=useState(false),[retry,setRetry]=useState(0);
+  const [error,setError]=useState(""),[retry,setRetry]=useState(0);
   const [piError,setPiError]=useState(""),[piRetry,setPiRetry]=useState(0);
-  const dialog=useRef(null),writing=useRef(false);
+  const dialog=useRef(null);
   useEffect(()=>{const el=dialog.current;el.showModal();return ()=>el.close()},[]);
   useEffect(()=>{let active=true;setPi(null);setPiError("");api("pi-settings").then(v=>{if(active)setPi(v)}).catch(e=>{if(active)setPiError(e.message)});
     return ()=>{active=false}},[api,piRetry]);
   useEffect(()=>{let active=true;setValues(null);setError("");
     if(online)api("device-settings").then(v=>{if(active)setValues(v)}).catch(e=>{if(active)setError(e.message)});
     return ()=>{active=false}},[api,online,retry]);
-  async function save(key,value){
-    if(writing.current)return;
-    writing.current=true;setBusy(true);setError("");
-    try{setValues(await api("device-set",{key,value,previous:values[key]}))}
-    catch(e){setError(e.message);try{setValues(await api("device-settings"))}catch{setValues(null)}}
-    finally{writing.current=false;setBusy(false)}
-  }
+  const edits=useQueuedSettings(online,values,
+    (key,value,previous)=>api("device-set",{key,value,previous}),
+    setValues,async error=>{
+      setError(error.message);
+      return api("device-settings").catch(()=>{setValues(null)});
+    });
+  function save(key,value){setError("");return edits.enqueue([[key,value]])}
   const pages=[...groups.map(([name])=>name), "연결 방식", "리모트 디바이스","Language"];
   return <dialog ref={dialog} className="settings-dialog" onCancel={close} lang={language} aria-label={t("Device Settings")}
     onClick={e=>{if(e.target===dialog.current)close()}}>
@@ -92,7 +93,7 @@ export default function DeviceSettings({api,online,close,network,onNetwork,setti
           {pages.map(name=><option key={name} value={name}>{t(name)}</option>)}</select><h3>{t(page)}</h3>
           {page==="Language"?<label className="setting-field">{t("Language")}<select value={language} onChange={e=>changeLanguage(e.target.value)}><option value="en">English</option><option value="ko">한국어</option></select></label>:page==="연결 방식"?<ConnectionChoice t={t} language={language} api={api} pi={pi} network={network} onNetwork={onNetwork}/>: page==="리모트 디바이스"?pi?.available?<><PiForm t={t} language={language} initial={pi} api={api}/><OfflineUpdate t={t} api={api}/></>:piError?<p role="alert">{t("리모트 디바이스 설정을 읽을 수 없습니다. 리모트 디바이스에서 실행 중인 Cortex Remote에 접속하세요.")} <button onClick={()=>setPiRetry(v=>v+1)}>{t("다시 읽기")}</button></p>:pi?<p>{t("핫스팟 이름·비밀번호와 리모트 주소·접속 키는 리모트 디바이스에서 실행 중인 Cortex Remote에 접속하면 변경할 수 있습니다.")}</p>:<p role="status">{t("리모트 디바이스 설정을 읽는 중입니다.")}</p>:
             !online?<p>{t("Quad Cortex를 USB로 연결하세요.")}</p>:values?
-            groups.find(([name])=>name===page)[1].map(item=><Setting t={t} key={item[0]} item={item} value={values[item[0]]} busy={busy} save={save}/>):
+            groups.find(([name])=>name===page)[1].map(item=><Setting t={t} key={item[0]} item={item} value={edits.draft[item[0]]??values[item[0]]} save={save}/>):
             !error&&<p role="status">{t("본체 설정 읽는 중…")}</p>}
           {error&&page!=="Language"&&page!=="리모트 디바이스"&&page!=="연결 방식"&&<p role="alert">{error} <button onClick={()=>setRetry(v=>v+1)}>{t("다시 읽기")}</button></p>}
         </section></div></div></dialog>

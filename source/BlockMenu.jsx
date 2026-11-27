@@ -10,7 +10,7 @@ export default function BlockMenu({block, blocks, disabled, action}) {
   const [position, setPosition] = useState({});
   const trigger = useRef(null), popup = useRef(null);
   const bypass = block.expressionBypass ?? {pedal:0,mode:0,delay:0,invert:false,latch:false};
-  const setBypass = changes => action("expression-bypass",{...bypass,...changes});
+  const setBypass = changes => action("expression-bypass",changes);
   function close() { setView(null); trigger.current?.focus(); }
   useEffect(() => {
     if (!view) return;

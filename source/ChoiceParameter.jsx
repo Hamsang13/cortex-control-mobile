@@ -6,14 +6,16 @@ export function SceneMark({scene}) {
   return <span className="scene-mark" role="img" aria-label={description} title={description}><svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1v18M1 10h18" stroke="currentColor" fill="none"/>{["A","B","C","D"].map((v,i)=><text key={v} x={i%2?15:5} y={i<2?8:18} textAnchor="middle" fill="currentColor" fontSize="8">{v}</text>)}</svg></span>;
 }
 
-export default function ChoiceParameter({p, scene, disabled, busy, readOnly, commit, assign, pressButton=false}) {
+export default function ChoiceParameter({p, scene, disabled, readOnly, commit, assign, pressButton=false}) {
   const value = p.values[p.assigned ? scene : 0];
   const binary = (p.options.length || p.steps || 2) === 2;
   const toggle = binary && (p.type === "switch" || p.type === "toggleButton" ||
     (!p.type && p.steps === 2));
   const count = pressButton ? 2 : p.options.length || (toggle ? 2 : p.steps) || 0;
   const vertical = toggle || (p.type === "switch" && count === 3);
-  const index = Math.round((value ?? 0) * (count - 1));
+  const [pendingIndex,setPendingIndex]=useState(null);
+  const sequence=useRef(0);
+  const index = pendingIndex ?? Math.round((value ?? 0) * (count - 1));
   const label = i => p.options[i] || (toggle ? ["Off", "On"][i] : String(i+1));
   const anchor = useRef(null), menu = useRef(null), hold = useRef(null);
   const suppressClick = useRef(false);
@@ -53,7 +55,12 @@ export default function ChoiceParameter({p, scene, disabled, busy, readOnly, com
   }
   function choose(i) {
     close();
-    if (!readOnly && !disabled && !busy && i!==index) commit(i/(count-1));
+    if (readOnly || disabled || i===index) return;
+    const id=++sequence.current;
+    setPendingIndex(i);
+    Promise.resolve(commit(i/(count-1))).finally(()=>{
+      if(sequence.current===id)setPendingIndex(null);
+    });
   }
   return <>
     <button ref={anchor} type="button" className="param choice-param"
@@ -61,7 +68,7 @@ export default function ChoiceParameter({p, scene, disabled, busy, readOnly, com
       aria-pressed={pressButton?index===1:undefined}
       aria-haspopup={vertical || pressButton?undefined:"listbox"} aria-expanded={vertical || pressButton?undefined:!!position}
       aria-label={pressButton?p.name:p.name+" "+(value==null?"—":label(index))}
-      disabled={disabled || busy || value==null || count<2 || (readOnly && (pressButton || vertical))}
+      disabled={disabled || value==null || count<2 || (readOnly && (pressButton || vertical))}
       onContextMenu={e=>e.preventDefault()}
       onPointerDown={e=>{
         if(!e.isPrimary || e.button!==0)return;

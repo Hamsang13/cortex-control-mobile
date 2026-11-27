@@ -2,6 +2,8 @@ import React,{useState} from "react";
 import {bluetoothMode} from "./bleTransport";
 import {watchPiRestart} from "./piReconnect";
 
+const defaultBluetoothUrl = "https://cortexRemote.hamsang";
+
 export const modeNames={offline:"오프라인",hotspot:"핫스팟",ble:"블루투스"};
 export function networkMode(network){
   return ["connected","trial"].includes(network?.phase)?"hotspot":"offline";
@@ -16,7 +18,7 @@ export default function ConnectionChoice({api,pi,network,onNetwork,t,language}){
   const changing=["scheduled","recovering","offline-pending"].includes(phase);
   const endpoint=network?.host&&pi?.url ? "http://"+network.host+":"+new URL(pi.url).port : pi?.url;
   function select(next){
-    setChoice(next);setMessage("");setPassword("");setEntry("");
+    setChoice(next);setMessage("");setPassword("");setEntry(next==="ble"?defaultBluetoothUrl:"");
   }
   async function act(action){
     setBusy(true);setMessage("");
@@ -36,8 +38,8 @@ export default function ConnectionChoice({api,pi,network,onNetwork,t,language}){
   }
   function openBluetooth(){
     try{
-      const url=window.isSecureContext?new URL(location.href):new URL(entry);
-      if(!window.isSecureContext && url.protocol!=="https:")throw Error(t("HTTPS 주소를 입력하세요."));
+      const url=new URL(entry || defaultBluetoothUrl);
+      if(url.protocol!=="https:")throw Error(t("HTTPS 주소를 입력하세요."));
       url.hash="";url.searchParams.set("transport","ble");location.assign(url);
     }catch(e){setMessage(e.message)}
   }
@@ -56,7 +58,7 @@ export default function ConnectionChoice({api,pi,network,onNetwork,t,language}){
     {mode==="ble"?<>
       <div className="setting-field"><span>{t("Bluetooth 기기")}</span><strong>Cortex Remote</strong></div>
       {!bluetoothMode&&<form onSubmit={e=>{e.preventDefault();openBluetooth()}}>
-        {!window.isSecureContext&&<label className="setting-field">{t("리모트 HTTPS 주소")}<input required type="url" value={entry} onChange={e=>setEntry(e.target.value)}/></label>}
+        <label className="setting-field">{t("리모트 HTTPS 주소")}<input required type="url" value={entry} onChange={e=>setEntry(e.target.value)}/></label>
         <button>{t("Bluetooth 연결 열기")}</button></form>}
     </>:<>
       {mode==="offline"&&<div className="setting-field"><span>{t("Wi-Fi 이름")}</span><strong>{pi?.ssid||"—"}</strong></div>}

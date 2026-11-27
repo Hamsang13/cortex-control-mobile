@@ -1,3 +1,4 @@
+import {useQueuedSettings} from "./useQueuedSettings";
 import React, {useEffect, useRef, useState} from "react";
 
 const options = {
@@ -8,20 +9,26 @@ const options = {
 const bound = (v,min,max) => Math.max(min,Math.min(max,v));
 const sceneLetters = [..."ABCDEFGH"];
 
-export default function FooterTools({report,api,s,paused,busy,run,refresh,cpu,setCpu,overlay,setOverlay}) {
+export default function FooterTools({report,api,s,paused,run,refresh,cpu,setCpu,overlay,setOverlay}) {
   const [panel,open] = useState(""), [globalTempo,setGlobal] = useState(null),
     [tuner,setTuner] = useState({}), [hz,pitch] = useState(null),
     [reference,calibrate] = useState(null), [cents,showCents] = useState(true),
-    [mini,showMini] = useState(()=>localStorage.getItem("qc-live-tuner")==="1"),
-    [pending,wait] = useState(false);
+    [mini,showMini] = useState(()=>localStorage.getItem("qc-live-tuner")==="1");
   const tunerOwner = useRef(null);
-  const taps = useRef([]), writing = useRef(false);
+  const taps = useRef([]);
   const preset = s?.tempo?.map(v => v[s.scene] ?? v[0]) || [];
   const [scope,setScope] = useState(null);
   const global = (panel === "tempo" ? scope : null) ?? (preset[1] >= .5);
-  const values = global ? (globalTempo || {}) : preset;
+  const locked = paused || !s || global;
+  const tempoEdits = useQueuedSettings(!locked && JSON.stringify([s.identity,s.scene]),preset,
+    async (index,value)=>{
+      const result=await api("set-tempo",{index,value,global,identity:s.identity,scene:s.scene});
+      await refresh();
+      return Object.fromEntries(Object.entries(result).map(([k,v])=>[k,v[s.scene]??v[0]]));
+    },()=>{},async e=>{report(e.message);await refresh()});
+  const values = global ? (globalTempo || {}) : {...preset,...tempoEdits.draft};
   const bpm = Number.isFinite(values[0]) ? Math.round(40+200*values[0]) : null;
-  const locked = paused || !s || busy || pending || global;
+
   const gridKey = s?.blocks.map(b=>[b.row,b.col,b.model].join(".")).join(",");
   useEffect(()=>{
     let valid=true;
@@ -72,29 +79,21 @@ export default function FooterTools({report,api,s,paused,busy,run,refresh,cpu,se
       stop();
     };
   },[tunerMode,paused,!!s]);
-  const [changingTuner,setChangingTuner]=useState(false);
-  async function changeTuner(field,value){
-    const owner=tunerOwner.current;
-    if(!owner || changingTuner)return;
-    setChangingTuner(true);
-    try{
-      const state=await api("tuner-"+field,{owner,[field]:value});
-      if(owner===tunerOwner.current)setTuner(state);
-    } catch(err){report(err.message)} finally {setChangingTuner(false)}
-  }
+  const tunerEdits=useQueuedSettings(!paused && panel==="tuner" && s?.identity,tuner,
+    async (field,value)=>{
+      const owner=tunerOwner.current;
+      if (!owner) throw Error("Tuner disconnected");
+      return api("tuner-"+field,{owner,[field]:value});
+    },setTuner,async e=>{report(e.message);return api("tuner").catch(()=>null)});
+  const shownTuner={...tuner,...tunerEdits.draft};
+  const changeTuner=(field,value)=>tunerEdits.enqueue([[field,value]]);
   useEffect(()=>{
     const close=e=>{if(e.key==="Escape")open("")};
     if(panel)window.addEventListener("keydown",close);
     return ()=>window.removeEventListener("keydown",close);
   },[panel]);
-  async function write(index,value){
-    if(locked || writing.current)return;
-    writing.current=true;wait(true);report("");
-    try{
-      await api("set-tempo",{index,value,global,identity:s.identity,scene:s.scene});
-
-      await refresh();
-    }catch(e){report(e.message)}finally{writing.current=false;wait(false)}
+  function write(index,value){
+    if (!locked) return tempoEdits.enqueue([[index,value]]);
   }
   function tap(){
     const now=performance.now(), a=taps.current;
@@ -133,10 +132,10 @@ export default function FooterTools({report,api,s,paused,busy,run,refresh,cpu,se
     {panel && <div className="shade utility-shade" onClick={()=>open("")}><section className="utility" role="dialog" aria-modal="true" aria-label={panel} onClick={e=>e.stopPropagation()}>
       <header><strong>{panel==="tempo"?"Tempo":"Tuner"}</strong>
       {panel==="tempo" ? <button disabled={locked} aria-pressed={values[2]>=.5} onClick={()=>write(2,values[2]>=.5?0:1)}>Tempo LED</button> :
-      <><select aria-label="본체 튜너 입력" value={tuner.input ?? ""} disabled={paused || changingTuner || !s || tuner.input==null} onChange={e=>changeTuner("input",Number(e.target.value))}>
+      <><select aria-label="본체 튜너 입력" value={shownTuner.input ?? ""} disabled={paused || !s || shownTuner.input==null} onChange={e=>changeTuner("input",Number(e.target.value))}>
         <option value="" disabled>Input</option>
         {[[1,"Input 1"],[2,"Input 2"],[3,"Input 1/2"],[4,"Return 1"],[5,"Return 2"],[8,"USB 5"],[9,"USB 6"]].map(([id,label])=><option key={id} value={id}>{label}</option>)}
-      </select><button aria-pressed={cents} onClick={()=>showCents(!cents)}>Cents</button><button aria-label="튜너 Mute" aria-pressed={!!tuner.mute} disabled={paused || !s || changingTuner || tuner.mute==null} onClick={()=>changeTuner("mute",!tuner.mute)}>Mute {tuner.mute==null?"—":tuner.mute?"On":"Off"}</button></>}
+      </select><button aria-pressed={cents} onClick={()=>showCents(!cents)}>Cents</button><button aria-label="튜너 Mute" aria-pressed={!!shownTuner.mute} disabled={paused || !s || shownTuner.mute==null} onClick={()=>changeTuner("mute",!shownTuner.mute)}>Mute {shownTuner.mute==null?"—":shownTuner.mute?"On":"Off"}</button></>}
       <button aria-label="닫기" onClick={()=>open("")}>×</button></header>
       {panel==="tempo" ? <>
         <div className="util-tabs">{["Global","Preset"].map((v,i)=><button key={v} aria-pressed={global===(i===0)} onClick={()=>setScope(i===0)}>{v}</button>)}</div>

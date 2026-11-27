@@ -288,14 +288,14 @@ function BlockPower({block,scene,disabled,action}) {
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 2v10M6.2 5.5a9 9 0 1 0 11.6 0"/></svg>
   </button>;
 }
-function Knob({ p, scene, commit, assign, busy, disabled, readOnly }) {
+function Knob({ p, scene, commit, assign, disabled, readOnly }) {
   const current = p.values[p.assigned ? scene : 0];
   const [preview, setPreview] = useState(null),
     gesture = useRef(null);
   useEffect(() => () => clearTimeout(gesture.current?.timer), []);
   const value = preview ?? current ?? 0;
   function start(e) {
-    if (busy || readOnly || !e.isPrimary || e.button!==0 || current == null || gesture.current) return;
+    if (readOnly || !e.isPrimary || e.button!==0 || current == null || gesture.current) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     const g = {
       y: e.clientY,
@@ -358,7 +358,7 @@ function Knob({ p, scene, commit, assign, busy, disabled, readOnly }) {
       onPointerUp={() => end(false)}
       onPointerCancel={() => end(true)}
       onKeyDown={(e) => {
-        if (busy || readOnly) return;
+        if (readOnly) return;
         if (e.key === "Enter" && !e.repeat) assign();
         if (["ArrowUp", "ArrowDown"].includes(e.key)) {
           e.preventDefault();
@@ -389,7 +389,7 @@ function BlockParameter(props) {
   const { p } = props;
   if (["comboBox", "switch", "toggleButton"].includes(p.type) ||
       (!p.type && (p.steps === 2 || p.options?.length > 2))) {
-    return <ChoiceParameter {...props} busy={props.busy === true || props.busy?.parameter === p.index} />;
+    return <ChoiceParameter {...props} />;
   }
   return <Knob {...props} />;
 }
@@ -1156,7 +1156,8 @@ function App() {
   }, [category, captures, retry, paused]);
   async function toggleUsb() {
     if (lock.current) return;
-    lock.current = true;
+    let release;
+    lock.current = new Promise(resolve=>{release=resolve});
     epoch.current++;
     B(true);
     try {
@@ -1183,6 +1184,7 @@ function App() {
       T(e.message);
     } finally {
       lock.current = false;
+      release();
       B(false);
     }
   }
@@ -1199,7 +1201,8 @@ function App() {
     }
     const before = latest.current;
     if (!before) return;
-    lock.current = true;
+    let release;
+    lock.current = new Promise(resolve=>{release=resolve});
     epoch.current++;
     B(a === "edit" || a === "route-edit" ? {parameter:d.index} : true);
     if (a === "scene") J(d.target);
@@ -1226,6 +1229,7 @@ function App() {
       }
     } finally {
       lock.current = false;
+      release();
       B(false);
       const next = sceneNext.current;
       sceneNext.current = null;
@@ -1250,50 +1254,49 @@ function App() {
       })};
     });
   }
-  async function writeKnob(p, value) {
+  function queueEditorEdit(action, data, done) {
     const queue = stream.current;
-    const next = {
-      row: route?.row ?? active.row,
-      ...(route ? {part:route.part} : {col:active.col,model:active.model}),
-      index: p.index,
-      value,
-      identity: s.identity,
-      scene: s.scene,
-    };
-    const last=queue.pending.at(-1);
-    if (last && ["identity","scene","row","col","model","part","index"].every(k=>last[k]===next[k])) queue.pending.pop();
+    const next = {action, data, done, identity:s.identity, scene:s.scene,
+      row:route?.row ?? active?.row, part:route?.part, col:active?.col, model:active?.model};
+    const last = queue.pending.at(-1);
+    if (action === "edit" && data.continuous && last?.data.continuous &&
+        ["action","identity","scene","row","part","col","model"].every(k=>last[k]===next[k]) &&
+        last.data.index===data.index) queue.pending.pop();
     queue.pending.push(next);
-    if (queue.writing) return queue.writing;
-    queue.writing = (async () => {
-      await Promise.resolve();
+    if (!queue.writing) queue.writing = Promise.resolve().then(async () => {
       try {
         while (queue.pending.length) {
-          const n = queue.pending.shift();
-          const now = latest.current;
-          const b = now?.blocks.find((x) => x.row === n.row && x.col === n.col);
-          if (
-            now?.identity !== n.identity ||
-            now?.scene !== n.scene ||
-            (!n.part && b?.model !== n.model)
-          )
-            break;
-          const params=n.part ? now.lanes[n.row].controls[n.part] : b.params;
-          const param=params.find(candidate=>candidate.index===n.index);
-          if (!param || isInactive(param,params,n.scene)) continue;
-          if (
-            Math.abs(
-              (param.values[param.assigned ? n.scene : 0] ?? -1) - n.value,
-            ) < 1e-6
-          )
-            continue;
-          if (!(await remember(n.part ? "route-edit" : "edit", n))) break;
+          while (lock.current) await lock.current;
+          const n = queue.pending.shift(), now = latest.current;
+          if (!now || now.identity!==n.identity || now.scene!==n.scene) continue;
+          const block = now.blocks.find(b=>b.row===n.row && b.col===n.col);
+          if (!n.part && block?.model!==n.model) continue;
+          const target = n.part ? {row:n.row,part:n.part} : {row:n.row,col:n.col};
+          const {continuous, ...details} = n.data;
+          const {index,value}=details;
+          if (n.action==="expression-bypass") Object.assign(target,block.expressionBypass ??
+            {pedal:0,mode:0,delay:0,invert:false,latch:false},details);
+          if (n.action==="edit") {
+            const params = n.part ? now.lanes[n.row].controls[n.part] : block.params;
+            const param = params.find(p=>p.index===index);
+            if (!param || isInactive(param,params,n.scene)) continue;
+            const previous=param.values[param.assigned?n.scene:0];
+            target.value=typeof value==="function"?value(previous):value;
+            if (Math.abs(previous-target.value)<1e-6) continue;
+          }
+          if (!await remember(n.action==="edit" && n.part?"route-edit":n.action,
+              {...details,...target},n.done)) break;
         }
       } finally {
-        queue.pending.length = 0;
-        queue.writing = null;
+        queue.pending.length=0;
+        queue.writing=null;
       }
-    })();
+    });
     return queue.writing;
+  }
+  function writeKnob(p,value) {
+    const discrete = p.steps>1 || p.options?.length>1 || typeof value==="function";
+    return queueEditorEdit("edit",{index:p.index,value,continuous:!discrete});
   }
   const [initialLoading,setInitialLoading]=useState(true);
   const presetRequest = useRef(null);
@@ -1501,13 +1504,14 @@ function App() {
       G(0);
     });
   }
-  const powerButton = active && <BlockPower key={[s.identity,active.row,active.col,active.model].join("-")} block={active} scene={s.scene} disabled={busy || paused} action={blockAction}/>;
+  const powerButton = active && <BlockPower key={[s.identity,active.row,active.col,active.model].join("-")} block={active} scene={s.scene} disabled={paused} action={(action)=>queueEditorEdit(action,{})}/>;
   const perPage=compactParams?6:10;
   const pageCount=Math.ceil((active?.params.length??0)/perPage);
   const shownPage=Math.min(page,Math.max(0,pageCount-1));
-  const editorMenu = active && <BlockMenu key={[s.identity,active.row,active.col,active.model].join("-")} block={active} blocks={s.blocks} disabled={busy || paused} action={blockAction}/>;
+  const editorMenu = active && <BlockMenu key={[s.identity,active.row,active.col,active.model].join("-")} block={active} blocks={s.blocks} disabled={paused} action={blockAction}/>;
   function blockAction(a, d = {}, done) {
-    if (active) remember(a, { row: active.row, col: active.col, ...d }, done);
+    if (a==="assign") return queueEditorEdit(a,{index:d.index},done);
+    if (active) return queueEditorEdit(a,d,done);
   }
   function gesture(e, src) {
     if (!s || busy || pointer.current) return;
@@ -1751,8 +1755,8 @@ function App() {
                 ))}
               </div>
             {route && ["input","output"].includes(route.part) ?
-              <PortList route={route} lane={{...s.lanes[route.row],input:displayedInput(s.lanes,route.row)}} lib={lib} disabled={busy || paused}
-                back={()=>P(null)} choose={value=>remember(route.part,{row:route.row,value},()=>setLibraryOpen(false))}/> :
+              <PortList route={route} lane={{...s.lanes[route.row],input:displayedInput(s.lanes,route.row)}} lib={lib} disabled={paused}
+                back={()=>P(null)} choose={value=>queueEditorEdit(route.part,{value},()=>setLibraryOpen(false))}/> :
             <div className="models">
               {!lib.models.length && <div role="status">
                 <p>{t(libraryPending ? "이펙터 목록을 불러오는 중…" : liveState ? "이펙터 목록을 불러오지 못했습니다." : "Quad Cortex를 USB로 연결하면 모델 목록이 표시됩니다.")}</p>
@@ -1943,13 +1947,13 @@ function App() {
                   {overlay && s && <GridCpuTotals cpu={cpu} blocks={s.blocks} pair={pair}/>}
                 </div>
               </div>
-              {route && (!gig || paramsOpen) && <RoutePanel key={route.row+route.part} route={route} state={s}
-                open={openRoute} busy={busy} paused={paused} commit={writeKnob}
-                setPoints={points=>remember("split",points)}
-                assign={p=>remember("route-assign",{...route,index:p.index,rev:s.rev,scene:s.scene})}/>}
+              {route && (!gig || paramsOpen) && <RoutePanel key={[s.identity,s.scene,route.row,route.part].join("-")} route={route} state={s}
+                open={openRoute} paused={paused} commit={writeKnob}
+                setPoints={points=>queueEditorEdit("split",points)}
+                assign={p=>queueEditorEdit("route-assign",{index:p.index})}/>}
               {active && (!gig || paramsOpen) && (active.params.some(p=>p.index===1 && p.textOptions) && active.params.some(p=>p.index===9 && p.textOptions) ?
                 <CabinetPanel menu={editorMenu} key={[s.identity,active.row,active.col,active.model,s.scene,usbPaused].join("-")} block={active} scene={s.scene}
-                  busy={busy} readOnly={paused} previewCabinet={usbPaused ? previewCabinet : null} commit={writeKnob} Parameter={BlockParameter}
+                  readOnly={paused} previewCabinet={usbPaused ? previewCabinet : null} commit={writeKnob} Parameter={BlockParameter}
                   assign={p=>blockAction("assign",{index:p.index,rev:s.rev,scene:s.scene})}
                   powerButton={powerButton}/> : (
                 <section
@@ -1993,7 +1997,6 @@ function App() {
                         readOnly={paused}
                         disabled={isInactive(p, active.params, s.scene)}
                         scene={s.scene}
-                        busy={busy}
                         commit={(value) => writeKnob(p, value)}
                         assign={() => blockAction("assign",{index:p.index,rev:s.rev,scene:s.scene})}
                       />
@@ -2026,7 +2029,7 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.6.5</span>
+        <span className="foot-version">Cortec Remote v0.6.6</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());
@@ -2100,7 +2103,7 @@ const quickSplits = [
   ["병합만",-1,7,"M4 16h36q4 0 4-4V4",44,4,4,16],
 ];
 
-function RoutePanel({route,state,open,busy,paused,commit,assign,setPoints}){
+function RoutePanel({route,state,open,paused,commit,assign,setPoints}){
   const meterFrame = useMeterFrame();
   const {part,row}=route, params=state.lanes[row].controls?.[part] || [];
   const outputLevels=part==="output"?outputReadings(state.lanes[row].output,meterFrame):[];
@@ -2119,20 +2122,20 @@ function RoutePanel({route,state,open,busy,paused,commit,assign,setPoints}){
       {pair && <div className="quick-splits" aria-label="Quick Splits">
         {quickSplits.map(([label,start,end,path,sx,sy,mx,my])=>{
           const selected=(split?.start??-1)===start && (split?.end??-1)===end;
-          return <button key={label} title={label} aria-label={label} aria-pressed={selected} disabled={paused||busy}
-            onClick={()=>{if(!selected)setPoints({row,start,end})}}>
+          return <button key={label} title={label} aria-label={label} aria-pressed={selected} disabled={paused}
+            onClick={()=>setPoints({row,start,end})}>
             <svg viewBox="0 0 48 20" width="42" height="20" aria-hidden="true"><path d={path} fill="none" stroke="currentColor"/>
               <circle cx={sx} cy={sy} r="2.5" fill="#168bea"/><circle cx={mx} cy={my} r="2.5" fill="#eb1e9d"/>
             </svg></button>;
         })}
       </div>}
-      {gate && <button disabled={busy||paused} aria-label="Input gate" aria-pressed={current(gate)<.5} onClick={()=>commit(gate,current(gate)<.5?1:0)}>⏻</button>}
+      {gate && <button disabled={paused} aria-label="Input gate" aria-pressed={current(gate)<.5} onClick={()=>commit(gate,v=>v<.5?1:0)}>⏻</button>}
     </div>
     <div className="params">{params.filter(p=>p!==gate).map(p=><React.Fragment key={p.index+"-"+state.scene}>
       {part==="input" && p.name==="INPUT GAIN" && gate && current(gate)<.5 && <GateMeter value={meterFrame.gates?.[row]}/>}
       <BlockParameter
       p={p} pressButton={part==="output" && ["MUTE","SOLO"].includes(p.name)}
-      scene={state.scene} readOnly={paused} busy={busy} disabled={paused||inactive(p)}
+      scene={state.scene} readOnly={paused} disabled={paused||inactive(p)}
       commit={value=>commit(p,value)} assign={()=>assign(p)}/></React.Fragment>)}
       {outputLevels.length>0 && <div className="param route-output-meter">
         <small>{state.lanes[row].output===19?"MULTI OUT LEVEL":"OUTPUT LEVEL"}</small>
