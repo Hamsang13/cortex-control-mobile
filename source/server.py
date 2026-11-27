@@ -5,7 +5,7 @@ import socket
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from time import perf_counter
 
 ROOT = Path(__file__).resolve().parent
@@ -242,8 +242,16 @@ def renew_meters(frames):
 def start_directory_read(current):
     pending = getattr(current, "directory_read", None)
     if pending is None or (pending.done() and pending.exception() is not None):
+        ready = current.directory_ready = Future()
         def scan():
-            folders = current.request("preset-directory", {})
+            try:
+                folders = current.scan_directory(lambda: ready.set_result(None))
+            except Exception as exc:
+                if not ready.done():
+                    ready.set_exception(exc)
+                raise
+            if not ready.done():
+                ready.set_result(None)
             if current is editor:
                 store_library("preset-directory", folders)
             return folders
@@ -253,6 +261,7 @@ def start_directory_read(current):
 
 def directory_data(action, data):
     current = editor
+    collecting = False
     if DEMO:
         folders = current.request("preset-directory", {})
     elif browse_only:
@@ -262,15 +271,20 @@ def directory_data(action, data):
         pending = getattr(current, "directory_read", None)
         if pending is None or (pending.done() and pending.exception() is not None):
             pending = USB.submit(start_directory_read, current).result()
-        pending.result()
+        if action == "directory-index" and data.get("early"):
+            current.directory_ready.result()
+        elif action != "directory-group" or not any(
+                f["name"] == data.get("name") for f in getattr(current, "directory_folders", {}).values()):
+            pending.result()
         if current is not editor:
             raise ValueError("USB 연결이 변경되었습니다.")
+        collecting = not pending.done()
         folders = list(current.directory_folders.values())
     else:
         raise ValueError("USB 연결을 기다리는 중입니다.")
     if action == "directory-group":
         return [entry for f in folders if f["name"] == data.get("name") for entry in f["entries"]]
-    return dict(folders=[{k:f[k] for k in ("name","local","key")} for f in folders],
+    return dict(collecting=collecting, folders=[{k:f[k] for k in ("name","local","key")} for f in folders],
                 presets=[entry for f in folders if f["name"]=="My Presets" for entry in f["entries"]])
 
 

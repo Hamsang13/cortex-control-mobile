@@ -1292,12 +1292,22 @@ function App() {
   function readPresets() {
     if (presetRequest.current) return presetRequest.current;
     setPresetFraction(0);
-    const request = api("directory-index",{},fraction=>{if(presetRequest.current===request)setPresetFraction(fraction)}).then(data => {
+    const request = api("directory-index",{early:true},fraction=>{if(presetRequest.current===request)setPresetFraction(fraction)}).then(data => {
       const entries=data.presets;
       if (presetRequest.current === request) {
         setFolders(data.folders);
         Q(entries);
         setCachedSlots(entries);
+        if (data.collecting) {
+          api("directory-index",{}).then(complete => {
+            if (presetRequest.current === request) setFolders(complete.folders);
+          }).catch(error => {
+            if (presetRequest.current === request) {
+              presetRequest.current = null;
+              setDirectoryError(error.message);
+            }
+          });
+        }
       }
       return entries;
     }).catch(error => {
@@ -2004,7 +2014,7 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.5.0</span>
+        <span className="foot-version">Cortec Remote v0.5.1</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());

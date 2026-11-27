@@ -5,6 +5,7 @@ from utilities import tempo_values, utility_request
 import hashlib
 import json
 import math
+from queue import Empty, SimpleQueue
 from time import monotonic as clock_seconds
 import xml.etree.ElementTree as ET
 
@@ -454,6 +455,52 @@ class Editor:
             outputs={int(v): v.name for v in self.api.Output},
         )
 
+    def scan_directory(self, on_user_ready=None):
+        from pyquadcortex.client import pa
+
+        transport = self.qc._t
+        api = self.api
+        user_key = str(api.Setlist.USER).rstrip("/")
+        inbox = SimpleQueue()
+        # Transport calls append on each collector outside its registry lock.
+        class Inbox:
+            append = staticmethod(inbox.put)
+        entry = (pa.FileMessage, lambda m: m.type == 0 and bool(m.folder.key), Inbox())
+        with transport._lock:
+            transport._collectors.append(entry)
+        folders = {}
+        try:
+            transport.send(pa.FileMessage(action=pa.MessageAction.READ))
+            deadline = clock_seconds() + 12
+            while True:
+                try:
+                    message = inbox.get(timeout=max(0, deadline-clock_seconds()))
+                except Empty:
+                    break
+                f = message.folder
+                key = f.key.rstrip("/")
+                factory = key == str(api.Setlist.FACTORY).rstrip("/")
+                if f.is_plugin or not (factory or key.startswith("/media/p4/Presets/") or f.is_downloads or f.is_cloud):
+                    continue
+                group = "Factory Presets" if factory else "Downloads" if f.is_downloads else "Cloud Presets" if f.is_cloud else f.name
+                entries = [dict(slot=x.index,name=x.name,author=x.author,instrument=x.instrument,folder=key) for x in f.files if x.name]
+                if key not in folders or len(entries)>len(folders[key]["entries"]) or (on_user_ready and key == user_key and len(f.files)):
+                    folders = dict(folders)
+                    folders[key] = dict(key=key,name=group,entries=entries,local=factory or key.startswith("/media/p4/Presets/"))
+                    self.directory_folders = folders
+                    if key == user_key and len(f.files):
+                        self.slots = {p["slot"]: p["name"] for p in entries}
+                        self.slots_valid_until = clock_seconds() + 60
+                        if on_user_ready:
+                            on_user_ready()
+                            on_user_ready = None
+        finally:
+            with transport._lock:
+                transport._collectors.remove(entry)
+        if user_key not in folders:
+            raise ValueError("본체 세트리스트 응답이 지연되었습니다. 다시 열어 주세요.")
+        return list(folders.values())
+
     def request(self, action, d):
         q, api = self.qc, self.api
         if action in ("device-settings", "device-set"):
@@ -502,28 +549,7 @@ class Editor:
         if action == "library":
             return self.library()
         if action == "preset-directory":
-            from pyquadcortex.client import pa
-            messages = q._t.collect(pa.FileMessage, lambda: q._t.send(pa.FileMessage(action=pa.MessageAction.READ)), 12,
-                                    match=lambda m: m.type == 0 and bool(m.folder.key))
-            folders = {}
-            for message in messages:
-                f = message.folder
-                key = f.key.rstrip("/")
-                factory = key == str(api.Setlist.FACTORY).rstrip("/")
-                if f.is_plugin or not (factory or key.startswith("/media/p4/Presets/") or f.is_downloads or f.is_cloud):
-                    continue
-                group = "Factory Presets" if factory else "Downloads" if f.is_downloads else "Cloud Presets" if f.is_cloud else f.name
-                entries = [dict(slot=x.index,name=x.name,author=x.author,instrument=x.instrument,folder=key) for x in f.files if x.name]
-                if key not in folders or len(entries)>len(folders[key]["entries"]):
-                    folders[key] = dict(key=key,name=group,entries=entries,local=factory or key.startswith("/media/p4/Presets/"))
-            if not any(f["name"]=="My Presets" for f in folders.values()):
-                raise ValueError("본체 세트리스트 응답이 지연되었습니다. 다시 열어 주세요.")
-            user_folder = folders.get(str(api.Setlist.USER).rstrip("/"))
-            if user_folder:
-                self.slots = {p["slot"]: p["name"] for p in user_folder["entries"]}
-                self.slots_valid_until = clock_seconds() + 60
-            self.directory_folders = folders
-            return list(folders.values())
+            return self.scan_directory()
         if action == "presets":
             if clock_seconds() >= self.slots_valid_until:
                 self.slots = {x.index: x.name for x in q.list_presets()}
