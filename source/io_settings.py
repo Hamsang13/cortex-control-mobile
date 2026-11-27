@@ -52,7 +52,7 @@ def flatten_io(io, eq):
     return values
 
 
-def read_io(q):
+def read_io(q, expression_only=False):
     from pyquadcortex.client import pa
     from google.protobuf.json_format import MessageToDict
     def read(cls, match):
@@ -64,6 +64,9 @@ def read_io(q):
             pass
         msg = q._read_state(cls, match, 10)
         return MessageToDict(msg, preserving_proto_field_name=True)
+    if expression_only:
+        io = read(pa.IOSettingsMessage, lambda m: bool(m.settings.exp_port))
+        return flatten_io({"settings":{"exp_port":io["settings"]["exp_port"]}}, None)
     return flatten_io(read(pa.IOSettingsMessage, lambda m: bool(m.settings.in_port)),
                       read(pa.GlobalEQMessage, lambda m: bool(m.parameters)))
 
@@ -104,7 +107,7 @@ def apply_io(q, key, value):
 
 
 def io_request(q, action, data):
-    values = read_io(q)
+    values = read_io(q, action == "io-settings" and data.get("expressionOnly") is True)
     if action == "io-settings":
         return values
     key, value = data.get("key"), data.get("value")

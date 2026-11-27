@@ -195,7 +195,7 @@ def device_request(action, data):
                 preview_stamp = stamp
         if action in ("cpu", "tuner", "global-tempo") and not DEMO:
             store_library(action, result)
-        if action in ("io-settings", "io-set") and not DEMO:
+        if action in ("io-settings", "io-set") and not DEMO and not data.get("expressionOnly"):
             store_library("io-settings", result)
         if action == "library" and not DEMO:
             result["owned"] = load_snapshot(result.get("deviceKey"),cache_dir / "controller-plugins")

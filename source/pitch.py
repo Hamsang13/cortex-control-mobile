@@ -32,6 +32,7 @@ class LiveMeterFrames:
         self.tuning = {}
         self.packet_counts = {"io":0, "pitch":0}
         self.plugged = {}
+        self.expression = {}
         self.entries = [(pa.TunerMessage, None, self), (pa.GridMessage, lambda m: m.HasField("update_type") and
                          m.update_type == pa.GridMessage.METER_UPDATE, self),
                         (pa.IOMeterMessage, None, self), (pa.IOSettingsMessage, None, self)]
@@ -49,6 +50,12 @@ class LiveMeterFrames:
                     if msg.HasField(field):
                         self.tuning[field] = (stamp, getattr(msg, field))
             elif isinstance(msg, pa.IOSettingsMessage):
+                for port in msg.settings.exp_port:
+                    if port.exp_port_id not in (1, 2):
+                        continue
+                    for field, value in port.ListFields():
+                        if field.name in ("plugged", "level", "calibrating"):
+                            self.expression[f"exp_port.{port.exp_port_id}.{field.name}"] = value
                 for ports, field, channels in (
                     (msg.settings.in_port, "input_port_id", {1:"input_1", 2:"input_2"}),
                     (msg.settings.out_port, "output_port_id", {4:"xlr_1", 5:"xlr_2", 6:"out_3", 7:"out_4"}),
@@ -86,7 +93,7 @@ class LiveMeterFrames:
     def snapshot(self):
         cutoff = monotonic() - .5
         with self.lock:
-            return {"plugged": dict(self.plugged), **{name: {k:v for k,(stamp,v) in source.items() if name == "io" or stamp >= cutoff}
+            return {"plugged": dict(self.plugged), "expression": dict(self.expression), **{name: {k:v for k,(stamp,v) in source.items() if name == "io" or stamp >= cutoff}
                     for name, source in (("gates", self.gates), ("io", self.io))}}
 
     def lcd_sample(self):

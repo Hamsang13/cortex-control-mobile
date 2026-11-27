@@ -83,7 +83,8 @@ let lastPort="in_port.1";
 
 export default function IOSettings({meterFrame,api,readOnly,close}){
   const [defaults,setDefaults]=useState({}),[liveValues,set]=useState({});
-  const v={...defaults,...liveValues};
+  const values={...liveValues,...(!readOnly && meterFrame.expression)};
+  const v={...defaults,...values};
   const [port,pick]=useState(lastPort);
   const [usbPage,setUsbPage]=useState(1);
   const [eq,showEQ]=useState(false),[band,selectBand]=useState(0),[busy,wait]=useState(false),[error,report]=useState("");
@@ -106,11 +107,26 @@ export default function IOSettings({meterFrame,api,readOnly,close}){
     if(!readOnly)api("io-settings").then(data=>{if(live)set(data)}).catch(()=>{if(live)report("I/O settings unavailable · showing defaults")});
     return ()=>{live=false;document.removeEventListener("keydown",key);initial?.focus()};
   },[api,readOnly]);
+  useEffect(()=>{
+    if(readOnly || eq || !port.startsWith("exp_port."))return;
+    let active=true,timer;
+    async function refresh(){
+      if(!document.hidden && !pending.current){
+        try{
+          const state=await api("io-settings",{expressionOnly:true});
+          if(active && !pending.current)set(previous=>({...previous,...state}));
+        }catch{/* The next read retries on a temporary USB timeout. */}
+      }
+      if(active)timer=setTimeout(refresh,500);
+    }
+    timer=setTimeout(refresh,500);
+    return ()=>{active=false;clearTimeout(timer)};
+  },[port,eq,readOnly,api]);
   async function change(entries){
     if(readOnly||pending.current)return;
     pending.current=true;wait(true);report("");
     try{
-      let state=liveValues;
+      let state=values;
       for(const [key,value] of entries){
         if(state[key]==null || value===state[key])continue;
         state=await api("io-set",{key,value,previous:state[key]});set(state);
@@ -134,6 +150,7 @@ export default function IOSettings({meterFrame,api,readOnly,close}){
   const prefix=linked?"out_port."+(num<=5?1:2):port;
   const label=linked?(num<=5?"OUT 1/2":"OUT 3/4"):port==="hp_port"?"Headphones":selected[1];
   const key=name=>prefix+"."+name;
+  const position=v[key("plugged")] ? values[key("level")] : null;
   const ktype=key("input_type"),typ=v[ktype];
   const inKeys={1:"input_1",2:"input_2",4:"return_1",5:"return_2"};
   const outKeys={4:"xlr_1",5:"xlr_2",6:"out_3",7:"out_4",8:"send_1",9:"send_2"};
@@ -149,7 +166,7 @@ export default function IOSettings({meterFrame,api,readOnly,close}){
       {eq?<button className="io-done" onClick={()=>showEQ(false)}>DONE</button>:<><button aria-label="Global EQ 설정" onClick={()=>showEQ(true)}><svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 2v16M10 2v16M16 2v16M2 7h4m2 5h4m2-6h4" /></svg></button><button aria-label="닫기" onClick={close}>×</button></>}</div>
     {!eq?<><div className="io-ports">{groups.map((group,i)=><div key={i} className={"io-group "+(group.length===2?"double":"single")}>
       {group.map(([id,name,type],j)=><button key={id} aria-label={id==="hp_port"?"Headphones":name}
-        className={"io-port "+type} data-plugged={!readOnly && (meterFrame.plugged?.[physicalChannels[id]] ?? !!liveValues[id+".plugged"])} aria-pressed={port===id||(linked && id===("out_port."+(num%2===0?num+1:num-1)))}
+        className={"io-port "+type} data-plugged={!readOnly && (meterFrame.plugged?.[physicalChannels[id]] ?? !!values[id+".plugged"])} aria-pressed={port===id||(linked && id===("out_port."+(num%2===0?num+1:num-1)))}
         onClick={()=>{lastPort=id;pick(id);setUsbPage(1)}}><Socket type={type}/><small>{id==="hp_port"?<svg className="io-hp-symbol" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 10V8a6 6 0 0 1 12 0v2M2 9h2v5H2zm10 0h2v5h-2z"/></svg>:name}</small></button>)}
       {(i===4||i===7) && <button className={"io-link link"+i} disabled={locked||v[i===4?"xlr1_2_linked":"out3_4_linked"]==null} aria-label={i===4?"Link OUT 1/2":"Link OUT 3/4"}
         aria-pressed={!!(i===4?linked12:linked34)} onClick={()=>{const k=i===4?"xlr1_2_linked":"out3_4_linked";write(k,!v[k])}}><svg viewBox="0 0 20 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="2" y="3" width="9" height="6" rx="3"/><rect x="9" y="3" width="9" height="6" rx="3"/></svg></button>}
@@ -174,7 +191,10 @@ export default function IOSettings({meterFrame,api,readOnly,close}){
         <div className="io-break"/>{meterCell("LEVEL",["hp_l","hp_r"],meter)}{meterCell("Multi Out",["grid_xlr_1","grid_xlr_2"],meter)}</>}
       {port==="midi-out" && toggle("midi_port.midi_thru","MIDI Thru")}
       {port.startsWith("exp_port") && <><div className="io-cell io-instruction">Please press the expression pedal up and down to the maximum position then press Save</div>
-        {dial(key("level"),"POSITION",n=>n.toFixed(2),0,true)}
+        <div className="io-cell io-dial" role="meter" aria-label="POSITION" aria-valuemin={0} aria-valuemax={100}
+          aria-valuenow={position==null?undefined:Math.round(position*100)}
+          style={{"--turn":((position??0)*270-135)+"deg","--fill":((position??0)*270)+"deg"}}>
+          <span>POSITION</span><output>{position==null?"—":position.toFixed(2)}</output><i/></div>
         {[["SAVE",false],["RECALIBRATE",true]].map(([text,on])=><button key={text} disabled={locked||!v[key("plugged")]||v[key("calibrating")]==null||!!v[key("calibrating")]===on}
           onClick={()=>write(key("calibrating"),on)}>{text}</button>)}</>}
     </div></>:<>
