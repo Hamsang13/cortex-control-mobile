@@ -60,7 +60,7 @@ class Setup(BaseHTTPRequestHandler):
         except (KeyError, ValueError) as e:
             return self.page("입력값을 확인하고 뒤로 가세요. "+html.escape(str(e)),400)
         self.page(f'<h1>설정 완료</h1><p>{html.escape(cfg["ssid"])}에 다시 연결한 뒤 '
-                  f'<a href="{URL}/#{cfg["key"]}">Cortex Remote 열기</a>를 누르세요. 이 링크를 북마크하세요.</p><p>업데이트·네트워크 설정용 관리자 키를 별도로 보관하세요. <code>{html.escape(cfg["adminKey"])}</code></p>')
+                  f'<a href="{URL}/#{cfg["key"]}">Cortex Remote 열기</a>를 누르세요. 이 링크를 북마크하세요.</p>')
 
 
 def enroll(path):

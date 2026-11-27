@@ -1,7 +1,7 @@
 import React,{useEffect,useState} from "react";
 import {bluetoothMode} from "./bleTransport";
 
-export default function OfflineUpdate({api,admin}) {
+export default function OfflineUpdate({api}) {
   const [file,setFile]=useState(null), [message,setMessage]=useState(""), [busy,setBusy]=useState(false);
   const [available,setAvailable]=useState(false), [release,setRelease]=useState(null);
   const [checking,setChecking]=useState(false),[attempt,recheck]=useState(0),[notice,setNotice]=useState("");
@@ -33,7 +33,7 @@ export default function OfflineUpdate({api,admin}) {
         data=await api("online-install",{build:release.build});
       }else{
         setMessage("ZIP 업로드 및 서명 확인 중…");
-        const response=await fetch("/api/update-zip",{method:"POST",headers:{"X-QC-Key":location.hash.slice(1),"X-QC-Admin":admin.current},body:file});
+        const response=await fetch("/api/update-zip",{method:"POST",headers:{"X-QC-Key":location.hash.slice(1)},body:file});
         data=await response.json();
         if(!response.ok)throw Error(data.error||"업로드 실패");
       }

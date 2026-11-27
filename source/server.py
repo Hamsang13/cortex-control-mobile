@@ -1,4 +1,3 @@
-import hmac
 import json
 import os
 import secrets
@@ -371,13 +370,6 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_error(404)
         self.send(200, (ROOT / "index.html").read_bytes(), "text/html; charset=utf-8")
 
-    def admin_allowed(self, supplied):
-        admin = PI_CONFIG.get("adminKey")
-        if isinstance(admin,str) and admin and isinstance(supplied,str) and hmac.compare_digest(admin.encode(), supplied.encode()):
-            return True
-        self.send(401,json.dumps({"error":"관리자 키를 확인하세요."}).encode(),"application/json")
-        return False
-
     def do_POST(self):
         if self.headers.get("X-QC-Key", "") != TOKEN:
             return self.send_error(403)
@@ -386,8 +378,6 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/api/update-zip":
                 if not os.environ.get("QC_HEALTH_ID"):
                     raise ValueError("업데이트 설치 환경이 필요합니다.")
-                if not self.admin_allowed(self.headers.get("X-QC-Admin")):
-                    return
                 from updater import upload
                 self.connection.settimeout(30)
                 result = upload(self.rfile, length)
@@ -398,11 +388,6 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(data, dict):
                 raise ValueError("잘못된 요청입니다.")
             action = self.path.removeprefix("/api/")
-            admin_key = data.pop("_adminKey", None)
-            if (action in ("pi-set","online-install") or
-                    action == "external-wifi" and data.get("action") != "status"):
-                if not self.admin_allowed(admin_key):
-                    return
             started = perf_counter()
             result = operate(self.path.removeprefix("/api/"), data)
             if self.path not in ("/api/meters", "/api/io-meter", "/api/gate-meter", "/api/master-state"):

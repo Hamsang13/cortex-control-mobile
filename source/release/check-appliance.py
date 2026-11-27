@@ -116,7 +116,7 @@ def main():
     form = urllib.parse.urlencode(dict(proof=nonce,ssid="Cortex-QA",wifi=secrets.token_hex(8),key=key)).encode()
     assert key.encode() in urllib.request.urlopen(BASE+"/",form,timeout=5).read()
     def api(path, content=b"{}"):
-        req=urllib.request.Request(BASE+"/api/"+path,content,{"X-QC-Key":key,"X-QC-Admin":json.loads(CONFIG.read_bytes())["adminKey"]})
+        req=urllib.request.Request(BASE+"/api/"+path,content,{"X-QC-Key":key})
         return json.load(urllib.request.urlopen(req,timeout=30))
     wait(lambda:api("update-status")["available"])
     assert "ssid Cortex-QA" in subprocess.check_output(["iw","dev","wlan0","info"],text=True)

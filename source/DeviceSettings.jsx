@@ -67,11 +67,6 @@ export default function DeviceSettings({api,online,close,network,onNetwork}){
   const [page,setPage]=useState("연결 방식"),[values,setValues]=useState(null),[pi,setPi]=useState(null);
   const [error,setError]=useState(""),[busy,setBusy]=useState(false),[retry,setRetry]=useState(0);
   const [piError,setPiError]=useState(""),[piRetry,setPiRetry]=useState(0);
-  const admin=useRef("");
-  const managedApi=React.useCallback((action,data={})=>{
-    const protectedAction=action==="pi-set" || action==="online-install" || (action==="external-wifi" && data.action!=="status");
-    return api(action,protectedAction?{...data,_adminKey:admin.current}:data);
-  },[api]);
   const dialog=useRef(null),writing=useRef(false);
   useEffect(()=>{const el=dialog.current;el.showModal();return ()=>el.close()},[]);
   useEffect(()=>{let active=true;setPi(null);setPiError("");api("pi-settings").then(v=>{if(active)setPi(v)}).catch(e=>{if(active)setPiError(e.message)});
@@ -94,8 +89,7 @@ export default function DeviceSettings({api,online,close,network,onNetwork}){
         <button key={name} aria-pressed={page===name} onClick={()=>setPage(name)}>{name}</button>)}</div>
         <section className={page==="리모트 디바이스" ? "pi-settings-page" : undefined}><select className="settings-mobile-nav" aria-label="설정 항목" value={page} onChange={e=>setPage(e.target.value)}>
           {pages.map(name=><option key={name}>{name}</option>)}</select><h3>{page}</h3>
-          {pi?.available && ["연결 방식","리모트 디바이스"].includes(page) && <label className="setting-field">관리자 키<input type="password" autoComplete="off" defaultValue={admin.current} onChange={e=>{admin.current=e.target.value}} placeholder="업데이트·네트워크 변경 시 입력"/></label>}
-          {page==="연결 방식"?<ConnectionChoice api={managedApi} pi={pi} network={network} onNetwork={onNetwork}/>: page==="리모트 디바이스"?pi?.available?<><PiForm initial={pi} api={managedApi}/><OfflineUpdate api={managedApi} admin={admin}/></>:piError?<p role="alert">리모트 디바이스 설정을 읽을 수 없습니다. 리모트 디바이스에서 실행 중인 Cortex Remote에 접속하세요. <button onClick={()=>setPiRetry(v=>v+1)}>다시 읽기</button></p>:pi?<p>핫스팟 이름·비밀번호와 리모트 주소·접속 키는 리모트 디바이스에서 실행 중인 Cortex Remote에 접속하면 변경할 수 있습니다.</p>:<p role="status">리모트 디바이스 설정을 읽는 중입니다.</p>:
+          {page==="연결 방식"?<ConnectionChoice api={api} pi={pi} network={network} onNetwork={onNetwork}/>: page==="리모트 디바이스"?pi?.available?<><PiForm initial={pi} api={api}/><OfflineUpdate api={api}/></>:piError?<p role="alert">리모트 디바이스 설정을 읽을 수 없습니다. 리모트 디바이스에서 실행 중인 Cortex Remote에 접속하세요. <button onClick={()=>setPiRetry(v=>v+1)}>다시 읽기</button></p>:pi?<p>핫스팟 이름·비밀번호와 리모트 주소·접속 키는 리모트 디바이스에서 실행 중인 Cortex Remote에 접속하면 변경할 수 있습니다.</p>:<p role="status">리모트 디바이스 설정을 읽는 중입니다.</p>:
             !online?<p>Quad Cortex를 USB로 연결하세요.</p>:values?
             groups.find(([name])=>name===page)[1].map(item=><Setting key={item[0]} item={item} value={values[item[0]]} busy={busy} save={save}/>):
             !error&&<p role="status">본체 설정 읽는 중…</p>}

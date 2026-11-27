@@ -112,7 +112,6 @@ def validate(config):
 
 def write_config(path, config):
     validate(config)
-    config.setdefault("adminKey",secrets.token_urlsafe(24))
     with tempfile.NamedTemporaryFile(dir=path.parent, mode="w", encoding="utf8", delete=False) as f:
         tmp = Path(f.name)
         try:

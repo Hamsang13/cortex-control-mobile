@@ -16,15 +16,6 @@ if [[ ! -f "$runtime/policy.json" ]]; then
     # Legacy packages have no sequence; the new verifier rejects all such packages.
     printf '%s\n' '{"channel":"preview","baseSequence":0}' | sudo tee "$runtime/policy.json" >/dev/null
 fi
-python3 - "$app/pi-settings.json" <<'PY'
-import sys
-from pathlib import Path
-from pi_settings import read_config,write_config
-p=Path(sys.argv[1])
-cfg=read_config(p)
-if not cfg.get("adminKey"):
-    write_config(p,cfg)
-PY
 sudo systemctl restart qc-desk
 # Install through the migrated verifier; legacy app servers do not verify channel metadata.
 QC_DATA_DIR="$app" PYTHONPATH="$runtime" "$app/venv/bin/python" -I - "$runtime" <<'PY'
