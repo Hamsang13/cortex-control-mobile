@@ -2,6 +2,7 @@ import SaveIcon from "./SaveIcon";
 import {modeNames,networkMode} from "./ConnectionChoice";
 import {bluetoothMode, bluetoothApi} from "./bleTransport";
 import BluetoothRemote from "./BluetoothRemote";
+import {useSettingsLanguage} from "./settingsLanguage";
 import DeviceSettings from "./DeviceSettings";
 import IOSettings from "./IOSettings";
 import BlockMenu from "./BlockMenu";
@@ -868,6 +869,8 @@ function GigScenes({state:s,current,enabled,select,run}) {
 }
 
 function App() {
+  const settingsLanguage=useSettingsLanguage();
+  const {language,t}=settingsLanguage;
   const [network,setNetwork]=useState(null);
   const networkEpoch=useRef(0);
   const updateNetwork=useCallback(result=>{networkEpoch.current++;setNetwork(result)},[]);
@@ -1672,9 +1675,9 @@ function App() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
               <path d="m9.8 3 .6-2h3.2l.6 2 2 .9 2-.7 2.2 2.2-.8 2 .9 2 2.1.6v3.2l-2.1.6-.9 2 .8 2-2.2 2.2-2-.7-2 .9-.6 2h-3.2l-.6-2-2-.9-2 .7-2.2-2.2.8-2-.9-2-2.1-.6V10l2.1-.6.9-2-.8-2 2.2-2.2 2 .7z"/><circle cx="12" cy="11.6" r="3.2"/>
             </svg></button></div>
-          <span className="desk-status" role="status" title={msg || undefined}>
-            <span data-connected={!!liveState}>{linkLabel && linkLabel+" · "}{usbPaused ? "USB 대기" : liveState ? "USB 연결됨" : waitingReason==="usb" ? "USB 미연결" : msg ? "USB 연결 확인 필요" : "USB 연결 중…"}</span>
-            {busy ? " · 처리 중…" : !paused && msg && " · " + msg}
+          <span className="desk-status" lang={language} role="status" title={t(msg) || undefined}>
+            <span data-connected={!!liveState}>{linkLabel && t(linkLabel)+" · "}{t(usbPaused ? "USB 대기" : liveState ? "USB 연결됨" : waitingReason==="usb" ? "USB 미연결" : msg ? "USB 연결 확인 필요" : "USB 연결 중…")}</span>
+            {busy ? " · "+t("처리 중…") : !paused && msg && " · " + t(msg)}
           </span>
         </div>
         {!paused && <><nav>
@@ -1692,16 +1695,16 @@ function App() {
         <button
           disabled={busy}
           onClick={toggleUsb}
-          title="Cortex Control과 USB 사용 전환"
+          title={t("Cortex Control과 USB 사용 전환")}
         >
-          USB 해제
+          {t("USB 해제")}
         </button></>}
       </header>
-      {paused && <section className={"usb-wait"+(hadConnection.current?" usb-interrupted":"")} aria-label="연결 안내" role="status">
+      {paused && <section className={"usb-wait"+(hadConnection.current?" usb-interrupted":"")} lang={language} aria-label={t("연결 안내")} role="status">
         <img src={icons.neuralLogo} alt=""/>
-        <h2>{waitingReason==="remote"?"리모트 디바이스에 접속해 주세요":waitingReason==="sync"?"Quad Cortex 연결을 확인해 주세요":"Quad Cortex를 연결해 주세요"}</h2>
-        <p>{waitingReason==="remote"?msg:usbPaused?"USB 연결을 누르면 본체와 다시 연결합니다.":waitingReason==="sync"?"USB 케이블과 본체 상태를 확인해 주세요. 연결을 다시 시도하고 있습니다.":hadConnection.current?"USB 연결이 끊겼습니다. 다시 연결하면 현재 프리셋과 씬을 불러옵니다.":"본체 전원을 켜고 USB 데이터 케이블로 연결하면 현재 프리셋을 불러옵니다."}</p>
-        {usbPaused && <button onClick={toggleUsb} disabled={busy}>USB 연결</button>}
+        <h2>{t(waitingReason==="remote"?"리모트 디바이스에 접속해 주세요":waitingReason==="sync"?"Quad Cortex 연결을 확인해 주세요":"Quad Cortex를 연결해 주세요")}</h2>
+        <p>{t(waitingReason==="remote"?(msg==="설치 시 표시된 키 포함 주소로 여세요."?msg:"리모트 디바이스와의 네트워크 연결을 확인해 주세요."):usbPaused?"USB 연결을 누르면 본체와 다시 연결합니다.":waitingReason==="sync"?"USB 케이블과 본체 상태를 확인해 주세요. 연결을 다시 시도하고 있습니다.":hadConnection.current?"USB 연결이 끊겼습니다. 다시 연결하면 현재 프리셋과 씬을 불러옵니다.":"본체 전원을 켜고 USB 데이터 케이블로 연결하면 현재 프리셋을 불러옵니다.")}</p>
+        {usbPaused && <button onClick={toggleUsb} disabled={busy}>{t("USB 연결")}</button>}
       </section>}
       {(!paused || hadConnection.current) && <div inert={paused} className={"workspace"+(libraryOpen?" library-open":"")}>
         <button ref={libraryToggle} className="library-toggle" aria-controls="block-library"
@@ -2001,7 +2004,7 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.4.0</span>
+        <span className="foot-version">Cortec Remote v0.4.1</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());
@@ -2016,7 +2019,7 @@ function App() {
       )}
       {refreshPrompt && <RefreshPrompt preset={refreshPrompt} choose={chooseRefresh}/>}
       </>}
-      {settingsOpen && <DeviceSettings api={api} network={network} onNetwork={updateNetwork} online={!!liveState && !paused} close={()=>setSettingsOpen(false)}/>}
+      {settingsOpen && <DeviceSettings settingsLanguage={settingsLanguage} api={api} network={network} onNetwork={updateNetwork} online={!!liveState && !paused} close={()=>setSettingsOpen(false)}/>}
       {!paused && ioOpen && <IOSettings meterFrame={meterFrame} api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
       {!paused && modal && (
         <DirectoryFrame close={close}>

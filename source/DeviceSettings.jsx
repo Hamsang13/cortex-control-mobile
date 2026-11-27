@@ -1,4 +1,3 @@
-import {useSettingsLanguage} from "./settingsLanguage";
 import SaveIcon from "./SaveIcon";
 import ConnectionChoice from "./ConnectionChoice";
 import {bluetoothMode} from "./bleTransport";
@@ -64,8 +63,8 @@ function PiForm({initial,api,t,language}) {
     <button disabled={busy}><SaveIcon size={15}/>{t("접속 설정 저장")}</button><p role="status">{message}</p></form>
 }
 
-export default function DeviceSettings({api,online,close,network,onNetwork}){
-  const {language,changeLanguage,t}=useSettingsLanguage();
+export default function DeviceSettings({api,online,close,network,onNetwork,settingsLanguage}){
+  const {language,changeLanguage,t}=settingsLanguage;
   const [page,setPage]=useState("연결 방식"),[values,setValues]=useState(null),[pi,setPi]=useState(null);
   const [error,setError]=useState(""),[busy,setBusy]=useState(false),[retry,setRetry]=useState(0);
   const [piError,setPiError]=useState(""),[piRetry,setPiRetry]=useState(0);
