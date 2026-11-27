@@ -102,6 +102,10 @@ bash source/install-pi.sh
 
 배포자는 Python `cryptography`로 업데이트 ZIP에 서명하고, 리모트 디바이스는 이미지에 포함된 OpenSSL로 서명을 검증합니다. HTTP 서버는 Python 표준 라이브러리의 `http.server`를 사용합니다. 프런트엔드 번들 생성 도구는 [esbuild](https://github.com/evanw/esbuild) 0.28.2입니다.
 
+### Zero 2 W USB 연결
+
+새 SD 이미지와 소스 설치 스크립트는 USB 호스트에 `dwc2`를 설정합니다. 기존 설치에서 튜너는 동작하지만 그리드가 모델 정보를 기다리는 경우, 최신 소스에서 `sudo bash source/release/configure-usb-host.sh`를 실행하고 Pi를 한 번 재부팅하세요. `lsusb -t`의 루트 허브에 `Driver=dwc2/1p`가 표시됩니다.
+
 ### 선택형 1.9인치 LCD
 
 Waveshare ST7789 170×320 모듈을 가로로 사용합니다. BCM 기준 SPI0 MOSI 10, CLK 11, CE0 8, DC 25, RST 27, BL 18을 사용합니다. 물리 핀은 VCC 1(3.3V), GND 6, DIN 19, CLK 23, CS 24, DC 22, RST 13, BL 12입니다. [Waveshare 모듈 문서](https://www.waveshare.com/wiki/1.9inch_LCD_Module)

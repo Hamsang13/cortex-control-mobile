@@ -3,6 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 if [[ $(id -u) == 0 ]]; then echo 'Run as your normal Pi user.'; exit 1; fi
 sudo -v
+sudo bash release/configure-usb-host.sh
 sudo apt-get update
 sudo apt-get install -y python3-venv libhidapi-hidraw0 network-manager dnsmasq-base usbutils openssl
 app="$HOME/.local/share/qc-desk"

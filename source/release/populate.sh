@@ -4,6 +4,7 @@ root=${1:?mounted root}
 zip=${2:?signed zip}
 src=$(cd "$(dirname "$0")/.." && pwd)
 stage="$root/tmp/cortex-image-build"
+bash "$src/release/configure-usb-host.sh" "$root/boot/firmware/config.txt"
 mkdir -p "$stage/release"
 install -m644 "$src"/release/{phone_wifi.py,package.py,updater.py,firstboot.py,stable-public.pem,update-public.pem,hotspot.sh,install-runtime.sh} "$stage/release/"
 install -m644 "$zip" "$stage/update.zip"
