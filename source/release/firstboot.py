@@ -5,7 +5,7 @@ import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
-from pi_settings import write_config
+from pi_settings import write_config, remember_browser
 
 HOST = "10.42.0.1:8765"
 URL = "http://" + HOST
@@ -62,11 +62,13 @@ class Setup(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
 
-    def page(self, body, status=200):
+    def page(self, body, status=200, remember_key=None):
         data = (PAGE_START + body + "</main>" + LANGUAGE_SCRIPT).encode()
         self.send_response(status)
         self.send_header("Content-Type","text/html; charset=utf-8")
         self.send_header("Cache-Control","no-store")
+        if remember_key:
+            self.send_header("Set-Cookie", remember_browser(remember_key))
         self.send_header("X-Frame-Options","DENY")
         self.send_header("Referrer-Policy","no-referrer")
         self.send_header("Content-Length",str(len(data)))
@@ -106,7 +108,7 @@ class Setup(BaseHTTPRequestHandler):
         ssid = cfg["ssid"]
         self.page(f'<h1>{label("Setup complete", "설정 완료")}</h1>'
                   f'<p>{label(f"Connect to {ssid}, then open and bookmark the remote.", f"{ssid}에 연결한 뒤 리모트를 열어 즐겨찾기에 추가하세요.")}</p>'
-                  + copy_controls(URL+"/#"+cfg["key"]) + f'<a href="{URL}/#{cfg["key"]}">{label("Open Cortex Remote","Cortex Remote 열기")}</a>')
+                  + copy_controls(URL+"/#"+cfg["key"]) + f'<a href="{URL}/#{cfg["key"]}">{label("Open Cortex Remote","Cortex Remote 열기")}</a>', remember_key=cfg["key"])
 
 
 def enroll(path):

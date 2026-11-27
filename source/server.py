@@ -9,7 +9,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from time import perf_counter
 
 ROOT = Path(__file__).resolve().parent
-from pi_settings import address, boot_proof, pi_request, read_config
+from pi_settings import address, boot_proof, pi_request, read_config, remember_browser
 PI_PATH = Path(os.environ["QC_PI_CONFIG"]) if os.getenv("QC_PI_CONFIG") else None
 PI_CONFIG = json.loads(os.environ["QC_RUNNING_CONFIG"]) if "QC_RUNNING_CONFIG" in os.environ else (read_config(PI_PATH) if PI_PATH else {})
 PORT = address(PI_CONFIG["url"])[1] if PI_CONFIG else 8765
@@ -450,6 +450,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def send(self, status, content, mime):
         self.send_response(status)
+        if status == 200 and self.command == "POST" and self.path == "/api/preview" and PI_CONFIG:
+            self.send_header("Set-Cookie", remember_browser(TOKEN))
         self.send_header("Content-Type", mime)
         self.send_header("Content-Length", str(len(content)))
         self.send_header("Cache-Control", "no-store")

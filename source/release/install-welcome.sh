@@ -12,7 +12,7 @@ test -n "$app"
 mode=${3:-live}
 runtime=/usr/local/lib/qc-desk
 install -d "$runtime" /etc/NetworkManager/dnsmasq-shared.d
-install -m 0644 welcome.py firstboot.py "$runtime/"
+install -m 0644 ../pi_settings.py welcome.py firstboot.py "$runtime/"
 echo 'interface-name=captive.apple.com,wlan0/4' >/etc/NetworkManager/dnsmasq-shared.d/cortex-welcome.conf
 cat >/etc/systemd/system/cortex-welcome.service <<EOF
 [Unit]

@@ -8,12 +8,31 @@ import secrets
 import subprocess
 import sys
 import tempfile
+from http.cookies import CookieError, SimpleCookie
 from pathlib import Path
 from threading import Lock
 from urllib.parse import urlsplit
 
 LOCK = Lock()
 PROFILE = "QC-Pedalboard"
+
+
+def welcome_proof(key):
+    return hmac.digest(key.encode("ascii"), b"cortex-remote/welcome/v1", "sha256").hex()
+
+
+def remember_browser(key):
+    return f"cortex_welcome={welcome_proof(key)}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax"
+
+
+def known_browser(header, key):
+    cookie = SimpleCookie()
+    try:
+        cookie.load(header or "")
+        saved = cookie.get("cortex_welcome")
+        return bool(saved and hmac.compare_digest(saved.value.encode(), welcome_proof(key).encode()))
+    except CookieError:
+        return False
 
 
 def external_wifi(config, data):
