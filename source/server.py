@@ -91,6 +91,26 @@ def usb_attached():
     return usb_present
 
 
+def ensure_usb_session():
+    global connection, tuner_meter, live_meters
+    if connection is not None and connection._t.device_lost is not None:
+        try:
+            disconnect()
+        except Exception:
+            # A vanished handle can no longer accept unsubscribe messages.
+            pass
+    if connection is None:
+        from pitch import LiveMeterFrames, TunerMeter, subscribe_gate_meters
+        connection = api.connect()
+        try:
+            live_meters = LiveMeterFrames(connection)
+            tuner_meter = TunerMeter(connection)
+            subscribe_gate_meters(connection, True)
+        except Exception:
+            disconnect()
+            raise
+
+
 def device_request(action, data):
     global connection, editor, browse_only, tuner_meter, live_meters, warm_snapshot, preview_stamp
     if action == "live" and data.get("checkUsb") and not (DEMO or browse_only or usb_attached()):
@@ -149,13 +169,12 @@ def device_request(action, data):
             if cached.exists():
                 return json.loads(cached.read_text(encoding="utf8"))
         if editor is None:
-            connection = api.connect()
-            editor = Editor(api, connection)
-            from pitch import TunerMeter, subscribe_gate_meters
-            from pitch import LiveMeterFrames
-            live_meters = LiveMeterFrames(connection)
-            tuner_meter = TunerMeter(connection)
-            subscribe_gate_meters(connection, True)
+            ensure_usb_session()
+            try:
+                editor = Editor(api, connection)
+            except TimeoutError as exc:
+                # A model catalog timeout must not tear down a healthy meter session.
+                raise ValueError("모델 정보를 기다리고 있습니다.") from exc
         try:
             result = editor.request(action, data)
             if action == "live" and not DEMO and not hasattr(editor, "directory_read"):
@@ -362,10 +381,7 @@ def maintain_lcd_connection():
         if connection:
             disconnect()
         return
-    if connection is None:
-        device_request("live", {"checkUsb":True})
-    if tuner_meter:
-        tuner_meter.lease("local-lcd", "footer")
+    ensure_usb_session()
     if live_meters and live_meters.needs_subscription():
         renew_meters(live_meters)
 
@@ -374,7 +390,9 @@ def publish_lcd():
     from time import monotonic, sleep
     endpoint = "/run/cortex-lcd/frames"
     future = None
+    last_error = None
     next_check = 0
+    next_usb = 0
     with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
         sock.setblocking(False)
         while True:
@@ -382,9 +400,25 @@ def publish_lcd():
                 sleep(1)
                 continue
             now = monotonic()
-            if now >= next_check and (future is None or future.done()):
-                future = USB.submit(maintain_lcd_connection)
+            if now >= next_check:
+                # A directory or model-catalog read can occupy the USB worker for seconds.
+                # The tuner lease uses its own lock, just like the web footer's meter.
+                meter = tuner_meter
+                if meter is not None and not browse_only:
+                    try:
+                        meter.lease("local-lcd","footer")
+                    except Exception as exc:
+                        if str(exc) != last_error:
+                            print(f"LCD tuner: {exc}", flush=True)
+                            last_error = str(exc)
                 next_check = now + 1
+            if now >= next_usb and (future is None or future.done()):
+                error = str(future.exception()) if future and future.exception() else None
+                if error and error != last_error:
+                    print(f"LCD USB: {error}", flush=True)
+                last_error = error
+                future = USB.submit(maintain_lcd_connection)
+                next_usb = now + 1
             frames = live_meters
             data = frames.lcd_sample() if frames and not browse_only else {}
             data.update(stamp=now, connected=bool(frames and not browse_only))
