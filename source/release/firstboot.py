@@ -18,16 +18,16 @@ def label(en, ko):
 PAGE_START = """<!doctype html><html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Cortex Remote</title>
 <style>
-*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;background:#0b0b0c;color:#eee;font:15px/1.5 system-ui,sans-serif}
+*{box-sizing:border-box}html{color-scheme:dark}body{margin:0;min-height:100vh;min-height:100dvh;padding-bottom:calc(clamp(36px,6vh,64px) + env(safe-area-inset-bottom,0px));background:#0b0b0c;color:#eee;font:15px/1.5 system-ui,sans-serif}
 header{display:flex;align-items:center;justify-content:space-between;padding:10px clamp(16px,4vw,48px);border-bottom:1px solid #303032;background:#121213}
 header strong{font-size:17px}header label{position:relative;display:grid;place-items:center;width:44px;height:44px;border-radius:8px;background:#222224}
 header select{position:absolute;inset:0;width:100%;opacity:0;cursor:pointer}header label:focus-within{outline:2px solid #5ce477}
-main{max-width:490px;margin:clamp(24px,8vh,80px) auto;padding:24px;background:#1a1a1c;border:1px solid #343436;border-radius:12px}
+main{max-width:490px;margin:clamp(24px,8vh,80px) auto 0;padding:24px 24px 32px;background:#1a1a1c;border:1px solid #343436;border-radius:12px}
 h1{font-size:22px;margin:0}p{color:#bcbcbf}form label{display:block;margin:16px 0}
 input,button{font:inherit;width:100%;padding:10px 12px;border-radius:6px}input{display:block;margin-top:5px;background:#111113;color:#eee;border:1px solid #444}
 input:focus-visible,button:focus-visible{outline:2px solid #5ce477}button{cursor:pointer;background:#65e882;border:0;color:#101713;font-weight:650}a{color:#65e882}
 html[lang=en] span[lang=ko],html[lang=ko] span[lang=en]{display:none}
-@media(max-width:540px){main{margin:20px 12px;padding:18px}}
+@media(max-width:540px){main{margin:20px 12px 0;padding:18px 18px 26px}}
 </style><header><strong>Cortex Remote</strong><label title="Language / 언어">
 <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg>
 <select aria-label="Language / 언어" id="language"><option value="en">English</option><option value="ko">한국어</option></select></label></header><main>"""
