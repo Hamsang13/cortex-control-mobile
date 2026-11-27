@@ -112,9 +112,11 @@ def main():
     assert status.startswith("100"), status
     assert subprocess.check_output(["iw","dev","wlan0","info"],text=True).find("ssid Cortex-Remote-Setup")>=0
     log("PASS clean boot: NetworkManager wlan0 AP and enrollment portal")
-    key = secrets.token_urlsafe(18)
-    form = urllib.parse.urlencode(dict(proof=nonce,ssid="Cortex-QA",wifi=secrets.token_hex(8),key=key)).encode()
-    assert key.encode() in urllib.request.urlopen(BASE+"/",form,timeout=5).read()
+    assert 'name="key"' not in setup
+    form = urllib.parse.urlencode(dict(proof=nonce,ssid="Cortex-QA",wifi=secrets.token_hex(8))).encode()
+    complete = urllib.request.urlopen(BASE+"/",form,timeout=5).read()
+    key = json.loads(CONFIG.read_text())["key"]
+    assert key.encode() in complete
     def api(path, content=b"{}"):
         req=urllib.request.Request(BASE+"/api/"+path,content,{"X-QC-Key":key})
         return json.load(urllib.request.urlopen(req,timeout=30))

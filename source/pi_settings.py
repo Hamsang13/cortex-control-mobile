@@ -8,7 +8,7 @@ import secrets
 import subprocess
 import sys
 import tempfile
-from http.cookies import CookieError, SimpleCookie
+import socket
 from pathlib import Path
 from threading import Lock
 from urllib.parse import urlsplit
@@ -17,22 +17,32 @@ LOCK = Lock()
 PROFILE = "QC-Pedalboard"
 
 
-def welcome_proof(key):
-    return hmac.digest(key.encode("ascii"), b"cortex-remote/welcome/v1", "sha256").hex()
-
-
-def remember_browser(key):
-    return f"cortex_welcome={welcome_proof(key)}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax"
-
-
-def known_browser(header, key):
-    cookie = SimpleCookie()
+def hotspot_ip():
     try:
-        cookie.load(header or "")
-        saved = cookie.get("cortex_welcome")
-        return bool(saved and hmac.compare_digest(saved.value.encode(), welcome_proof(key).encode()))
-    except CookieError:
+        pid = int(Path("/run/nm-dnsmasq-wlan0.pid").read_text())
+        args = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+        return next(a.decode().split("=", 1)[1] for a in args if a.startswith(b"--listen-address="))
+    except (OSError, ValueError, StopIteration):
+        return None
+
+
+def hotspot_request(local, peer, host, origin):
+    ip, port = local[:2]
+    allowed = (f"{ip}:{port}", f"{socket.gethostname().lower()}.local:{port}")
+    if not host or host.lower() not in allowed or origin != "http://" + host:
         return False
+    if ip != hotspot_ip():
+        return False
+    try:
+        if ipaddress.ip_address(peer) not in ipaddress.ip_network(ip + "/24", strict=False):
+            return False
+        for line in Path("/proc/net/arp").read_text().splitlines()[1:]:
+            addr, _, flags, _, _, iface = line.split()
+            if addr == peer and iface == "wlan0" and int(flags, 16) & 2:
+                return True
+    except (OSError, ValueError):
+        pass
+    return False
 
 
 def external_wifi(config, data):
@@ -55,7 +65,7 @@ def external_wifi(config, data):
     if action == "offline":
         result.update(url=config["url"].rstrip("/"), proof=boot_proof(config))
     if action == "join":
-        result.update(url=f"http://{result['host']}:{address(config['url'])[1]}", proof=boot_proof(config))
+        result.update(url=f"http://{result['host']}:{address(config['url'])[1]}", accessKey=config["key"], proof=boot_proof(config))
     if action == "confirm":
         return external_wifi(config, {"action":"status"})
     return result

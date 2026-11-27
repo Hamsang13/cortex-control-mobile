@@ -26,11 +26,11 @@ export default function ConnectionChoice({api,pi,network,onNetwork,t,language}){
       if(action==="join"){
         onNetwork(result);
         setMessage(language==="en"?`Connect your iPad to ${ssid} and select Keep connection within 90 seconds.`:"iPad를 "+ssid+"에 연결하고 90초 안에 이 설정에서 연결 유지를 누르세요.");
-        if(!bluetoothMode)watchPiRestart({url:result.url+"/#"+location.hash.slice(1),proof:result.proof,wifiTicket:result.ticket});
+        if(!bluetoothMode)watchPiRestart({url:result.url+"/#"+(result.accessKey||location.hash.slice(1)),proof:result.proof,wifiTicket:result.ticket});
       }else if(action==="offline"||action==="forget"){
         onNetwork(result.phase?result:{...network,phase:"idle"});
         setMessage(language==="en"?`Connect your iPad to ${pi?.ssid||"the device hotspot"}.`:"iPad Wi-Fi에서 "+(pi?.ssid||"리모트 디바이스 핫스팟")+"에 연결하세요.");
-        if(!bluetoothMode && result.url && result.proof)watchPiRestart({url:result.url+"/#"+location.hash.slice(1),proof:result.proof});
+        if(!bluetoothMode && result.url && result.proof)watchPiRestart({url:result.url+"/",proof:result.proof});
       }else{onNetwork(result);setMessage(action==="confirm"?t("외부 Wi-Fi를 저장했습니다."):"");}
     }catch(e){setMessage(e.message)}finally{setBusy(false)}
   }
@@ -70,7 +70,7 @@ export default function ConnectionChoice({api,pi,network,onNetwork,t,language}){
       {changing&&<p role="status">{t("리모트 디바이스가 Wi-Fi를 전환하고 있습니다.")}</p>}
       {mode==="hotspot"&&phase==="trial"&&<button disabled={busy} onClick={()=>act("confirm")}>{t("연결 유지")}</button>}
       {mode==="offline"&&station&&<button disabled={busy} onClick={()=>act(network.canOffline?"offline":"forget")}>{t(network.canOffline?"리모트 디바이스 핫스팟으로 전환":"외부 Wi-Fi를 지우고 리모트 디바이스 핫스팟으로 전환")}</button>}
-      {bluetoothMode&&endpoint&&!changing&&mode===networkMode(network)&&<form onSubmit={openWifi}><label className="setting-field">{t("Wi-Fi 리모트 접속 키")}<input type="password" required autoComplete="off" value={entry} onChange={e=>setEntry(e.target.value)}/></label><button>{t("Wi-Fi 리모트 열기")}</button></form>}
+      {bluetoothMode&&endpoint&&!changing&&mode===networkMode(network)&&<form onSubmit={openWifi}>{station && <label className="setting-field">{t("Wi-Fi 리모트 접속 키")}<input type="password" required autoComplete="off" value={entry} onChange={e=>setEntry(e.target.value)}/></label>}<button>{t("Wi-Fi 리모트 열기")}</button></form>}
     </>}
     {message&&<p role="status">{message}</p>}
   </>;
