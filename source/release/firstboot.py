@@ -40,6 +40,24 @@ menu.onchange=()=>{applyLanguage(menu.value);try{localStorage.setItem('cortex.se
 </script></html>"""
 
 
+def copy_controls(url):
+    return f"""<label>{label("Remote address","리모트 주소")}
+<input id="remoteUrl" readonly value="{html.escape(url, quote=True)}"></label>
+<button type="button" id="copyUrl">{label("Copy remote address","리모트 주소 복사")}</button>
+<p role="status" id="copyStatus"></p>
+<script>
+document.querySelector('#copyUrl').onclick=async()=>{{
+ const input=document.querySelector('#remoteUrl');
+ let copied=false;
+ try{{if(navigator.clipboard){{await navigator.clipboard.writeText(input.value);copied=true}}}}catch{{}}
+ if(!copied){{input.focus();input.select();input.setSelectionRange(0,input.value.length);
+ try{{copied=document.execCommand('copy')}}catch{{}}}}
+ document.querySelector('#copyStatus').textContent=document.documentElement.lang==='ko'?
+ (copied?'복사했습니다.':'선택한 주소를 길게 눌러 복사하세요.'):(copied?'Copied.':'Touch and hold the selected address to copy.');
+}};
+</script>"""
+
+
 class Setup(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
@@ -64,6 +82,8 @@ class Setup(BaseHTTPRequestHandler):
 <label>{label("Wi-Fi name","사용할 Wi-Fi 이름")}<input name="ssid" required maxlength="32" value="Cortex-Remote-{secrets.token_hex(2)}"></label>
 <label>{label("Wi-Fi password","새 Wi-Fi 비밀번호")}<input name="wifi" required minlength="8" maxlength="63" value="{secrets.token_hex(8)}"></label>
 <label>{label("Access key","접속 키")}<input name="key" required pattern="(?:[A-Za-z0-9_]|-){{16,128}}" value="{secrets.token_urlsafe(18)}"></label>
+{copy_controls(URL+"/")}
+<script>const setupKey=document.querySelector('[name=key]');function updateLink(){{document.querySelector('#remoteUrl').value=location.origin+'/#'+encodeURIComponent(setupKey.value)}}setupKey.oninput=updateLink;updateLink()</script>
 <p>{label("On the new Wi-Fi, open the link shown after saving.", "새 Wi-Fi에 연결한 뒤 저장 완료 화면의 링크를 여세요.")}</p><button>{label("Save and start hotspot","저장하고 개인 핫스팟 시작")}</button></form>""")
 
     def do_POST(self):
@@ -86,7 +106,7 @@ class Setup(BaseHTTPRequestHandler):
         ssid = cfg["ssid"]
         self.page(f'<h1>{label("Setup complete", "설정 완료")}</h1>'
                   f'<p>{label(f"Connect to {ssid}, then open and bookmark the remote.", f"{ssid}에 연결한 뒤 리모트를 열어 즐겨찾기에 추가하세요.")}</p>'
-                  f'<a href="{URL}/#{cfg["key"]}">{label("Open Cortex Remote","Cortex Remote 열기")}</a>')
+                  + copy_controls(URL+"/#"+cfg["key"]) + f'<a href="{URL}/#{cfg["key"]}">{label("Open Cortex Remote","Cortex Remote 열기")}</a>')
 
 
 def enroll(path):

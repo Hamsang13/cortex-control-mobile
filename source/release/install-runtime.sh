@@ -74,6 +74,7 @@ ReadWritePaths=/etc/NetworkManager/system-connections
 [Install]
 WantedBy=multi-user.target
 EOF
+bash release/install-welcome.sh "$account" "$app" "$mode"
 systemctl enable qc-desk-hotspot qc-desk cortex-network
 if [[ $mode == live ]]; then
     udevadm control --reload-rules
