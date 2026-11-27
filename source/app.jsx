@@ -517,7 +517,7 @@ const sortFields = {
   device: "Capture Type",
   gain: "Gain",
 };
-function CaptureBrowser({ captures, error, retry, render }) {
+function CaptureBrowser({ t, captures, error, retry, render }) {
   const [layout, setLayout] = useState(null),
     [layoutError, setLayoutError] = useState(""),
     [attempt, reload] = useState(0);
@@ -595,11 +595,11 @@ function CaptureBrowser({ captures, error, retry, render }) {
   const results = (
     <>
       {current?.members === null && tab === "Folder" ? (
-        <small>본체 목록 미확인</small>
+        <small>{t("본체 목록 미확인")}</small>
       ) : !captures ? null : rows.length ? (
         <PagedRows listKey={key} rows={rows} render={render} />
       ) : (
-        <small>항목 없음</small>
+        <small>{t("항목 없음")}</small>
       )}
     </>
   );
@@ -693,7 +693,7 @@ function CaptureBrowser({ captures, error, retry, render }) {
           </button>
         ))}
       </div>
-      {error && <button onClick={retry}>{error} · 다시 읽기</button>}
+      {error && <button onClick={retry}>{t(error)} · {t("다시 읽기")}</button>}
       {tab === "Folder" && options === "filter" && (
         <button
           onClick={() => {
@@ -701,18 +701,18 @@ function CaptureBrowser({ captures, error, retry, render }) {
             retry();
           }}
         >
-          본체 목록 다시 읽기
+          {t("본체 목록 다시 읽기")}
         </button>
       )}
       {layoutError && (
         <button onClick={() => reload(attempt + 1)}>
-          {layoutError} · 폴더 다시 읽기
+          {t(layoutError)} · {t("폴더 다시 읽기")}
         </button>
       )}
       {tab === "Library" || (!current && (query || type || version)) ? (
         results
       ) : !layout ? (
-        <small>폴더 읽는 중…</small>
+        <small>{t("폴더 읽는 중…")}</small>
       ) : current && current.parent !== "local_nc_root" ? (
         <>
           <button
@@ -1658,10 +1658,10 @@ function App() {
         captures === null &&
         (captureError ? (
           <button onClick={() => setRetry(retry + 1)}>
-            {captureError} · 다시 읽기
+            {t(captureError)} · {t("다시 읽기")}
           </button>
         ) : (
-          <p>캡처 목록 읽는 중…</p>
+          <p>{t("캡처 목록 읽는 중…")}</p>
         ))}
       {((category === "Neural Capture" && captures) ||
         (category === "Plugins" && product)) && <small>{items.length}개</small>}
@@ -1684,7 +1684,7 @@ function App() {
               <img src={icons[key]} alt=""/><img className="splash-color" src={icons[key]} alt=""/>
             </div>)}
           </div>
-          <span>{loadingPresets?"Loading Preset Directory...":"Loading Preset..."}</span>
+          <span>{t(loadingPresets?"프리셋 목록을 읽는 중…":"프리셋을 읽는 중…")}</span>
         </div>
       )}
       <header>
@@ -1745,8 +1745,8 @@ function App() {
                 back={()=>P(null)} choose={value=>remember(route.part,{row:route.row,value},()=>setLibraryOpen(false))}/> :
             <div className="models">
               {!lib.models.length && <div role="status">
-                <p>{libraryPending ? "이펙터 목록을 불러오는 중…" : liveState ? "이펙터 목록을 불러오지 못했습니다." : "Quad Cortex를 USB로 연결하면 모델 목록이 표시됩니다."}</p>
-                {!libraryPending && liveState && <button onClick={loadLibrary}>다시 불러오기</button>}
+                <p>{t(libraryPending ? "이펙터 목록을 불러오는 중…" : liveState ? "이펙터 목록을 불러오지 못했습니다." : "Quad Cortex를 USB로 연결하면 모델 목록이 표시됩니다.")}</p>
+                {!libraryPending && liveState && <button onClick={loadLibrary}>{t("다시 불러오기")}</button>}
               </div>}
               {category && !lib.models.length ? <button onClick={()=>C("")}>‹　{category}</button> : category ? (
                 <>
@@ -1778,7 +1778,7 @@ function App() {
                         ))}
                     </details></>
                   ) : category === "Neural Capture" ? (
-                    <CaptureBrowser
+                    <CaptureBrowser t={t}
                       captures={captures}
                       error={captureError}
                       retry={() => {
@@ -2018,7 +2018,7 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.6.0</span>
+        <span className="foot-version">Cortec Remote v0.6.1</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());
@@ -2039,8 +2039,8 @@ function App() {
         <DirectoryFrame close={close}>
           <aside><small>PRESETS</small>{directoryNames.map(name=><button key={name} aria-pressed={folderName===name} onClick={()=>{setDirectoryError("");setFolderName(name);K(0);F("")}}>{name}</button>)}</aside>
           <section><div className="directory-tools"><input aria-label="프리셋 검색" placeholder="Search" value={search} onChange={e=>F(e.target.value)}/><button onClick={close} aria-label="Directory 닫기">×</button></div>
-          {directoryError && <button onClick={()=>{setDirectoryError("");if(folderName==="My Presets")directory();else retryGroup(n=>n+1)}}>{directoryError} · 다시 읽기</button>}
-          {(loadingPresets || loadingGroup) && !visibleSlots.length && <p role="status">프리셋 목록을 읽는 중…</p>}
+          {directoryError && <button onClick={()=>{setDirectoryError("");if(folderName==="My Presets")directory();else retryGroup(n=>n+1)}}>{t(directoryError)} · {t("다시 읽기")}</button>}
+          {(loadingPresets || loadingGroup) && !visibleSlots.length && <p role="status">{t("프리셋 목록을 읽는 중…")}</p>}
           <div className="picker"><div className="banks">{!["Downloads","Cloud Presets"].includes(folderName) && Array.from({length:32},(_,i)=><button key={i} className={bank===i?"on":""} onClick={()=>{
             K(i);F("");requestAnimationFrame(()=>document.querySelector(`.preset-directory-view [data-bank="${i}"]`)?.scrollIntoView({block:"start"}));
           }}>{i+1}</button>)}</div>
