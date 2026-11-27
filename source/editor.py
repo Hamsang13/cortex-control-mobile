@@ -635,20 +635,23 @@ class Editor:
             if str(q.read_current_preset().hash) != state["identity"]:
                 raise ValueError("저장 전에 프리셋이 변경되었습니다.")
             self.clear_edit_history()
-            # File CREATE may never get a direct reply. The slot readback below
-            # and the device's dirty flag confirm completion independently.
             from pyquadcortex.client import pa
             write = pa.FileMessage(type=0)
             write.folder.key = folder
             write.folder.is_factory = False
             write.folder.files.add(index=slot, name=existing.name, instrument=existing.instrument)
             q._file_operation(write, timeout=.15)
-            saved = {x.index: x.name for x in q.list_presets(folder)}
-            if folder.rstrip("/") == api.Setlist.USER.rstrip("/"):
-                self.slots = saved
-                self.slots_valid_until = clock_seconds() + 60
-            if saved.get(slot) != existing.name:
-                raise ValueError("저장 슬롯에서 프리셋을 확인하지 못했습니다.")
+            # The slot already had this name before the write. A second folder
+            # listing cannot confirm the edit and may wait on all 256 slots.
+            from time import sleep
+            deadline = clock_seconds() + 4
+            while q.preset_dirty() and clock_seconds() < deadline:
+                sleep(.05)
+            result = self.snapshot()
+            if result["dirty"] or result["name"] != existing.name:
+                raise ValueError("본체에서 현재 프리셋 저장을 확인하지 못했습니다.")
+            result["savedName"] = existing.name
+            return result
         else:
             try:
                 before_frames = self.read_history_frames()
@@ -705,18 +708,6 @@ class Editor:
                     self.edit_history["undo"] = self.edit_history["undo"][-len(after_frames[0]):]
                     self.edit_history["redo"].clear()
                     self.history_frames = after_frames
-        if action == "save":
-            if result["dirty"] and result["name"] == saved[slot]:
-                from time import sleep
-                deadline = clock_seconds() + 4
-                while clock_seconds() < deadline and q.preset_dirty():
-                    sleep(.1)
-                result = self.snapshot()
-            if saved[slot] != result["name"] or result["dirty"]:
-                raise ValueError(
-                    "저장 후 슬롯과 현재 프리셋이 일치하지 않습니다. 목록에서 확인하세요."
-                )
-            result["savedName"] = saved[slot]
         return result
 
     def edit(self, state, action, d):
