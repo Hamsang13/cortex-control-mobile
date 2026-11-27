@@ -951,14 +951,23 @@ function App() {
   const stream = useRef({ writing: false, pending: [] }),
     history = useRef({ undo: [], redo: [] });
   const mode = useRef(null);
+  const hadConnection=useRef(false), nextPoll=useRef(0);
+  const [waitingReason,setWaitingReason]=useState("");
+  function waitForDevice(reason) {
+    setWaitingReason(reason);
+    if(mode.current!=="waiting"){
+      latest.current=null;S(null);Q([]);P(null);M(null);D(null);J(null);
+      setIOOpen(false);setOverlay(false);setRefreshPrompt(null);setLibraryOpen(false);
+      pointer.current=null;mode.current="waiting";
+    }
+    setInitialLoading(false);
+  }
   const latest = useRef(null),
     lock = useRef(false),
     epoch = useRef(0),
     pointer = useRef(null),
     sceneNext = useRef(null),
-    reading = useRef(false),
-    modalRef = useRef(null);
-  modalRef.current = modal;
+    reading = useRef(false);
   function accept(next) {
     if (latest.current?.identity !== next.identity) {
       P(null);
@@ -966,6 +975,7 @@ function App() {
       G(0);
       history.current = { undo: [], redo: [] };
     }
+    hadConnection.current=true;setWaitingReason("");
     setPreview(next);
     latest.current = next;
     S(next);
@@ -1034,7 +1044,7 @@ function App() {
     if (
       lock.current ||
       reading.current ||
-      (!force && (document.hidden || pointer.current || modalRef.current))
+      (!force && (document.hidden || pointer.current || Date.now()<nextPoll.current))
     )
       return;
     const version = epoch.current;
@@ -1042,16 +1052,21 @@ function App() {
     try {
       const prevState = latest.current;
       const reply = await api("live", {
-        known: prevState?.rev,
+        checkUsb:true, known: prevState?.rev,
         knownPreview: mode.current === "browse" && !force,
       });
       if (version !== epoch.current) return;
+      if(reply.usbMissing){
+        nextPoll.current=Date.now()+1000;
+        setPaused(false);waitForDevice("usb");return;
+      }
+      nextPoll.current=0;
       if (reply.paused) {
         if (reply.preview) setPreview(previous =>
           previous?.rev === reply.preview.rev && previous.scene === reply.preview.scene &&
           previous.dirty === reply.preview.dirty ? previous : reply.preview);
         if (mode.current !== "browse") {
-          loadLibrary();
+          setWaitingReason("released");setInitialLoading(false);
           setCaptures(null);
           S(null);
           P(null);
@@ -1082,9 +1097,8 @@ function App() {
     } catch (e) {
       if (version === epoch.current) {
         T(e.message);
-        latest.current = null;
-        Q([]);
-        S(null);
+        nextPoll.current=Date.now()+1500;
+        waitForDevice(e instanceof TypeError || /키 포함 주소/.test(e.message) ? "remote" : "sync");
       }
     } finally {
       reading.current = false;
@@ -1146,7 +1160,7 @@ function App() {
         latest.current = null;
         S(null);
         P(null);
-        setPaused(true);
+        setPaused(true);setWaitingReason("released");
         mode.current = "browse";
         T("");
       }
@@ -1294,7 +1308,7 @@ function App() {
     return request;
   }
   useEffect(() => {
-    if (!liveState && !usbPaused) return;
+    if (!liveState) return;
     let current=true;
     setFolders([]);Q([]);setDirectoryError("");
     readPresets().catch(error => {if(current)setDirectoryError(error.message)}).finally(()=>{
@@ -1640,7 +1654,7 @@ function App() {
   const loadingStep = !previewChecked ? 1 : !liveState ? 2 : libraryPending ? 3 : 4;
   return (
     <div className="shell">
-      {initialLoading && (
+      {initialLoading && liveState && (
         <div className="preset-loading" role="status">
           <div className="splash-chain" aria-hidden="true">
             {["pitch","overdrive","amp","cab","reverb"].map((key,i)=><div key={key} className="splash-block" style={{"--fill":(i<loadingStep?100:i>loadingStep?0:25+75*(i===4?presetFraction:0))+"%"}}>
@@ -1659,11 +1673,11 @@ function App() {
               <path d="m9.8 3 .6-2h3.2l.6 2 2 .9 2-.7 2.2 2.2-.8 2 .9 2 2.1.6v3.2l-2.1.6-.9 2 .8 2-2.2 2.2-2-.7-2 .9-.6 2h-3.2l-.6-2-2-.9-2 .7-2.2-2.2.8-2-.9-2-2.1-.6V10l2.1-.6.9-2-.8-2 2.2-2.2 2 .7z"/><circle cx="12" cy="11.6" r="3.2"/>
             </svg></button></div>
           <span className="desk-status" role="status" title={msg || undefined}>
-            <span data-connected={!!liveState}>{linkLabel && linkLabel+" · "}{usbPaused ? "USB 대기 · 읽기 전용" : liveState ? "USB 연결됨" : msg ? "USB 연결 확인 필요" : preview ? "USB 동기화 중 · 읽기 전용" : "USB 연결 중…"}</span>
-            {busy ? " · 처리 중…" : msg && " · " + msg}
+            <span data-connected={!!liveState}>{linkLabel && linkLabel+" · "}{usbPaused ? "USB 대기" : liveState ? "USB 연결됨" : waitingReason==="usb" ? "USB 미연결" : msg ? "USB 연결 확인 필요" : "USB 연결 중…"}</span>
+            {busy ? " · 처리 중…" : !paused && msg && " · " + msg}
           </span>
         </div>
-        <nav>
+        {!paused && <><nav>
           <button className={!gig && !modal ? "current" : ""} onClick={() => {M(null);H(false)}}>
             GRID
           </button>
@@ -1680,10 +1694,16 @@ function App() {
           onClick={toggleUsb}
           title="Cortex Control과 USB 사용 전환"
         >
-          {usbPaused ? "USB 연결" : "USB 해제"}
-        </button>
+          USB 해제
+        </button></>}
       </header>
-      <div className={"workspace"+(libraryOpen?" library-open":"")}>
+      {paused && <section className={"usb-wait"+(hadConnection.current?" usb-interrupted":"")} aria-label="연결 안내" role="status">
+        <img src={icons.neuralLogo} alt=""/>
+        <h2>{waitingReason==="remote"?"리모트 디바이스에 접속해 주세요":waitingReason==="sync"?"Quad Cortex 연결을 확인해 주세요":"Quad Cortex를 연결해 주세요"}</h2>
+        <p>{waitingReason==="remote"?msg:usbPaused?"USB 연결을 누르면 본체와 다시 연결합니다.":waitingReason==="sync"?"USB 케이블과 본체 상태를 확인해 주세요. 연결을 다시 시도하고 있습니다.":hadConnection.current?"USB 연결이 끊겼습니다. 다시 연결하면 현재 프리셋과 씬을 불러옵니다.":"본체 전원을 켜고 USB 데이터 케이블로 연결하면 현재 프리셋을 불러옵니다."}</p>
+        {usbPaused && <button onClick={toggleUsb} disabled={busy}>USB 연결</button>}
+      </section>}
+      {(!paused || hadConnection.current) && <div inert={paused} className={"workspace"+(libraryOpen?" library-open":"")}>
         <button ref={libraryToggle} className="library-toggle" aria-controls="block-library"
           aria-expanded={libraryOpen} aria-label={libraryOpen?"라이브러리 닫기":"라이브러리 열기"}
           onClick={()=>setLibraryOpen(v=>!v)}><span aria-hidden="true"/></button>
@@ -1975,13 +1995,13 @@ function App() {
             </>
           }
         </main>
-      </div>
-      <footer>
+      </div>}
+      {!paused && <><footer>
         <FooterTools report={T} {...{api,paused,busy,run,refresh,cpu,setCpu,overlay,setOverlay}} s={liveState || (usbPaused ? preview : null)} />
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.3.1</span>
+        <span className="foot-version">Cortec Remote v0.4.0</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());
@@ -1995,9 +2015,10 @@ function App() {
         </div>
       )}
       {refreshPrompt && <RefreshPrompt preset={refreshPrompt} choose={chooseRefresh}/>}
+      </>}
       {settingsOpen && <DeviceSettings api={api} network={network} onNetwork={updateNetwork} online={!!liveState && !paused} close={()=>setSettingsOpen(false)}/>}
-      {ioOpen && <IOSettings meterFrame={meterFrame} api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
-      {modal && (
+      {!paused && ioOpen && <IOSettings meterFrame={meterFrame} api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
+      {!paused && modal && (
         <DirectoryFrame close={close}>
           <aside><small>PRESETS</small>{directoryNames.map(name=><button key={name} aria-pressed={folderName===name} onClick={()=>{setDirectoryError("");setFolderName(name);K(0);F("")}}>{name}</button>)}</aside>
           <section><div className="directory-tools"><input aria-label="프리셋 검색" placeholder="Search" value={search} onChange={e=>F(e.target.value)}/><button onClick={close} aria-label="Directory 닫기">×</button></div>

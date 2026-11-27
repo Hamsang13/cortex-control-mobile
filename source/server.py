@@ -76,8 +76,31 @@ def disconnect():
             client.close()
 
 
+usb_presence_at = float("-inf")
+usb_present = False
+
+def usb_attached():
+    # Called on the serial USB worker. Check hotplug even when the editor serves cached state.
+    global usb_presence_at, usb_present
+    now = perf_counter()
+    if now - usb_presence_at >= 1:
+        import hid
+        from pyquadcortex import hid_ids
+        usb_present = bool(hid.enumerate(hid_ids.VENDOR_ID, hid_ids.PRODUCT_ID))
+        usb_presence_at = now
+    return usb_present
+
+
 def device_request(action, data):
     global connection, editor, browse_only, tuner_meter, live_meters, warm_snapshot, preview_stamp
+    if action == "live" and data.get("checkUsb") and not (DEMO or browse_only or usb_attached()):
+        warm_snapshot = None
+        if connection is not None:
+            try:
+                disconnect()
+            except OSError:
+                pass
+        return {"usbMissing": True}
     if warm_snapshot is not None:
         stamp, snapshot = warm_snapshot
         warm_snapshot = None
@@ -97,7 +120,6 @@ def device_request(action, data):
                 browse_only = False
                 return device_request("live", {})
             except Exception:
-                browse_only = True
                 disconnect()
                 raise
         if browse_only:

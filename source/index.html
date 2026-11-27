@@ -928,6 +928,9 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
       }
 
 .io-launch{flex:none;width:30px;height:30px;min-height:0;padding:0;border:1px solid #aaa;border-radius:50%;background:transparent;font:12px Arial;color:#eee}
+.usb-wait{flex:1;min-height:55vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
+.shell:has(.usb-interrupted){position:relative}.usb-interrupted{position:absolute;inset:54px 0 0;background:#090909f0;z-index:25;min-height:calc(100dvh - 54px)}.workspace[inert]{pointer-events:none}
+.usb-wait img{width:44px;height:44px}.usb-wait h2{font-size:clamp(19px,3vw,26px);margin:18px 0 6px}.usb-wait p{max-width:34em;color:#aaa;line-height:1.5;margin:0}.usb-wait button{margin-top:16px}
 .io-shade{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#0009;padding:8px}
 .io-dialog{width:min(960px,100%);max-height:94dvh;overflow:auto;display:flex;flex-direction:column;background:#252525;color:#eee;border-radius:12px;box-shadow:0 12px 50px #0009;outline:none;font:14px Arial,sans-serif}
 .io-heading,.io-actions{display:flex;align-items:center;gap:12px;padding:12px 18px;min-height:54px}
