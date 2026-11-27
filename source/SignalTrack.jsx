@@ -1,4 +1,18 @@
-import React from "react";
+import React, {createContext, useContext, useState} from "react";
+
+const Frames = createContext({});
+export const PublishMeters = createContext(null);
+
+export function MeterProvider({children}) {
+  const [frame, publish] = useState({});
+  return <PublishMeters.Provider value={publish}><Frames.Provider value={frame}>
+    {children}
+  </Frames.Provider></PublishMeters.Provider>;
+}
+
+export function useMeterFrame() {
+  return useContext(Frames);
+}
 
 export function meterReading(...channels) {
   const readings = channels.filter(Boolean);

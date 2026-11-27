@@ -515,6 +515,9 @@ class Editor:
 
     def request(self, action, d):
         q, api = self.qc, self.api
+        # All editor requests run on the same serial USB worker.
+        if action != "live":
+            self.live_poll = None
         if action in ("device-settings", "device-set"):
             from device_settings import device_settings
             return device_settings(q, action, d)
@@ -550,7 +553,12 @@ class Editor:
         if action in ("cpu", "tuner", "global-tempo", "set-tempo"):
             return utility_request(self, action, d)
         if action == "live":
-            state = self.snapshot()
+            cached = getattr(self, "live_poll", None)
+            if d.get("known") and cached and clock_seconds() - cached[0] < .12:
+                state = cached[1]
+            else:
+                state = self.snapshot()
+                self.live_poll = (clock_seconds(), state)
             if d.get("known") == state["rev"]:
                 return dict(unchanged=True, deviceName=self.device_name, scene=state["scene"], dirty=state["dirty"])
             return state

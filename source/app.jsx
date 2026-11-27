@@ -7,7 +7,7 @@ import DeviceSettings from "./DeviceSettings";
 import IOSettings from "./IOSettings";
 import BlockMenu from "./BlockMenu";
 import CabinetPanel from "./CabinetPanel";
-import {hidReading, meterReading, MeterTrack, outputReadings, physicalInputs, physicalOutputs} from "./SignalTrack";
+import {MeterProvider, PublishMeters, useMeterFrame, hidReading, meterReading, MeterTrack, outputReadings, physicalInputs, physicalOutputs} from "./SignalTrack";
 import DeviceToolbar from "./DeviceToolbar";
 import {GridRouting, Port, portLabel, displayedInput} from "./GridRouting";
 import ChoiceParameter, {SceneMark} from "./ChoiceParameter";
@@ -147,17 +147,15 @@ const headerMeters = [
   ["OUT", physicalOutputs],
 ];
 
-function SignalMeters({ active, publish, ioOpen }) {
-  const [frame, setFrame] = useState({});
+function SignalMeters({ active, ioOpen }) {
+  const publish = React.useContext(PublishMeters);
+  const frame = useMeterFrame();
   useEffect(() => {
     let current = true, timer;
     let settings, settingsRevision;
-    function update(values) {
-      setFrame(values);
-      publish(values);
-    }
     async function refresh() {
-      let values = {};
+      const start = performance.now();
+      let values = {}, failed = false;
       try {
         if (!document.hidden) {
           values = await api("meters", ioOpen ? {settings:true,settingsRevision} : {});
@@ -168,14 +166,17 @@ function SignalMeters({ active, publish, ioOpen }) {
           }
         }
       } catch {
+        failed = true;
         // Clear stale readings while USB or the network is unavailable.
       }
       if (!current) return;
-      update(values);
-      timer = setTimeout(refresh, document.hidden ? 500 : 100);
+      publish(values);
+      const delay = document.hidden || failed ? 500 : bluetoothMode ? 100 :
+        Math.max(8, 50 - (performance.now() - start));
+      timer = setTimeout(refresh, delay);
     }
     if (active) refresh();
-    else update({});
+    else publish({});
     return () => {
       current = false;
       clearTimeout(timer);
@@ -929,7 +930,6 @@ function App() {
       document.removeEventListener("click",outside,true);
     };
   },[libraryOpen]);
-  const [meterFrame, setMeterFrame] = useState({});
   const [settingsOpen,setSettingsOpen]=useState(false);
   const [ioOpen,setIOOpen]=useState(false);
   const [liveState, S] = useState(null),
@@ -1719,7 +1719,7 @@ function App() {
             GIG VIEW
           </button>
         </nav>
-        <SignalMeters active={!!liveState && !paused} publish={setMeterFrame} ioOpen={ioOpen} />
+        <SignalMeters active={!!liveState && !paused} ioOpen={ioOpen} />
         <DeviceToolbar api={api} online={!!liveState && !paused} busy={busy} revision={s?.rev} travel={travel} report={T}/>
         <button className="io-launch" title="I/O Settings" aria-label="I/O Settings" onClick={()=>setIOOpen(true)}>I/O</button>
 </>}
@@ -1861,7 +1861,7 @@ function App() {
                     commit={points=>remember("split",points)} />}
                   {s?.lanes.map((lane, row) => (pair == null || (row & ~1) === pair) && (
                     <React.Fragment key={row}>
-                      <Port reduction={meterFrame.gates?.[row]} meterFrame={meterFrame} side="input" selected={route?.row===row && route.part==="input"} row={row} value={displayedInput(s.lanes,row)} name={lib.inputs[displayedInput(s.lanes,row)]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
+                      <Port side="input" selected={route?.row===row && route.part==="input"} row={row} value={displayedInput(s.lanes,row)} name={lib.inputs[displayedInput(s.lanes,row)]} indicator={lane.input!==0 && (lane.gate?.[s.scene] ?? lane.gate?.[0])}
                         branched={s.splits.some(v=>row===v.row+1 && v.start>=0)}
                         open={()=>openRoute(row,"input")} />
                       {Array.from({ length: 8 }, (_, col) => {
@@ -1935,7 +1935,7 @@ function App() {
                           </div>
                         );
                       })}
-                      <Port meterFrame={meterFrame} side="output" selected={route?.row===row && route.part==="output"} row={row} value={lane.output} name={lib.outputs[lane.output]} indicator={lane.output!==0 && (lane.mute?.[s.scene] ?? lane.mute?.[0])}
+                      <Port side="output" selected={route?.row===row && route.part==="output"} row={row} value={lane.output} name={lib.outputs[lane.output]} indicator={lane.output!==0 && (lane.mute?.[s.scene] ?? lane.mute?.[0])}
                         branched={s.splits.some(v=>row===v.row+1 && v.end>=0)}
                         open={()=>openRoute(row,"output")} />
                     </React.Fragment>
@@ -1943,7 +1943,7 @@ function App() {
                   {overlay && s && <GridCpuTotals cpu={cpu} blocks={s.blocks} pair={pair}/>}
                 </div>
               </div>
-              {route && (!gig || paramsOpen) && <RoutePanel meterFrame={meterFrame} key={route.row+route.part} route={route} state={s}
+              {route && (!gig || paramsOpen) && <RoutePanel key={route.row+route.part} route={route} state={s}
                 open={openRoute} busy={busy} paused={paused} commit={writeKnob}
                 setPoints={points=>remember("split",points)}
                 assign={p=>remember("route-assign",{...route,index:p.index,rev:s.rev,scene:s.scene})}/>}
@@ -2026,7 +2026,7 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.6.4</span>
+        <span className="foot-version">Cortec Remote v0.6.5</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());
@@ -2042,7 +2042,7 @@ function App() {
       {refreshPrompt && <RefreshPrompt preset={refreshPrompt} choose={chooseRefresh}/>}
       </>}
       {settingsOpen && <DeviceSettings settingsLanguage={settingsLanguage} api={api} network={network} onNetwork={updateNetwork} online={!!liveState && !paused} close={()=>setSettingsOpen(false)}/>}
-      {!paused && ioOpen && <IOSettings meterFrame={meterFrame} api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
+      {!paused && ioOpen && <IOSettings api={api} readOnly={paused} close={()=>setIOOpen(false)}/>}
       {!paused && modal && (
         <DirectoryFrame close={close}>
           <aside><small>PRESETS</small>{directoryNames.map(name=><button key={name} aria-pressed={folderName===name} onClick={()=>{setDirectoryError("");setFolderName(name);K(0);F("")}}>{name}</button>)}</aside>
@@ -2100,7 +2100,8 @@ const quickSplits = [
   ["병합만",-1,7,"M4 16h36q4 0 4-4V4",44,4,4,16],
 ];
 
-function RoutePanel({meterFrame,route,state,open,busy,paused,commit,assign,setPoints}){
+function RoutePanel({route,state,open,busy,paused,commit,assign,setPoints}){
+  const meterFrame = useMeterFrame();
   const {part,row}=route, params=state.lanes[row].controls?.[part] || [];
   const outputLevels=part==="output"?outputReadings(state.lanes[row].output,meterFrame):[];
   const pair=part==="start" || part==="end";
@@ -2140,4 +2141,4 @@ function RoutePanel({meterFrame,route,state,open,busy,paused,commit,assign,setPo
       </div>}</div>
   </section>;
 }
-createRoot(document.getElementById("root")).render(bluetoothMode ? <BluetoothRemote><App /></BluetoothRemote> : <App />);
+createRoot(document.getElementById("root")).render(<MeterProvider>{bluetoothMode ? <BluetoothRemote><App /></BluetoothRemote> : <App />}</MeterProvider>);

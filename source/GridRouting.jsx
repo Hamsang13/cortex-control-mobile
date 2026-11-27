@@ -1,6 +1,6 @@
 import React, {useEffect, useLayoutEffect, useRef, useState} from "react";
 
-import {inputReadings, meterReading, MeterTrack, outputReadings} from "./SignalTrack";
+import {useMeterFrame, inputReadings, meterReading, MeterTrack, outputReadings} from "./SignalTrack";
 
 
 
@@ -27,7 +27,9 @@ export function portLabel(name) {
     numbers.join("/")].filter(Boolean).join(" ");
 }
 
-export function Port({side, row, value, name, branched, indicator, reduction, open, meterFrame, selected}) {
+export function Port({side, row, value, name, branched, indicator, open, selected}) {
+  const meterFrame = useMeterFrame();
+  const reduction = meterFrame.gates?.[row];
   const label = portLabel(name ?? (value || "EMPTY"));
   const readings = (side === "input" ? inputReadings : outputReadings)(value, meterFrame);
   return <button className={"port port-"+side} aria-label={`${row+1}행 ${side==="input"?"입력":"출력"} · ${label}`}

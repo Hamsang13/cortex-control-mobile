@@ -1,5 +1,7 @@
 import React,{useEffect,useRef,useState} from "react";
 
+import {useMeterFrame} from "./SignalTrack";
+
 const groups=[
   [["usb_port","USB","usb"]],[["exp_port.2","EXP 2","jack"],["exp_port.1","EXP 1","jack"]],
   [["midi-out","MIDI OUT","midi"]],[["midi-in","MIDI IN","midi"]],
@@ -81,7 +83,8 @@ function EqCurve({values,point,bypassed}){
 
 let lastPort="in_port.1";
 
-export default function IOSettings({meterFrame,api,readOnly,close}){
+export default function IOSettings({api,readOnly,close}){
+  const meterFrame = useMeterFrame();
   const [defaults,setDefaults]=useState({}),[liveValues,set]=useState({});
   const values={...liveValues,...(!readOnly && meterFrame.settings),...(!readOnly && meterFrame.expression)};
   const v={...defaults,...values};
