@@ -111,6 +111,8 @@ class Demo:
             blocks=[block(0, 0, 1), block(0, 2, 2), block(0, 4, 3), block(0, 6, 5)],
             splits=[],
         )
+        self.blank = dict(deepcopy(self.grid), blocks=[], name="Empty")
+        self.current_slot = 0
         self.saved = {
             0: deepcopy(self.grid),
             1: dict(deepcopy(self.grid), name="Demo · Drive", identity="demo-1"),
@@ -178,7 +180,7 @@ class Demo:
                 outputs={19: "MULTIPLE", 1: "XLR_1_2"},
             )
         if a == "preset-directory":
-            return [dict(key="demo", name="My Presets", local=True, entries=[dict(slot=i,name=v["name"]) for i,v in self.saved.items()])]
+            return [dict(key="demo", name="My Presets", local=True, emptySlots=[i for i in range(256) if i not in self.saved], entries=[dict(slot=i,name=v["name"]) for i,v in self.saved.items()])]
         if a == "presets":
             return [dict(slot=i, name=v["name"]) for i, v in self.saved.items()]
         if a == "scene":
@@ -217,13 +219,17 @@ class Demo:
                     raise ValueError("Unsaved changes")
                 self.undo.clear()
                 self.redo.clear()
-                self.grid = deepcopy(self.saved[d["slot"]])
+                slot = d["slot"]
+                if type(slot) is not int or not 0 <= slot < 256 or (slot not in self.saved) != (d.get("empty") is True):
+                    raise ValueError("Preset slot changed")
+                self.current_slot = slot
+                self.grid = deepcopy(self.saved[slot] if slot in self.saved else dict(self.blank,identity=f"demo-{slot}"))
                 self.scene = 0
                 self.dirty = False
             elif a == "save":
                 self.undo.clear()
                 self.redo.clear()
-                slot = next(i for i,v in self.saved.items() if v["identity"] == g["identity"])
+                slot = self.current_slot
                 self.saved[slot] = deepcopy(g)
                 self.dirty = False
             else:

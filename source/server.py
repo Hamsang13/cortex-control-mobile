@@ -284,7 +284,7 @@ def directory_data(action, data):
         raise ValueError("USB 연결을 기다리는 중입니다.")
     if action == "directory-group":
         return [entry for f in folders if f["name"] == data.get("name") for entry in f["entries"]]
-    return dict(collecting=collecting, folders=[{k:f[k] for k in ("name","local","key")} for f in folders],
+    return dict(collecting=collecting, folders=[{k:f[k] for k in ("name","local","key","emptySlots") if k in f} for f in folders],
                 presets=[entry for f in folders if f["name"]=="My Presets" for entry in f["entries"]])
 
 

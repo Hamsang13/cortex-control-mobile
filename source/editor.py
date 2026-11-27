@@ -194,8 +194,9 @@ def route_params(chain, qc, metadata):
     return result
 
 
-def read_grid(api, qc, metadata):
-    preset = qc.read_current_preset()
+def read_grid(api, qc, metadata, preset=None):
+    if preset is None:
+        preset = qc.read_current_preset()
     blocks = []
     stomps = {(a.row, a.column): a.footswitch for a in api.stomp_assignments(preset)}
     lanes = []
@@ -350,8 +351,8 @@ class Editor:
                     records[-1][1 if action == "undo" else 0] == rev and
                     frames[0 if action == "undo" else 1])
 
-    def snapshot(self):
-        grid = read_grid(self.api, self.qc, self.metadata)
+    def snapshot(self, preset=None):
+        grid = read_grid(self.api, self.qc, self.metadata, preset)
         if self.grid and self.grid["identity"] != grid["identity"]:
             self.clear_edit_history()
         self.grid = grid
@@ -493,9 +494,10 @@ class Editor:
                     continue
                 group = "Factory Presets" if factory else "Downloads" if f.is_downloads else "Cloud Presets" if f.is_cloud else f.name
                 entries = [dict(slot=x.index,name=x.name,author=x.author,instrument=x.instrument,folder=key) for x in f.files if x.name]
-                if key not in folders or len(entries)>len(folders[key]["entries"]) or (on_user_ready and key == user_key and len(f.files)):
+                empty_slots = [x.index for x in f.files if x.HasField("index") and not x.name and 0 <= x.index < 256] if not (f.is_downloads or f.is_cloud) else []
+                if key not in folders or len(entries)+len(empty_slots)>len(folders[key]["entries"])+len(folders[key]["emptySlots"]) or (on_user_ready and key == user_key and len(f.files)):
                     folders = dict(folders)
-                    folders[key] = dict(key=key,name=group,entries=entries,local=factory or key.startswith("/media/p4/Presets/"))
+                    folders[key] = dict(key=key,name=group,entries=entries,emptySlots=empty_slots,local=factory or key.startswith("/media/p4/Presets/"))
                     self.directory_folders = folders
                     if key == user_key and len(f.files):
                         self.slots = {p["slot"]: p["name"] for p in entries}
@@ -603,12 +605,21 @@ class Editor:
                 if not listing or not listing["local"]:
                     raise ValueError("본체 세트리스트를 다시 열어 주세요.")
                 slots = {x["slot"]:x["name"] for x in listing["entries"]}
-            if slot not in slots or slots[slot] != d.get("name"):
+            empty = d.get("empty") is True
+            if empty:
+                if "folder" not in d or slot not in listing["emptySlots"] or slot in slots:
+                    raise ValueError("Preset slot changed")
+            elif slot not in slots or slots[slot] != d.get("name"):
                 raise ValueError("Preset slot changed")
             if state["dirty"] and not d.get("discard"):
                 raise ValueError("Unsaved changes")
             self.clear_edit_history()
-            q.recall_preset(api.Setlist.FACTORY if folder==str(api.Setlist.FACTORY).rstrip("/") else folder, slot)
+            path = api.Setlist.FACTORY if folder==str(api.Setlist.FACTORY).rstrip("/") else folder
+            if empty:
+                # The device names a blank grid independently of its directory label.
+                # Wait for the reply correlated to this exact slot recall.
+                return self.snapshot(q.read_preset(path, slot))
+            q.recall_preset(path, slot)
         elif action == "save":
             # The device records the containing folder in its current Recents entry.
             recent = next(iter(q.recents().items), None)

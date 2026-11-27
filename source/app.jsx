@@ -1350,6 +1350,15 @@ function App() {
   const isDirectory=modal?.kind==="presets";
   const visibleSlots=folderName==="My Presets" ? slots : group?.name===folderName ? group.rows : [];
   const loadingGroup=folderName!=="My Presets" && group?.name!==folderName && !directoryError;
+  const directoryRows = React.useMemo(()=>{
+    if (!isDirectory || loadingGroup) return visibleSlots;
+    const folder = folders.find(f=>f.name===folderName && f.local);
+    if (!folder?.emptySlots?.length) return visibleSlots;
+    const emptyRows = folder.emptySlots.map(slot=>({folder:folder.key,slot,name:"Empty",empty:true}));
+    return [...visibleSlots,...emptyRows].sort((a,b)=>a.slot-b.slot);
+  },[isDirectory,loadingGroup,visibleSlots,folders,folderName]);
+  const [recalled,setRecalled]=useState(null);
+  const currentEntry=recalled && s && recalled.identity===s.identity ? recalled : directorySlots.find(x=>x.name===s?.name);
   useEffect(()=>{
     if(!isDirectory || folderName==="My Presets")return;
     let valid=true;
@@ -1360,7 +1369,7 @@ function App() {
     return ()=>{valid=false};
   },[isDirectory,folderName,groupRetry,usbPaused]);
   function directory() {
-    setFolderName("My Presets");K(Math.floor((directorySlots.find(x=>x.name===s?.name)?.slot??0)/8));F("");
+    setFolderName(folders.find(f=>f.key===currentEntry?.folder)?.name || "My Presets");K(Math.floor((currentEntry?.slot??0)/8));F("");
     M({kind:"presets"});
     readPresets().catch(e=>setDirectoryError(e.message));
   }
@@ -1371,7 +1380,8 @@ function App() {
       !confirm("미저장 편집을 버리고 " + entry.name + "로 전환할까요?")
     )
       return;
-    run("recall", { ...entry, discard: s.dirty }, () => {
+    run("recall", { ...entry, discard: s.dirty }, result => {
+      setRecalled({...entry,identity:result.identity});
       M(null);
       P(null);
       C("");
@@ -1829,10 +1839,8 @@ function App() {
               ›
             </button>
             <button className="preset" data-dirty={Boolean(s?.dirty)} onClick={() => directory("presets")}>
-              {slots.some((x) => x.name === s?.name)
-                ? slotName(slots.find((x) => x.name === s.name).slot) + "　"
-                : ""}
-              {s?.name || "Quad Cortex"}
+              {currentEntry ? slotName(currentEntry.slot) + "　" : ""}
+              {s?.name || (currentEntry?.empty ? "Empty" : "Quad Cortex")}
               {s?.dirty ? "*" : ""}
             </button>
             <button
@@ -2018,7 +2026,7 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.6.1</span>
+        <span className="foot-version">Cortec Remote v0.6.2</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());
@@ -2046,8 +2054,8 @@ function App() {
           }}>{i+1}</button>)}</div>
           <div className="directory" key={folderName}>
             {(["Downloads","Cloud Presets"].includes(folderName)?[null]:Array.from({length:32},(_,i)=>i)).map(group=>{
-              const rows=visibleSlots.filter(x=>(group===null||Math.floor(x.slot/8)===group)&&x.name.toLowerCase().includes(search.toLowerCase()));
-              if(!rows.length && (search || !visibleSlots.length))return null;
+              const rows=directoryRows.filter(x=>(group===null||Math.floor(x.slot/8)===group)&&x.name.toLowerCase().includes(search.toLowerCase()));
+              if(!rows.length)return null;
               return <section key={group??"all"} data-bank={group}>
                 {group!==null && <small>BANK {group+1}</small>}
                 {rows.map((x,i)=><button key={JSON.stringify([x.folder,x.slot,x.name,i])} disabled={paused||busy||folders.some(f=>f.key===x.folder&&!f.local)} onClick={()=>recall(x)}>{group!==null && <span className="preset-slot">{slotName(x.slot)}</span>}<span className="preset-name" title={x.name}><span>{x.name}</span><InstrumentTag value={x.instrument}/></span>{x.author && <small title={x.author}>{x.author}</small>}</button>)}
