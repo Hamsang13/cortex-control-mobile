@@ -51,11 +51,11 @@ class Panel:
 
     def send(self, image, box):
         x,y,r,b = box
-        src = image.crop(box).transpose(Image.Transpose.ROTATE_270).tobytes()
+        src = image.crop(box).transpose(Image.Transpose.ROTATE_90).tobytes()
         data = bytearray(len(src)*2)
         data[::2],data[1::2] = src.translate(HIGH),src.translate(LOW)
-        self.command(0x2a,struct.pack(">HH",35+170-b,35+169-y))
-        self.command(0x2b,struct.pack(">HH",x,r-1))
+        self.command(0x2a,struct.pack(">HH",35+y,35+b-1))
+        self.command(0x2b,struct.pack(">HH",320-r,319-x))
         self.command(0x2c,data)
 
     def close(self):
