@@ -75,7 +75,6 @@ class Display:
                       for n in (12,16,23,42)}
         self.mode = None
         self.previous = {}
-        self.last_signal = -10
         self.delays = []
 
     def text(self,x,y,text,size=16,color=TEXT,anchor="lt"):
@@ -88,11 +87,9 @@ class Display:
             return item[1] if connected and item and now-item[0] < .5 and math.isfinite(item[1]) else None
         levels = [fresh(v) for v in data.get("levels",[None]*6)]
         hz = fresh(data.get("pitch"))
-        if connected and (any(v is not None and v>0 for v in levels) or (hz and hz>0)):
-            self.last_signal = now
-        if not connected:
-            self.last_signal = -10
-        monitor = connected and now-self.last_signal < 3
+        # These fields survive silence and reset with the USB session.
+        replied = data.get("input") is not None or any(data.get("packets", {}).values())
+        monitor = bool(connected and replied)
         changed_mode = self.mode != monitor
         previous_layout = self.image.copy() if changed_mode and self.mode is not None else None
         if changed_mode:
@@ -149,7 +146,7 @@ class Display:
                     if value is not None and value>=1:self.image.paste(RED,(r-4,y,r,b))
                 field(i,box,(length,value is not None and value>=1),bar,data["levels"][i][0] if value is not None else None)
         else:
-            status="신호 대기" if connected else "USB 연결 대기" if alive else "리모트 시작 대기"
+            status="본체 응답 대기" if connected else "USB 연결 대기" if alive else "리모트 시작 대기"
             field("status",(10,55,318,91),status,lambda:self.text(12,60,status,23))
             state="리모트 실행 중" if alive else "리모트 응답 대기"
             field("state",(10,96,318,123),state,lambda:self.text(12,98,state,16,DIM))
