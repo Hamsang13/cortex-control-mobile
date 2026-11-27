@@ -234,6 +234,9 @@ def directory_data(action, data):
 
 
 def operate(action, data):
+    if action == "io-settings" and data.get("preview"):
+        from io_settings import io_defaults
+        return io_defaults()
     if action == "external-wifi":
         from pi_settings import external_wifi
         return external_wifi(PI_CONFIG, data)

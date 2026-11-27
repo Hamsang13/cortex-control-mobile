@@ -6,6 +6,28 @@ IN = {1, 2, 4, 5}
 OUT = {1, 2, 4, 5, 6, 7, 8, 9}
 
 
+def io_defaults():
+    v = {"xlr1_2_linked":True,"out3_4_linked":True,"hp_port.level":40/52,"hp_feed.19.level":46/52,
+         "usb_port.dry_wet":0,"usb_port.level":1,"usb_port.hp_select":1,"midi_port.midi_thru":0,"eq.bypassed":True}
+    for i in (1,2,4,5):
+        prefix=f"in_port.{i}."
+        v.update({prefix+"level":1/6,prefix+"ground_lift":0,prefix+"plugged":False})
+        if i in (1,2):
+            v.update({prefix+"input_type":0,prefix+"input_zmode":7/8})
+    for i in (1,2,4,5,6,7,8,9):
+        prefix=f"out_port.{i}."
+        v[prefix+"level"]=40/52
+        if i<8: v[prefix+"mute"]=False
+        if i in (1,4,5): v[prefix+"ground_lift"]=0
+    for i in (1,2):
+        v.update({f"exp_port.{i}.level":0,f"exp_port.{i}.calibrating":False})
+    for i, freq in enumerate((50,125,1000,4000,7000)):
+        for j,val in enumerate((.5,((freq-20)/19980)**.3,.0613,(1,0,0,0,.75)[i],1)):
+            v[f"eq.{5*i+j}"]=val
+    v.update({"eq.25":.5,"eq.26":0,"eq.27":0})
+    return v
+
+
 def flatten_io(io, eq):
     values = {}
     for group, id_field in (("in_port","input_port_id"), ("out_port","output_port_id"), ("exp_port","exp_port_id")):

@@ -14,14 +14,15 @@ const groups=[
 function Socket({type}){
   return <svg viewBox="0 0 48 48" aria-hidden="true">
     {type==="usb"?<path d="M10 10h28v22l-6 6H16l-6-6z M16 16v13l3 3h10l3-3V16z" fillRule="evenodd"/>:
-    type==="jack"?<><path d="m24 5 16 9v20l-16 9-16-9V14z"/><circle cx="24" cy="24" r="12" fill="#111"/><circle cx="24" cy="24" r="9"/></>:
+    type==="jack"?<><path d="m24 5 16 9v20l-16 9-16-9V14z"/><circle cx="24" cy="24" r="12" fill="#111"/><circle cx="24" cy="24" r="9" fill="none" stroke="currentColor" strokeWidth="2"/></>:
     type==="midi"?<><circle cx="24" cy="24" r="17"/>{[[14,24],[17,18],[24,15],[31,18],[34,24]].map(([x,y])=><circle key={x} cx={x} cy={y} r="2" fill="#111"/>)}</>:
     <><circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" strokeWidth="2"/><circle cx="24" cy="24" r="16"/>
       {type==="combo"?<path d="M24 13q4 0 4 4l5 4q5 3 0 7l-4 2q-5 7-10 0l-4-3q-4-3 0-6l5-4q0-4 4-4" fill="#111"/>:
-      [[17,24],[24,17],[31,24]].map(([x,y])=><circle key={x} cx={x} cy={y} r="2.5" fill="#111"/>)}</>}
+      <><circle cx="24" cy="24" r="12" fill="#111"/>{[[17,24],[24,17],[31,24]].map(([x,y])=><circle key={x} cx={x} cy={y} r="2.5"/>)}</>}</>}
   </svg>;
 }
 
+const physicalChannels={"in_port.1":"input_1","in_port.2":"input_2","out_port.4":"xlr_1","out_port.5":"xlr_2","out_port.6":"out_3","out_port.7":"out_4"};
 const clamp=n=>Math.max(0,Math.min(1,n));
 function Dial({label,value,format,steps,disabled,write}){
   const [draft,setDraft]=useState(null),g=useRef(null);
@@ -29,13 +30,13 @@ function Dial({label,value,format,steps,disabled,write}){
   const snap=n=>steps?Math.round(clamp(n)*(steps-1))/(steps-1):clamp(n);
   return <button className="io-cell io-dial" role="slider" aria-label={label} aria-valuemin={0} aria-valuemax={100}
     aria-valuenow={v==null?undefined:Math.round(v*100)} aria-valuetext={text} disabled={disabled || value==null}
-    style={{"--turn":((v||0)*270-135)+"deg","--fill":((v||0)*270)+"deg"}}
+    data-stepped={!!steps} style={{"--turn":((v||0)*270-135)+"deg","--fill":((v||0)*270)+"deg"}}
     onPointerDown={e=>{if(!e.isPrimary||e.button!==0)return;e.currentTarget.setPointerCapture(e.pointerId);g.current={y:e.clientY,v:value,next:value}}}
     onPointerMove={e=>{if(!g.current)return;g.current.next=snap(g.current.v+(g.current.y-e.clientY)/150);setDraft(g.current.next)}}
     onPointerUp={()=>{const d=g.current;g.current=null;setDraft(null);if(d && d.next!==value)write(d.next)}}
     onLostPointerCapture={()=>{g.current=null;setDraft(null)}}
     onKeyDown={e=>{if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)){e.preventDefault();write(snap(value+((e.key==="ArrowUp"||e.key==="ArrowRight")?1:-1)/(steps?steps-1:100)))}}}>
-    <span>{label}</span><output>{text}</output><i/></button>;
+    <span>{label}</span><output>{text}</output>{steps && Array.from({length:steps},(_,i)=><b key={i} className="io-step" data-current={i===Math.round(v*(steps-1))} style={{"--angle":(-135+270*i/(steps-1))+"deg"}}/> ) || null}<i/></button>;
 }
 function Toggle({label,on,yes="On",no="Off",disabled,write}){
   return <button className="io-cell io-toggle" role="switch" aria-checked={!!on} aria-label={label} disabled={disabled}
@@ -44,8 +45,8 @@ function Toggle({label,on,yes="On",no="Off",disabled,write}){
 
 function meterCell(label,keys,meter){
   const levels=keys.map(k=>meter[k]).filter(Number.isFinite);
-  const value=levels.length?Math.max(...levels):null;
-  return <div className="io-cell io-meter" key={label+"meter"}><span>{label}</span><output>{value==null?"—":((clamp(value)-1)*40).toFixed(2)+" dB"}</output>
+  const value=Math.max(0,...levels);
+  return <div className="io-cell io-meter" key={label+"meter"}><span>{label}</span><output>{((clamp(value)-1)*40).toFixed(2)+" dB"}</output>
     <div>{keys.map(k=><i key={k} style={{width:(clamp(meter[k]||0)*100)+"%"}}/>)}</div></div>;
 }
 const db=(min,max)=>v=>(min+(max-min)*v).toFixed(2)+" dB";
@@ -81,7 +82,9 @@ function EqCurve({values,point,bypassed}){
 let lastPort="in_port.1";
 
 export default function IOSettings({meterFrame,api,readOnly,close}){
-  const [v,set]=useState({}),[port,pick]=useState(lastPort);
+  const [defaults,setDefaults]=useState({}),[liveValues,set]=useState({});
+  const v={...defaults,...liveValues};
+  const [port,pick]=useState(lastPort);
   const [usbPage,setUsbPage]=useState(1);
   const [eq,showEQ]=useState(false),[band,selectBand]=useState(0),[busy,wait]=useState(false),[error,report]=useState("");
   const [point,previewPoint]=useState(null),pending=useRef(false),dialog=useRef(null);
@@ -98,28 +101,30 @@ export default function IOSettings({meterFrame,api,readOnly,close}){
       }
     }
     document.addEventListener("keydown",key);
-    api("io-settings").then(data=>{if(live)set(data)}).catch(e=>{if(live)report(e.message)});
+    set({});report("");
+    api("io-settings",{preview:true}).then(data=>{if(live)setDefaults(data)}).catch(e=>{if(live)report(e.message)});
+    if(!readOnly)api("io-settings").then(data=>{if(live)set(data)}).catch(()=>{if(live)report("I/O settings unavailable · showing defaults")});
     return ()=>{live=false;document.removeEventListener("keydown",key);initial?.focus()};
   },[api,readOnly]);
   async function change(entries){
     if(readOnly||pending.current)return;
     pending.current=true;wait(true);report("");
     try{
-      let state=v;
+      let state=liveValues;
       for(const [key,value] of entries){
-        if(value===state[key])continue;
+        if(state[key]==null || value===state[key])continue;
         state=await api("io-set",{key,value,previous:state[key]});set(state);
       }
     }catch(e){report(e.message);try{set(await api("io-settings"))}catch{}}
     finally{pending.current=false;wait(false)}
   }
-  const locked=readOnly||busy;
+  const locked=readOnly||busy||!Object.keys(liveValues).length;
   const write=(key,n)=>change([[key,n]]);
   const dial=(key,label,fmt,steps,off=false)=><Dial key={key} label={label} value={v[key]} format={fmt} steps={steps}
-    disabled={locked||off} write={n=>write(key,n)}/>;
-  const toggle=(key,label,over={})=><Toggle key={label} label={label} on={!!v[key]} disabled={locked||v[key]==null}
+    disabled={locked||off||liveValues[key]==null} write={n=>write(key,n)}/>;
+  const toggle=(key,label,over={})=><Toggle key={label} label={label} on={!!v[key]} disabled={locked||liveValues[key]==null}
     write={n=>write(key,+n)} {...over}/>;
-  const meter = meterFrame.io ?? {};
+  const meter = readOnly ? {} : meterFrame.io ?? {};
   const linked12=v.xlr1_2_linked,linked34=v.out3_4_linked;
   const selected=groups.flat().find(p=>p[0]===port);
   const num=Number(port.split(".")[1]);
@@ -144,17 +149,17 @@ export default function IOSettings({meterFrame,api,readOnly,close}){
       {eq?<button className="io-done" onClick={()=>showEQ(false)}>DONE</button>:<><button aria-label="Global EQ 설정" onClick={()=>showEQ(true)}><svg width="19" height="19" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 2v16M10 2v16M16 2v16M2 7h4m2 5h4m2-6h4" /></svg></button><button aria-label="닫기" onClick={close}>×</button></>}</div>
     {!eq?<><div className="io-ports">{groups.map((group,i)=><div key={i} className={"io-group "+(group.length===2?"double":"single")}>
       {group.map(([id,name,type],j)=><button key={id} aria-label={id==="hp_port"?"Headphones":name}
-        className={"io-port "+type} data-plugged={!!v[id+".plugged"]} aria-pressed={port===id||(linked && id===("out_port."+(num%2===0?num+1:num-1)))}
-        onClick={()=>{lastPort=id;pick(id);setUsbPage(1)}}><Socket type={type}/><small>{id==="hp_port"?"🎧":name}</small></button>)}
+        className={"io-port "+type} data-plugged={!readOnly && (meterFrame.plugged?.[physicalChannels[id]] ?? !!liveValues[id+".plugged"])} aria-pressed={port===id||(linked && id===("out_port."+(num%2===0?num+1:num-1)))}
+        onClick={()=>{lastPort=id;pick(id);setUsbPage(1)}}><Socket type={type}/><small>{id==="hp_port"?<svg className="io-hp-symbol" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 10V8a6 6 0 0 1 12 0v2M2 9h2v5H2zm10 0h2v5h-2z"/></svg>:name}</small></button>)}
       {(i===4||i===7) && <button className={"io-link link"+i} disabled={locked||v[i===4?"xlr1_2_linked":"out3_4_linked"]==null} aria-label={i===4?"Link OUT 1/2":"Link OUT 3/4"}
-        aria-pressed={!!(i===4?linked12:linked34)} onClick={()=>{const k=i===4?"xlr1_2_linked":"out3_4_linked";write(k,!v[k])}}>∞</button>}
+        aria-pressed={!!(i===4?linked12:linked34)} onClick={()=>{const k=i===4?"xlr1_2_linked":"out3_4_linked";write(k,!v[k])}}><svg viewBox="0 0 20 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="2" y="3" width="9" height="6" rx="3"/><rect x="9" y="3" width="9" height="6" rx="3"/></svg></button>}
     </div>)}</div>
     {port==="usb_port" && <div className="io-tabs">{[1,2].map(n=><button key={n} aria-label={"USB page "+n} aria-pressed={usbPage===n} onClick={()=>setUsbPage(n)}>{n}</button>)}</div>}
     <div className="io-controls">
       {input && <>{dial(key("level"),label+" LEVEL",db(-12,60))}
         {num<=2 && <>{dial(key("input_zmode"),"IMPEDANCE",n=>["10k","33k","68k","91k","130k","232k","470k","1M","10M"][Math.round(n*8)]+" Ω",9)}
           {toggle(ktype,"TYPE",{on:typ>0,yes:"Mic",no:"Instrument",write:on=>write(ktype,on ? .5 : 0)})}
-          {toggle(ktype,"PHANTOM 48V",{on:typ===1,disabled:locked||!typ,write:on=>write(ktype,on?1:.5)})}</>}
+          {toggle(ktype,"PHANTOM 48V",{on:typ===1,disabled:locked||liveValues[ktype]==null||!typ,write:on=>write(ktype,on?1:.5)})}</>}
         {toggle(key("ground_lift"),"GROUND LIFT")}{meterCell(label+" LEVEL",[inKeys[num]],meter)}</>}
       {out && <>{dial(key("level"),label+" LEVEL",db(-40,12))}
         {num<=5 && toggle(key("ground_lift"),"GROUND LIFT")}
@@ -165,7 +170,7 @@ export default function IOSettings({meterFrame,api,readOnly,close}){
         {[1,2,3,4].map(i=>meterCell("IN "+(i*2-1)+"/"+i*2,["usb_input_"+i+"l","usb_input_"+i+"r"],meter))}
         {dial(key("hp_select"),"HP SOURCE",n=>["NONE","USB 1/2","USB 3/4","BOTH"][Math.round(n*3)],4)}
         {[1,2,3,4].map(i=>meterCell("OUT "+(i*2-1)+"/"+i*2,["usb_output_"+i+"l","usb_output_"+i+"r"],meter))}</>}
-      {port==="hp_port" && <>{dial(key("level"),"HP LEVEL",db(-40,12))}{Object.keys(v).filter(k=>k.startsWith("hp_feed.")).map(k=>dial(k,k==="hp_feed.19.level"?"MULTI OUT":"OUT "+k.split(".")[1],db(-40,12)))}
+      {port==="hp_port" && <>{dial(key("level"),"HP LEVEL",db(-40,12))}{(Object.keys(liveValues).some(k=>k.startsWith("hp_feed."))?Object.keys(liveValues):Object.keys(defaults)).filter(k=>k.startsWith("hp_feed.")).map(k=>dial(k,k==="hp_feed.19.level"?"MULTI OUT":"OUT "+k.split(".")[1],db(-40,12)))}
         <div className="io-break"/>{meterCell("LEVEL",["hp_l","hp_r"],meter)}{meterCell("Multi Out",["grid_xlr_1","grid_xlr_2"],meter)}</>}
       {port==="midi-out" && toggle("midi_port.midi_thru","MIDI Thru")}
       {port.startsWith("exp_port") && <><div className="io-cell io-instruction">Please press the expression pedal up and down to the maximum position then press Save</div>
