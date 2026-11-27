@@ -354,6 +354,47 @@ def operate(action, data):
     return USB.submit(device_request, action, data).result()
 
 
+def maintain_lcd_connection():
+    # Same serial worker, connection and tuner lease manager as the web editor.
+    if browse_only or DEMO:
+        return
+    if not usb_attached():
+        if connection:
+            disconnect()
+        return
+    if connection is None:
+        device_request("live", {"checkUsb":True})
+    if tuner_meter:
+        tuner_meter.lease("local-lcd", "footer")
+    if live_meters and live_meters.needs_subscription():
+        renew_meters(live_meters)
+
+
+def publish_lcd():
+    from time import monotonic, sleep
+    endpoint = "/run/cortex-lcd/frames"
+    future = None
+    next_check = 0
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
+        sock.setblocking(False)
+        while True:
+            if not os.path.exists(endpoint):
+                sleep(1)
+                continue
+            now = monotonic()
+            if now >= next_check and (future is None or future.done()):
+                future = USB.submit(maintain_lcd_connection)
+                next_check = now + 1
+            frames = live_meters
+            data = frames.lcd_sample() if frames and not browse_only else {}
+            data.update(stamp=now, connected=bool(frames and not browse_only))
+            try:
+                sock.sendto(json.dumps(data, allow_nan=False).encode(), endpoint)
+            except (OSError, ValueError):
+                pass
+            sleep(.04)
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_request(self, code="-", size="-"):
         if self.path not in ("/api/meters", "/api/io-meter", "/api/gate-meter", "/api/master-state") or code != 200:
@@ -436,6 +477,9 @@ if __name__ == "__main__":
         print(f"http://{ip}:{PORT}/" + ("" if PI_CONFIG else f"#{TOKEN}"), flush=True)
     if not DEMO and not browse_only:
         USB.submit(preload_preset)
+    if sys.platform == "linux" and PI_CONFIG and not DEMO:
+        from threading import Thread
+        Thread(target=publish_lcd, daemon=True, name="lcd-telemetry").start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

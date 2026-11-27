@@ -29,8 +29,10 @@ class LiveMeterFrames:
         self.last_subscription = monotonic()
         self.gates = {}
         self.io = {}
+        self.tuning = {}
+        self.packet_counts = {"io":0, "pitch":0}
         self.plugged = {}
-        self.entries = [(pa.GridMessage, lambda m: m.HasField("update_type") and
+        self.entries = [(pa.TunerMessage, None, self), (pa.GridMessage, lambda m: m.HasField("update_type") and
                          m.update_type == pa.GridMessage.METER_UPDATE, self),
                         (pa.IOMeterMessage, None, self), (pa.IOSettingsMessage, None, self)]
         with self.transport._lock:
@@ -40,7 +42,13 @@ class LiveMeterFrames:
         from pyquadcortex.client import pa
         stamp = monotonic()
         with self.lock:
-            if isinstance(msg, pa.IOSettingsMessage):
+            if isinstance(msg, pa.TunerMessage):
+                if msg.HasField("meter"):
+                    self.packet_counts["pitch"] += 1
+                for field in ("meter", "input_port_id", "frequency"):
+                    if msg.HasField(field):
+                        self.tuning[field] = (stamp, getattr(msg, field))
+            elif isinstance(msg, pa.IOSettingsMessage):
                 for ports, field, channels in (
                     (msg.settings.in_port, "input_port_id", {1:"input_1", 2:"input_2"}),
                     (msg.settings.out_port, "output_port_id", {4:"xlr_1", 5:"xlr_2", 6:"out_3", 7:"out_4"}),
@@ -50,6 +58,7 @@ class LiveMeterFrames:
                         if channel and port.HasField("plugged"):
                             self.plugged[channel] = bool(port.plugged)
             elif isinstance(msg, pa.IOMeterMessage):
+                self.packet_counts["io"] += 1
                 for field, value in msg.ListFields():
                     if field.name not in ("action", "request_id"):
                         self.io[field.name] = (stamp, value)
@@ -79,6 +88,20 @@ class LiveMeterFrames:
         with self.lock:
             return {"plugged": dict(self.plugged), **{name: {k:v for k,(stamp,v) in source.items() if name == "io" or stamp >= cutoff}
                     for name, source in (("gates", self.gates), ("io", self.io))}}
+
+    def lcd_sample(self):
+        cutoff = monotonic() - .5
+        channels = ("input_1", "input_2", "xlr_1", "xlr_2", "out_3", "out_4")
+        with self.lock:
+            levels = [self.io.get(k) for k in channels]
+            pitch = self.tuning.get("meter")
+            return {
+                "packets":self.packet_counts.copy(),
+                "levels": [item if item and item[0] >= cutoff else None for item in levels],
+                "pitch": pitch if pitch and pitch[0] >= cutoff else None,
+                "input": self.tuning.get("input_port_id", (0, None))[1],
+                "ref": 440 + self.tuning.get("frequency", (0, 0))[1],
+            }
 
     def close(self):
         with self.transport._lock:
@@ -167,15 +190,20 @@ class TunerMeter:
             self.users.clear()
             self._sync()
 
-    def read(self, owner, mode):
+    def lease(self, owner, mode):
         if mode not in ("panel", "footer"):
             raise ValueError("Invalid tuner mode")
         with self.lock:
             if self.closed:
-                return {"hz": None}
+                return False
             self.users[owner] = (mode, monotonic() + 2)
             self._schedule()
             self._sync()
+            return True
+
+    def read(self, owner, mode):
+        if not self.lease(owner, mode):
+            return {"hz": None}
         try:
             msg = self.transport.await_broadcast(
                 self.pa.TunerMessage, lambda: None, timeout=.20,
