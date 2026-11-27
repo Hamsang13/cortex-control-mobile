@@ -1,6 +1,7 @@
 """Waveshare 1.9-inch LCD. Consumes timestamped Remote telemetry on a local socket."""
 import json
 import math
+import os
 import select
 import signal
 import socket
@@ -32,7 +33,7 @@ class Panel:
         self.spi = spidev.SpiDev()
         self.spi.open(0, 0)
         self.spi.mode = 0
-        self.spi.max_speed_hz = 250000
+        self.spi.max_speed_hz = int(os.environ.get("QC_LCD_SPI_HZ", "250000"))
         for level in (1,0,1):
             lgpio.gpio_write(self.gpio,27,level)
             time.sleep(.12)
@@ -120,20 +121,13 @@ class Display:
                 diff=ImageChops.difference(before,self.image.crop(box)).getbbox()
                 if diff:
                     l,t,r,b=diff
-                    if name == "note":
-                        # At 250 kHz unchanged background pixels cost more than a window command.
-                        delta = ImageChops.difference(before,self.image.crop(box))
-                        for y in range(t,b,4):
-                            strip = delta.crop((l,y,r,min(y+4,b))).getbbox()
-                            if strip:
-                                x0,y0,x1,y1 = strip
-                                self.panel.send(self.image,(box[0]+l+x0,box[1]+y+y0,
-                                                            box[0]+l+x1,box[1]+y+y1))
-                        if stamp is not None:
-                            self.note_delays.append(round(1000*(time.monotonic()-stamp),1))
-                    else:
-                        self.panel.send(self.image,(box[0]+l,box[1]+t,box[0]+r,box[1]+b))
-                    if stamp is not None:self.delays.append(round(1000*(time.monotonic()-stamp),1))
+                    # Send the completed glyph in one address window to avoid visible bands.
+                    self.panel.send(self.image,(box[0]+l,box[1]+t,box[0]+r,box[1]+b))
+                    if stamp is not None:
+                        delay = round(1000*(time.monotonic()-stamp),1)
+                        self.delays.append(delay)
+                        if name == "note":
+                            self.note_delays.append(delay)
 
         clock=time.strftime("%H:%M")
         field("time",(244,4,320,34),clock,lambda:self.text(312,7,clock,23,TEXT,"rt"))
