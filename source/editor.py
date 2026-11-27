@@ -331,6 +331,7 @@ class Editor:
         self.slots = {}
         self.slots_valid_until = 0
         self.capture_entries = {}
+        self.identity_retry_at = 0
         self.device_name = None
         self.device_key = None
 
@@ -357,7 +358,9 @@ class Editor:
         return self.view()
 
     def view(self):
+        self.read_device_identity()
         return dict(
+            deviceName=self.device_name,
             **self.grid,
             rev=revision(self.grid),
             scene=int(self.qc.active_scene()),
@@ -429,15 +432,21 @@ class Editor:
             membership(lambda: q.favorites(timeout=2, attempts=1)),
         )
 
+    def read_device_identity(self):
+        if self.device_name or clock_seconds() < self.identity_retry_at:
+            return
+        from plugin_sync import device_key
+        self.identity_retry_at = clock_seconds() + 5
+        try:
+            version = self.qc.version(timeout=1)
+        except TimeoutError:
+            return
+        if version.HasField("custom_name") or version.device_serial_number:
+            self.device_name = version.custom_name.strip() or "Quad Cortex"
+            self.device_key = device_key(version.device_serial_number)
+
     def library(self):
-        if self.device_name is None:
-            try:
-                from plugin_sync import device_key
-                version = self.qc.version(timeout=1)
-                self.device_name = version.custom_name.strip() or "Quad Cortex"
-                self.device_key = device_key(version.device_serial_number)
-            except TimeoutError:
-                pass
+        self.read_device_identity()
         return dict(
             deviceName=self.device_name or "Quad Cortex",
             deviceKey=self.device_key,
@@ -540,7 +549,7 @@ class Editor:
         if action == "live":
             state = self.snapshot()
             if d.get("known") == state["rev"]:
-                return dict(unchanged=True, scene=state["scene"], dirty=state["dirty"])
+                return dict(unchanged=True, deviceName=self.device_name, scene=state["scene"], dirty=state["dirty"])
             return state
         if action == "capture-layout":
             return self.read_capture_layout()

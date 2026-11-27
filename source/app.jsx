@@ -950,6 +950,7 @@ function App() {
   const [cpu,setCpu] = useState(null), [overlay,setOverlay] = useState(false);
   const s = liveState ?? preview;
   const paused = !liveState;
+  const deviceName = (liveState ? liveState.deviceName : preview?.deviceName || lib.deviceName) || "Quad Cortex";
   const directorySlots = slots.length ? slots : cachedSlots;
   const stream = useRef({ writing: false, pending: [] }),
     history = useRef({ undo: [], redo: [] });
@@ -1083,13 +1084,14 @@ function App() {
       setPaused(false);
       mode.current = "live";
       const next = reply.unchanged
-        ? { ...prevState, scene: reply.scene, dirty: reply.dirty }
+        ? { ...prevState, deviceName: reply.deviceName, scene: reply.scene, dirty: reply.dirty }
         : reply;
       if (!latest.current || force) loadLibrary();
       if (version === epoch.current) {
         const prev = latest.current;
         if (
           !prev ||
+          prev.deviceName !== next.deviceName ||
           prev.rev !== next.rev ||
           prev.scene !== next.scene ||
           prev.dirty !== next.dirty
@@ -1679,8 +1681,8 @@ function App() {
       )}
       <header>
         <div className="desk-heading">
-          <div className="device-heading-row"><strong className="device-name" title={lib.deviceName || "Quad Cortex"}>
-            <img src={icons.neuralLogo} alt="" /><span>{lib.deviceName || "Quad Cortex"}</span>
+          <div className="device-heading-row"><strong className="device-name" title={deviceName}>
+            <img src={icons.neuralLogo} alt="" /><span>{deviceName}</span>
           </strong><button className="settings-launch" aria-label="Device Settings" title="Device Settings" onClick={()=>setSettingsOpen(true)}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
               <path d="m9.8 3 .6-2h3.2l.6 2 2 .9 2-.7 2.2 2.2-.8 2 .9 2 2.1.6v3.2l-2.1.6-.9 2 .8 2-2.2 2.2-2-.7-2 .9-.6 2h-3.2l-.6-2-2-.9-2 .7-2.2-2.2.8-2-.9-2-2.1-.6V10l2.1-.6.9-2-.8-2 2.2-2.2 2 .7z"/><circle cx="12" cy="11.6" r="3.2"/>
@@ -1702,13 +1704,7 @@ function App() {
         <SignalMeters active={!!liveState && !paused} publish={setMeterFrame} />
         <DeviceToolbar api={api} online={!!liveState && !paused} busy={busy} revision={s?.rev} travel={travel} report={T}/>
         <button className="io-launch" title="I/O Settings" aria-label="I/O Settings" onClick={()=>setIOOpen(true)}>I/O</button>
-        <button
-          disabled={busy}
-          onClick={toggleUsb}
-          title={t("Cortex Control과 USB 사용 전환")}
-        >
-          {t("USB 해제")}
-        </button></>}
+</>}
       </header>
       {paused && <section className={"usb-wait"+(hadConnection.current?" usb-interrupted":"")} lang={language} aria-label={t("연결 안내")} role="status">
         <img src={icons.neuralLogo} alt=""/>
@@ -2014,7 +2010,7 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.5.1</span>
+        <span className="foot-version">Cortec Remote v0.5.2</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());
