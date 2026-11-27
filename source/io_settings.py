@@ -42,7 +42,7 @@ def flatten_io(io, eq):
         for field, value in settings.get(group, {}).items():
             if field == "hp_feed":
                 for feed in value:
-                    if "output_port_id" not in feed or "level" not in feed:
+                    if "output_port_id" not in feed:
                         continue
                     values[f"hp_feed.{feed['output_port_id']}.level"] = feed.get("level", 0)
             else:
@@ -54,8 +54,7 @@ def flatten_io(io, eq):
         if "bypassed" in eq:
             values["eq.bypassed"] = eq["bypassed"]
         for p in eq.get("parameters", []):
-            if "value" in p:
-                values[f"eq.{p.get('parameter_index', 0)}"] = p["value"]
+            values[f"eq.{p.get('parameter_index', 0)}"] = p.get("value", 0)
     return values
 
 
