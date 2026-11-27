@@ -33,9 +33,11 @@ class LiveMeterFrames:
         self.packet_counts = {"io":0, "pitch":0}
         self.plugged = {}
         self.expression = {}
+        self.settings = {}
+        self.settings_revision = monotonic()
         self.entries = [(pa.TunerMessage, None, self), (pa.GridMessage, lambda m: m.HasField("update_type") and
                          m.update_type == pa.GridMessage.METER_UPDATE, self),
-                        (pa.IOMeterMessage, None, self), (pa.IOSettingsMessage, None, self)]
+                        (pa.IOMeterMessage, None, self), (pa.IOSettingsMessage, None, self), (pa.GlobalEQMessage, None, self)]
         with self.transport._lock:
             self.transport._collectors.extend(self.entries)
 
@@ -49,7 +51,17 @@ class LiveMeterFrames:
                 for field in ("meter", "input_port_id", "frequency"):
                     if msg.HasField(field):
                         self.tuning[field] = (stamp, getattr(msg, field))
-            elif isinstance(msg, pa.IOSettingsMessage):
+            elif isinstance(msg, (pa.GlobalEQMessage, pa.IOSettingsMessage)):
+                from google.protobuf.json_format import MessageToDict
+                from io_settings import flatten_io
+                fields = MessageToDict(msg, preserving_proto_field_name=True)
+                is_eq = isinstance(msg, pa.GlobalEQMessage)
+                changes = flatten_io({}, fields) if is_eq else flatten_io(fields, None)
+                if any(self.settings.get(k) != v for k, v in changes.items()):
+                    self.settings.update(changes)
+                    self.settings_revision = stamp
+                if is_eq:
+                    return
                 for port in msg.settings.exp_port:
                     if port.exp_port_id not in (1, 2):
                         continue
@@ -90,11 +102,17 @@ class LiveMeterFrames:
             self.last_subscription = now
             return True
 
-    def snapshot(self):
+    def snapshot(self, include_settings=False, known_revision=None):
         cutoff = monotonic() - .5
         with self.lock:
-            return {"plugged": dict(self.plugged), "expression": dict(self.expression), **{name: {k:v for k,(stamp,v) in source.items() if name == "io" or stamp >= cutoff}
+            state = {"plugged": dict(self.plugged), "expression": dict(self.expression), **{name: {k:v for k,(stamp,v) in source.items() if name == "io" or stamp >= cutoff}
                     for name, source in (("gates", self.gates), ("io", self.io))}}
+
+            if include_settings:
+                state["settingsRevision"] = self.settings_revision
+                if known_revision != self.settings_revision:
+                    state["settings"] = dict(self.settings)
+            return state
 
     def lcd_sample(self):
         cutoff = monotonic() - .5

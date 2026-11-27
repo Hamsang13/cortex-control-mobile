@@ -30,15 +30,20 @@ def io_defaults():
 
 def flatten_io(io, eq):
     values = {}
+    settings = io.get("settings", {})
     for group, id_field in (("in_port","input_port_id"), ("out_port","output_port_id"), ("exp_port","exp_port_id")):
-        for port in io["settings"].get(group, []):
+        for port in settings.get(group, []):
+            if id_field not in port:
+                continue
             for field, value in port.items():
                 if field != id_field:
                     values[f"{group}.{port[id_field]}.{field}"] = value
     for group in ("usb_port", "midi_port", "hp_port"):
-        for field, value in io["settings"].get(group, {}).items():
+        for field, value in settings.get(group, {}).items():
             if field == "hp_feed":
                 for feed in value:
+                    if "output_port_id" not in feed or "level" not in feed:
+                        continue
                     values[f"hp_feed.{feed['output_port_id']}.level"] = feed.get("level", 0)
             else:
                 values[f"{group}.{field}"] = value
@@ -46,9 +51,11 @@ def flatten_io(io, eq):
         if field in io:
             values[field] = io[field]
     if eq:
-        values["eq.bypassed"] = eq.get("bypassed", False)
+        if "bypassed" in eq:
+            values["eq.bypassed"] = eq["bypassed"]
         for p in eq.get("parameters", []):
-            values[f"eq.{p.get('parameter_index', 0)}"] = p.get("value", 0)
+            if "value" in p:
+                values[f"eq.{p.get('parameter_index', 0)}"] = p["value"]
     return values
 
 

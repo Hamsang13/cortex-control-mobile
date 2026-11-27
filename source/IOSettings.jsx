@@ -83,7 +83,7 @@ let lastPort="in_port.1";
 
 export default function IOSettings({meterFrame,api,readOnly,close}){
   const [defaults,setDefaults]=useState({}),[liveValues,set]=useState({});
-  const values={...liveValues,...(!readOnly && meterFrame.expression)};
+  const values={...liveValues,...(!readOnly && meterFrame.settings),...(!readOnly && meterFrame.expression)};
   const v={...defaults,...values};
   const [port,pick]=useState(lastPort);
   const [usbPage,setUsbPage]=useState(1);
@@ -108,20 +108,20 @@ export default function IOSettings({meterFrame,api,readOnly,close}){
     return ()=>{live=false;document.removeEventListener("keydown",key);initial?.focus()};
   },[api,readOnly]);
   useEffect(()=>{
-    if(readOnly || eq || !port.startsWith("exp_port."))return;
+    if(readOnly)return;
     let active=true,timer;
     async function refresh(){
       if(!document.hidden && !pending.current){
         try{
-          const state=await api("io-settings",{expressionOnly:true});
+          const state=await api("io-settings",{refresh:true});
           if(active && !pending.current)set(previous=>({...previous,...state}));
         }catch{/* The next read retries on a temporary USB timeout. */}
       }
-      if(active)timer=setTimeout(refresh,500);
+      if(active)timer=setTimeout(refresh,1000);
     }
-    timer=setTimeout(refresh,500);
+    timer=setTimeout(refresh,1000);
     return ()=>{active=false;clearTimeout(timer)};
-  },[port,eq,readOnly,api]);
+  },[readOnly,api]);
   async function change(entries){
     if(readOnly||pending.current)return;
     pending.current=true;wait(true);report("");

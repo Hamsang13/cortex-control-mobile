@@ -195,7 +195,7 @@ def device_request(action, data):
                 preview_stamp = stamp
         if action in ("cpu", "tuner", "global-tempo") and not DEMO:
             store_library(action, result)
-        if action in ("io-settings", "io-set") and not DEMO and not data.get("expressionOnly"):
+        if action in ("io-settings", "io-set") and not DEMO and not (data.get("expressionOnly") or data.get("refresh")):
             store_library("io-settings", result)
         if action == "library" and not DEMO:
             result["owned"] = load_snapshot(result.get("deviceKey"),cache_dir / "controller-plugins")
@@ -364,7 +364,7 @@ def operate(action, data):
         frames = live_meters
         if frames and frames.needs_subscription():
             USB.submit(renew_meters, frames)
-        return frames.snapshot() if frames else {}
+        return frames.snapshot(data.get("settings") is True, data.get("settingsRevision")) if frames else {}
     if action in ("pitch", "tuner-stop", "tuner-input", "tuner-mute"):
         meter = tuner_meter
         if DEMO and action == "tuner-mute":

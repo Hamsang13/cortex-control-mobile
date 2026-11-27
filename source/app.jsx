@@ -147,10 +147,11 @@ const headerMeters = [
   ["OUT", physicalOutputs],
 ];
 
-function SignalMeters({ active, publish }) {
+function SignalMeters({ active, publish, ioOpen }) {
   const [frame, setFrame] = useState({});
   useEffect(() => {
     let current = true, timer;
+    let settings, settingsRevision;
     function update(values) {
       setFrame(values);
       publish(values);
@@ -158,7 +159,14 @@ function SignalMeters({ active, publish }) {
     async function refresh() {
       let values = {};
       try {
-        if (!document.hidden) values = await api("meters");
+        if (!document.hidden) {
+          values = await api("meters", ioOpen ? {settings:true,settingsRevision} : {});
+          if (ioOpen) {
+            settingsRevision = values.settingsRevision;
+            settings = settingsRevision == null ? undefined : values.settings ?? settings;
+            values.settings = settings;
+          }
+        }
       } catch {
         // Clear stale readings while USB or the network is unavailable.
       }
@@ -172,7 +180,7 @@ function SignalMeters({ active, publish }) {
       current = false;
       clearTimeout(timer);
     };
-  }, [active, publish]);
+  }, [active, publish, ioOpen]);
 
   return <div className="signal-meters" aria-label="Quad Cortex physical signal levels">
     {headerMeters.map(([type, channels]) => <div className="signal-line" key={type}>
@@ -1701,7 +1709,7 @@ function App() {
             GIG VIEW
           </button>
         </nav>
-        <SignalMeters active={!!liveState && !paused} publish={setMeterFrame} />
+        <SignalMeters active={!!liveState && !paused} publish={setMeterFrame} ioOpen={ioOpen} />
         <DeviceToolbar api={api} online={!!liveState && !paused} busy={busy} revision={s?.rev} travel={travel} report={T}/>
         <button className="io-launch" title="I/O Settings" aria-label="I/O Settings" onClick={()=>setIOOpen(true)}>I/O</button>
 </>}
@@ -2010,7 +2018,7 @@ function App() {
         <button className="foot-gig" aria-pressed={gig} onClick={() => H(!gig)}>
           GIG VIEW
         </button>
-        <span className="foot-version">Cortec Remote v0.5.3</span>
+        <span className="foot-version">Cortec Remote v0.5.4</span>
         <button className="foot-tribute" aria-label="Neural DSP에 감사 인사" onClick={e=>{
           const el=e.currentTarget;
           el.getAnimations().forEach(a=>a.cancel());
