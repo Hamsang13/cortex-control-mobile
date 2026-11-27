@@ -239,6 +239,7 @@ def read_grid(api, qc, metadata, preset=None):
                     momentary=(row,col) in stomps and bool(preset.stomp_is_momentary.get(stomps[row,col], False)),
                     params=params,
                     bypassAssigned=bypass.scene_mode,
+                    bypassSceneIndex=len(block.params),
                     bypass=list(bypass.scenes),
                 )
             )
@@ -801,11 +802,9 @@ class Editor:
         elif action == "delete":
             q.remove_block(row, col)
         elif action == "bypass-assign":
-            from pyquadcortex.client import preset
-            update = preset.BinaryPreset()
-            entry = update.bypass.add(row=row).colBypass.add(column=col)
-            entry.sceneMode = not block["bypassAssigned"]
-            q.write_preset(update)
+            # The power control follows the stored model parameters on the wire.
+            # Its assignment is read back from the separate bypass table.
+            q.set_param_scene_mode(row, col, block["bypassSceneIndex"], not block["bypassAssigned"])
         elif action == "bypass":
             q.set_bypass(row, col, not block["bypass"][state["scene"]])
         elif action == "expression-bypass":
