@@ -9,8 +9,8 @@
 ```sh
 npm --prefix source ci
 npm --prefix source run build
-mkdir -p dist/v0.6.6
-python3 source/release/package.py /secure/cortex-update-ed25519.pem dist/v0.6.6/cortex-remote-v0.6.6-update.zip
+mkdir -p dist/v0.7.0
+python3 source/release/package.py /secure/cortex-update-ed25519.pem dist/v0.7.0/cortex-remote-v0.7.0-update.zip
 ```
 
 공식 ZIP에는 `source/release/update-public.pem`에 대응하는 **오프라인 Ed25519 개인 키**가 필요합니다. 개인 키는 저장소·SD·ZIP·GitHub 릴리스에 넣지 마세요. 최초로 독립 배포판을 만들 때만 별도 키 쌍을 생성하고 **자신의 이미지에 들어갈** 공개 키를 바꿉니다. 공개 키가 다른 이미지는 해당 ZIP을 거부합니다.
@@ -29,7 +29,7 @@ Linux 또는 Docker Desktop의 Linux 컨테이너 엔진을 사용합니다. x86
 
 ```sh
 docker run --rm --privileged -e TEST_BOOT=1 \
-  -v "$PWD/source:/src:ro" -v "$PWD/dist/v0.6.6:/out" debian:trixie-slim \
+  -v "$PWD/source:/src:ro" -v "$PWD/dist/v0.7.0:/out" debian:trixie-slim \
   bash /src/release/build-image.sh /out
 ```
 
@@ -53,8 +53,8 @@ docker run --rm --privileged -e TEST_BOOT=1 \
 
 | 파일 | 용도 |
 | --- | --- |
-| `cortex-remote-v0.6.6-pi-zero2w-arm64.img.xz` | 새 SD 카드에 기록할 OS와 앱 |
-| `cortex-remote-v0.6.6-update.zip` | 기존 설치의 설정 화면에서 적용할 서명된 오프라인 앱 업데이트 |
+| `cortex-remote-v0.7.0-pi-zero2w-arm64.img.xz` | 새 SD 카드에 기록할 OS와 앱 |
+| `cortex-remote-v0.7.0-update.zip` | 기존 설치의 설정 화면에서 적용할 서명된 오프라인 앱 업데이트 |
 | `SHA256SUMS` | 내려받은 두 파일의 SHA-256 |
 
 이미지 기본 무선 국가 코드는 KR이며 해외 사용자는 최초 부팅 전에 bootfs의 `cortex-country.txt`를 해당 국가 코드로 변경합니다. 처음 설치하는 사용자의 단계별 안내와 구버전의 1회 이전 절차는 [프로젝트 README](../../README.md)에 있습니다. 패키지 빌드는 GitHub 게시·태그 생성·실기 설치를 수행하지 않습니다.

@@ -48,7 +48,7 @@ def hotspot_request(local, peer, host, origin):
 def external_wifi(config, data):
     import socket
     action = data.get("action")
-    if action not in ("status", "confirm", "join", "forget", "offline"):
+    if action not in ("status", "scan", "confirm", "join", "forget", "offline"):
         raise ValueError("지원하지 않는 네트워크 요청입니다.")
     if not config or not Path("/run/cortex-network/control.sock").exists():
         if action == "status":
@@ -59,7 +59,7 @@ def external_wifi(config, data):
         client.connect("/run/cortex-network/control.sock")
         client.sendall(json.dumps(data).encode() + b"\n")
         with client.makefile("rb") as reader:
-            result = json.loads(reader.readline(4096))
+            result = json.loads(reader.readline(256 * 1024 if action == "scan" else 4096))
     if "error" in result:
         raise ValueError("리모트 디바이스 네트워크 요청을 완료하지 못했습니다. 연결 상태를 확인하세요.")
     if action == "offline":

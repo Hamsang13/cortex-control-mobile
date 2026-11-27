@@ -1053,6 +1053,16 @@ footer [aria-pressed=true],.utility [aria-pressed=true]{background:#bed65d;color
       .settings-dialog{padding:0;border:1px solid #444;border-radius:12px;width:min(750px,92vw);color:#eee;background:#242424;max-height:90dvh}
       .settings-dialog::backdrop{background:#000a}.settings-card{display:flex;flex-direction:column;height:min(560px,85dvh)}.settings-title,.setting-field{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 15px}.settings-title{background:#181818;border-bottom:1px solid #333}
       .settings-body{display:grid;grid-template-columns:minmax(140px,27%) 1fr;min-height:0;flex:1}.settings-list,.settings-body section{overflow:auto;padding:10px}.settings-list{border-right:1px solid #111}.settings-list button{display:block;width:100%;text-align:left}.settings-list [aria-pressed=true]{color:#44eb70;background:#363636}.settings-body h3{font-weight:500;margin:6px 0 18px}.setting-field{padding:12px 2px;border-bottom:1px solid #333}.setting-field span{flex:1}.setting-field input,.setting-field select{max-width:54%;accent-color:#46ea73}.settings-mobile-nav{display:none}
+      .setting-field.setting-range{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,42%) 7ch;align-items:center}
+      .setting-range input[type=range]{box-sizing:border-box;width:100%;min-width:0;max-width:none;margin:0}
+      .setting-range output{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+      .settings-heading{position:relative;display:flex;align-items:center;gap:6px;margin:6px 0 18px}
+      .settings-heading h3,.settings-heading .settings-mobile-nav{margin:0}
+      .settings-heading .settings-mobile-nav{min-width:0;width:auto;flex:1}
+      .settings-heading .settings-info{display:grid;place-items:center;flex:none;width:32px;height:32px;padding:0;background:transparent;color:#bbb}
+      .settings-info span{display:grid;place-items:center;width:16px;height:16px;border:1px solid currentColor;border-radius:50%;font:600 12px/1 sans-serif}
+      .settings-info[aria-expanded=true]{color:#62e782}
+      .settings-heading .settings-help{position:absolute;z-index:2;top:100%;left:0;box-sizing:border-box;width:max-content;max-width:min(100%,38ch);margin:4px 0 0;padding:10px 12px;border:1px solid #555;border-radius:8px;background:#303030;color:#eee;box-shadow:0 3px 9px #0007;line-height:1.5}
       @media(max-width:600px){.settings-body{display:block;overflow:auto}.settings-list,.settings-body h3{display:none}.settings-mobile-nav{display:block;width:100%;margin-bottom:16px}.settings-dialog{width:96vw}}
     footer{position:relative}.foot-version{position:absolute;left:50%;transform:translateX(-50%);color:#929292;font:11px system-ui;white-space:nowrap;pointer-events:none}
       footer .foot-tribute{margin-left:auto;opacity:0;min-width:44px;min-height:25px;background:transparent;border:0;box-shadow:none;-webkit-tap-highlight-color:transparent;color:#fff;font:11px system-ui}

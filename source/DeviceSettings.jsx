@@ -27,12 +27,58 @@ const groups = [
     ["midi_clock_out","MIDI clock out",["Off","MIDI DIN","USB MIDI","USB and DIN"]],["midi_clock_in_enabled","MIDI clock in"]]]
 ];
 
+const pageHelp = {
+  Brightness: ["화면과 풋스위치 LED 밝기를 조절합니다. 프리셋·씬·스톰프 스위치는 각 모드에서 비활성 LED에 ‘어두운 LED’ 밝기를 적용할지 정합니다.", "Adjust the screen and footswitch LED brightness. The Preset, Scene and Stomp switches choose which modes use the Dimmed LEDs level for inactive footswitches."],
+  "Master Volume": ["본체 마스터 볼륨 노브로 음량을 조절할 출력을 선택합니다.", "Choose which outputs follow the master volume knob on the Quad Cortex."],
+  "Global Bypass": ["그리드의 각 행에서 캐비넷 또는 IR 블록을 일괄 바이패스합니다.", "Choose which grid rows bypass their cabinet or impulse response blocks."],
+  "Scene Bypass State Behavior": ["씬에서 블록을 켜거나 끌 때 그 변경을 현재 씬에 반영할지 정합니다. 스톰프 풋스위치로 바꾼 경우만 제외할 수도 있습니다.", "Choose when switching a block on or off updates its bypass state in the current scene. You can exclude changes made with a Stomp footswitch."],
+  "Stomp Mode Bypass Assignment": ["새 블록의 바이패스를 스톰프 풋스위치에 자동으로 할당할지 정합니다.", "Choose whether new blocks are automatically assigned to a Stomp footswitch for bypass control."],
+  "Hold Timing": ["본체 풋스위치를 얼마나 오래 눌러야 길게 누르기로 인식할지 정합니다.", "Set how long you hold a footswitch before the Quad Cortex recognizes a long press."],
+  "Gig View Access": ["풋스위치로 긱 뷰를 열 수 있도록 설정합니다.", "Enable footswitch access to Gig View."],
+  "Swap Tempo and Tuner Access": ["템포와 튜너를 여는 풋스위치 조작을 서로 바꿉니다.", "Swap the footswitch actions that open Tempo and Tuner."],
+  "Dynamic Latency Compensation": ["병렬 신호 경로 사이의 처리 지연 차이를 본체가 보정하도록 설정합니다.", "Enable compensation for processing delays between parallel signal paths."],
+  "MIDI Settings": ["MIDI 채널과 클록 송수신, MIDI Thru, USB MIDI 및 중복 프로그램 변경 메시지 처리를 설정합니다.", "Configure the MIDI channel, clock input and output, MIDI Thru, USB MIDI and duplicate program changes."],
+  "연결 방식": ["iPad에서 리모트 디바이스에 연결할 방법을 선택합니다. 외부 Wi-Fi도 여기에서 설정합니다.", "Choose how the iPad connects to the remote device, or join an external Wi-Fi network."],
+  "리모트 디바이스": ["리모트 디바이스의 핫스팟 이름과 비밀번호, 접속 주소와 키를 바꾸거나 앱을 업데이트합니다.", "Change the remote device’s hotspot credentials, access URL and key, or update the app."],
+  Language: ["최초 설정과 설정 메뉴, 연결 및 로딩 안내에 사용할 언어를 선택합니다.", "Choose the language for setup, settings, and connection and loading messages."],
+};
+
+function SettingsHeading({page, pages, setPage, t, language}) {
+  const [open,setOpen]=useState(false);
+  const button=useRef(null), bubble=useRef(null);
+  useEffect(()=>{
+    if (!open) return;
+    function outside(e){
+      if (!button.current?.contains(e.target) && !bubble.current?.contains(e.target)) setOpen(false);
+    }
+    function escape(e){
+      if(e.key==="Escape"){e.preventDefault();e.stopPropagation();setOpen(false);button.current?.focus()}
+    }
+    document.addEventListener("pointerdown",outside,true);
+    document.addEventListener("keydown",escape,true);
+    return ()=>{
+      document.removeEventListener("pointerdown",outside,true);
+      document.removeEventListener("keydown",escape,true);
+    };
+  },[open]);
+  return <div className="settings-heading">
+    <select className="settings-mobile-nav" aria-label={t("설정 항목")} value={page} onChange={e=>setPage(e.target.value)}>
+      {pages.map(name=><option key={name} value={name}>{t(name)}</option>)}
+    </select>
+    <h3>{t(page)}</h3>
+    <button type="button" className="settings-info" ref={button} aria-label={language==="ko"?t(page)+" 설명":"About "+t(page)}
+      aria-controls={open?"settings-help":undefined} aria-expanded={open} onClick={()=>setOpen(v=>!v)}><span aria-hidden="true">i</span></button>
+    {open && <p id="settings-help" className="settings-help" ref={bubble}>{pageHelp[page][language==="ko"?0:1]}</p>}
+  </div>;
+}
+
 function Setting({item, value, save, t}) {
   const [key,label,options]=item;
   const [draft,setDraft]=useState(null);
   const submit=v=>{setDraft(null);if(v!==value)save(key,v)};
-  return <label className="setting-field"><span>{t(label)}</span>
-    {value==null ? <small>—</small> : (options==="range" || key==="hold_timing") ?
+  const range=options==="range" || key==="hold_timing";
+  return <label className={"setting-field"+(range?" setting-range":"")}><span>{t(label)}</span>
+    {value==null ? <small>—</small> : range ?
       <><input type="range" min="0" max={key==="hold_timing"?5:100} value={draft??value}
         onChange={e=>setDraft(Number(e.target.value))} onPointerUp={e=>submit(Number(e.currentTarget.value))}
         onKeyUp={e=>submit(Number(e.currentTarget.value))} onPointerCancel={()=>setDraft(null)}
@@ -89,8 +135,7 @@ export default function DeviceSettings({api,online,close,network,onNetwork,setti
     <div className="settings-card"><div className="settings-title">{t("Device Settings")}<button aria-label={t("설정 닫기")} onClick={close}>×</button></div>
       <div className="settings-body"><div className="settings-list">{pages.map(name=>
         <button key={name} aria-pressed={page===name} onClick={()=>setPage(name)}>{t(name)}</button>)}</div>
-        <section className={page==="리모트 디바이스" ? "pi-settings-page" : undefined}><select className="settings-mobile-nav" aria-label={t("설정 항목")} value={page} onChange={e=>setPage(e.target.value)}>
-          {pages.map(name=><option key={name} value={name}>{t(name)}</option>)}</select><h3>{t(page)}</h3>
+        <section className={page==="리모트 디바이스" ? "pi-settings-page" : undefined}><SettingsHeading key={page} {...{page,pages,setPage,t,language}}/>
           {page==="Language"?<label className="setting-field">{t("Language")}<select value={language} onChange={e=>changeLanguage(e.target.value)}><option value="en">English</option><option value="ko">한국어</option></select></label>:page==="연결 방식"?<ConnectionChoice t={t} language={language} api={api} pi={pi} network={network} onNetwork={onNetwork}/>: page==="리모트 디바이스"?pi?.available?<><PiForm t={t} language={language} initial={pi} api={api}/><OfflineUpdate t={t} api={api}/></>:piError?<p role="alert">{t("리모트 디바이스 설정을 읽을 수 없습니다. 리모트 디바이스에서 실행 중인 Cortex Remote에 접속하세요.")} <button onClick={()=>setPiRetry(v=>v+1)}>{t("다시 읽기")}</button></p>:pi?<p>{t("핫스팟 이름·비밀번호와 리모트 주소·접속 키는 리모트 디바이스에서 실행 중인 Cortex Remote에 접속하면 변경할 수 있습니다.")}</p>:<p role="status">{t("리모트 디바이스 설정을 읽는 중입니다.")}</p>:
             !online?<p>{t("Quad Cortex를 USB로 연결하세요.")}</p>:values?
             groups.find(([name])=>name===page)[1].map(item=><Setting t={t} key={item[0]} item={item} value={edits.draft[item[0]]??values[item[0]]} save={save}/>):
