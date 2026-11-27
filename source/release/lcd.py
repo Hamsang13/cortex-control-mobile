@@ -1,6 +1,7 @@
 """Waveshare 1.9-inch LCD. Consumes timestamped Remote telemetry on a local socket."""
 import json
 import math
+import select
 import signal
 import socket
 import struct
@@ -11,8 +12,8 @@ import lgpio
 import spidev
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
-BG, TEXT, DIM, TRACK, GREEN, YELLOW, RED = range(7)
-COLORS = (0x080808, 0xf4f4f4, 0xa0a4a9, 0x303136, 0x42e761, 0xffcc39, 0xff394e)
+BG, TEXT, DIM, TRACK, GREEN, YELLOW, RED, ORANGE = range(8)
+COLORS = (0x080808, 0xf4f4f4, 0xa0a4a9, 0x303136, 0x42e761, 0xffcc39, 0xff394e, 0xff8b30)
 RGB565 = [((c >> 19) << 11) | (((c >> 10) & 63) << 5) | ((c >> 3) & 31) for c in COLORS]
 HIGH = bytes([v >> 8 for v in RGB565]).ljust(256, b'\0')
 LOW = bytes([v & 255 for v in RGB565]).ljust(256, b'\0')
@@ -76,6 +77,7 @@ class Display:
         self.mode = None
         self.previous = {}
         self.delays = []
+        self.note_delays = []
 
     def text(self,x,y,text,size=16,color=TEXT,anchor="lt"):
         self.draw.text((x,y),text,font=self.fonts[size],fill=color,anchor=anchor)
@@ -118,7 +120,19 @@ class Display:
                 diff=ImageChops.difference(before,self.image.crop(box)).getbbox()
                 if diff:
                     l,t,r,b=diff
-                    self.panel.send(self.image,(box[0]+l,box[1]+t,box[0]+r,box[1]+b))
+                    if name == "note":
+                        # At 250 kHz unchanged background pixels cost more than a window command.
+                        delta = ImageChops.difference(before,self.image.crop(box))
+                        for y in range(t,b,4):
+                            strip = delta.crop((l,y,r,min(y+4,b))).getbbox()
+                            if strip:
+                                x0,y0,x1,y1 = strip
+                                self.panel.send(self.image,(box[0]+l+x0,box[1]+y+y0,
+                                                            box[0]+l+x1,box[1]+y+y1))
+                        if stamp is not None:
+                            self.note_delays.append(round(1000*(time.monotonic()-stamp),1))
+                    else:
+                        self.panel.send(self.image,(box[0]+l,box[1]+t,box[0]+r,box[1]+b))
                     if stamp is not None:self.delays.append(round(1000*(time.monotonic()-stamp),1))
 
         clock=time.strftime("%H:%M")
@@ -127,10 +141,13 @@ class Display:
             midi=69+12*math.log2(hz/data["ref"]) if hz and hz>0 and data.get("ref",0)>0 else None
             nearest=math.floor(midi+.5) if midi is not None else None
             note=NOTES[nearest%12]+str(nearest//12-1) if nearest is not None else "—"
-            field("note",(0,10,122,80),note,lambda:self.text(61,35,note,42,TEXT,"mt"))
-            mark=61+round(100*(midi-nearest)) if nearest is not None else None
+            field("note",(0,10,122,80),note,lambda:self.text(61,35,note,42,TEXT,"mt"),
+                  data["pitch"][0] if nearest is not None else None)
+            cents = round(100*(midi-nearest)) if nearest is not None else None
+            mark = 61+cents if cents is not None else None
+            color = GREEN if cents is None or abs(cents)<=3 else ORANGE if abs(cents)<=15 else RED
             field("mark",(6,86,116,100),mark,lambda:self.draw.polygon(
-                [(mark-4,88),(mark+4,88),(mark,99)],fill=GREEN) if mark is not None else None, data["pitch"][0] if mark is not None else None)
+                [(mark-4,88),(mark+4,88),(mark,99)],fill=color) if mark is not None else None, data["pitch"][0] if mark is not None else None)
             label=INPUT.get(data.get("input"),"Input —")
             field("input",(0,134,122,164),label,lambda:self.text(61,142,label,16,DIM,"mt"))
             for i,(box,value) in enumerate(zip(BARS,levels)):
@@ -187,7 +204,8 @@ def main():
                 display.update(data,time.monotonic())
                 if start-last_report>=10:
                     delays=sorted(display.delays)
-                    stats={"remote":start-data.get("stamp",-10)<1.5,"monitor":display.mode,
+                    notes=sorted(display.note_delays)
+                    stats={"note_changes":len(notes), "note_hid_to_spi_p50_ms":notes[len(notes)//2] if notes else None,"remote":start-data.get("stamp",-10)<1.5,"monitor":display.mode,
                            "frame":data,"changed_samples":len(delays),
                            "hid_to_spi_p50_ms":delays[len(delays)//2] if delays else None,
                            "hid_to_spi_p95_ms":delays[int(len(delays)*.95)] if delays else None}
@@ -195,8 +213,10 @@ def main():
                     tmp.write_text(json.dumps(stats))
                     tmp.replace(endpoint.with_name("status.json"))
                     display.delays.clear()
+                    display.note_delays.clear()
                     last_report=start
-                time.sleep(max(0,.04-(time.monotonic()-start)))
+                # Wake on the next Remote frame, even if it arrives just after drawing.
+                select.select([sock],[],[],.1)
     finally:
         endpoint.unlink(missing_ok=True)
         panel.close()
